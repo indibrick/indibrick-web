@@ -85,15 +85,6 @@ const Header: React.FC = () => {
                 <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400">The Ecosystem</span>
               </div>
             </div>
-            
-            <div className="h-10 w-px bg-gray-200 mx-2 hidden md:block"></div>
-            
-            <div className="hidden lg:flex flex-col select-none">
-              <span className="text-sm font-black text-black leading-tight uppercase tracking-tighter">Dream Home + Life </span>
-              <span onClick={handleSecretClick} className="text-[10px] text-gray-400 uppercase tracking-widest font-black cursor-default">
-              Powered by Pineapple Financial
-              </span>
-            </div>
           </Link>
 
           {/* DESKTOP NAV */}
