@@ -1,0 +1,26 @@
+steps:
+  # 1. Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/indibrick-web', '.']
+
+  # 2. Push the image to Google Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/indibrick-web']
+
+  # 3. Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'indibrick-web'        # This must match your Service Name exactly
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/indibrick-web'
+      - '--region'
+      - 'us-central1'          # CHANGE THIS if your service is in a different region (e.g., northamerica-northeast1)
+      - '--platform'
+      - 'managed'
+
+# THIS FIXES YOUR ERROR
+options:
+  logging: CLOUD_LOGGING_ONLY
