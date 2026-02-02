@@ -61,7 +61,7 @@ export default function AboutPage() {
            <div className="text-center mb-16">
               <div className="inline-flex items-center gap-4 bg-white border border-gray-200 px-8 py-4 rounded-full shadow-xl mb-8 animate-fade-in-up">
                   <div className="relative w-12 h-12 rounded-full overflow-hidden border border-gray-100">
-                     <Image src="/logo.jpg" fill alt="Dream Home + Life Logo" className="object-cover" />
+                     <Image src="/logo-in.jpg" fill alt="Dream Home + Life Logo" className="object-cover" />
                   </div>
                   <span className="font-black text-2xl text-slate-900 tracking-tight uppercase">Dream Home + Life</span>
               </div>
@@ -82,7 +82,7 @@ export default function AboutPage() {
                   <div className="flex flex-col md:flex-row items-center gap-12">
                     <div className="w-full md:w-1/3 relative">
                         <div className="aspect-[4/5] bg-white rounded-[2rem] overflow-hidden shadow-2xl relative border-4 border-white">
-                          <Image src="/vikas.jpg" fill alt="Vikas Sharma" className="object-cover" priority />
+                          <Image src="/vikas-in.jpg" fill alt="Vikas Sharma" className="object-cover" priority />
                         </div>
                         <div className="absolute -bottom-6 -right-4 bg-black text-white p-4 rounded-xl shadow-lg">
                           <p className="text-2xl font-black">22+</p>
@@ -109,7 +109,7 @@ export default function AboutPage() {
                   <div className="bg-white p-8 rounded-[2.5rem] border border-gray-200 hover:shadow-xl transition group flex flex-col">
                       <div className="flex items-center gap-6 mb-6">
                           <div className="w-24 h-24 bg-gray-100 rounded-full overflow-hidden relative border-4 border-white shadow-md shrink-0">
-                              <Image src="/Amit.jpg" fill alt="Amit Nagpal" className="object-cover" />
+                              <Image src="/amit-in.jpg" fill alt="Amit Nagpal" className="object-cover" />
                           </div>
                           <div>
                               <h4 className="text-2xl font-black text-slate-900">Amit Nagpal</h4>
@@ -128,13 +128,13 @@ export default function AboutPage() {
                   <div className="bg-white p-8 rounded-[2.5rem] border border-gray-200 hover:shadow-xl transition group flex flex-col">
                       <div className="flex items-center gap-6 mb-6">
                           <div className="w-24 h-24 bg-gray-100 rounded-full overflow-hidden relative border-4 border-white shadow-md shrink-0">
-                              <Image src="/Vignesh.jpg" fill alt="Vignesh Karthikeyan" className="object-cover" />
+                              <Image src="/vignesh-in.jpg" fill alt="Vignesh Karthikeyan" className="object-cover" />
                           </div>
                           <div>
                               <h4 className="text-2xl font-black text-slate-900">Vignesh Karthikeyan</h4>
                               <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-1">Investment & Insurance Specialist</p>
                           </div>
-                      </div>
+                      </div>  
                       <p className="text-gray-600 text-sm leading-relaxed mb-8 flex-grow">
                           Leading the wealth protection division. Vignesh designs comprehensive insurance and investment strategies (Segregated Funds, Life Insurance) to secure your family's financial future alongside your real estate assets.
                       </p>
@@ -170,7 +170,7 @@ export default function AboutPage() {
                   <div className="relative z-10 flex flex-col h-full">
                      <div className="flex items-center gap-6 mb-6">
                         <div className="w-20 h-20 bg-gray-200 rounded-full overflow-hidden relative border-2 border-gray-100">
-                           <Image src="/saad.jpg" fill alt="Saad Shaikh" className="object-cover" />
+                           <Image src="/saad-in.jpg" fill alt="Saad Shaikh" className="object-cover" />
                         </div>
                         <div>
                            <h4 className="text-2xl font-black">Saad Shaikh</h4>
@@ -191,7 +191,7 @@ export default function AboutPage() {
                   <div className="relative z-10 flex flex-col h-full">
                      <div className="flex items-center gap-6 mb-6">
                         <div className="w-20 h-20 bg-gray-200 rounded-full overflow-hidden relative border-2 border-gray-100">
-                           <Image src="/mudit.jpg" fill alt="Mudit Chhura" className="object-cover" />
+                           <Image src="/mudit-in.jpg" fill alt="Mudit Chhura" className="object-cover" />
                         </div>
                         <div>
                            <h4 className="text-2xl font-black">Mudit Chhura</h4>
