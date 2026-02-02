@@ -170,7 +170,7 @@ export default function AboutPage() {
                      Driving the digital narrative. Sana curates high-impact content that bridges the gap between complex financial data and user engagement, amplifying Indibrick's market presence.
                   </p>
                   {/* Replace '#' with her actual LinkedIn URL if available */}
-                  <a href="https://www.linkedin.com/in/sana-khan-a27899261/" target="_blank" rel="noopener noreferrer" className={linkedinButtonStyle}>
+                  <a href="https://www.linkedin.com/in/sana-k-a54b6b389/" target="_blank" rel="noopener noreferrer" className={linkedinButtonStyle}>
                      <Linkedin size={18} /> LinkedIn
                   </a>
                </div>
