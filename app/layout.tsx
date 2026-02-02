@@ -4,7 +4,6 @@ import "./globals.css";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import Breadcrumbs from "../components/Breadcrumbs";
-import MarketTicker from "../components/MarketTicker";
 import Providers from "../components/Providers";
 import JsonLd from "../components/JsonLd";
 import { CityService } from "../services/CityService"; 
@@ -66,7 +65,6 @@ export default async function RootLayout({
         
         <Providers>
           <div className="flex flex-col min-h-screen">
-            <MarketTicker />
             
             <Header />
             
