@@ -1,0 +1,25 @@
+import React from 'react';
+import { Metadata } from 'next';
+import DownPaymentCalculator from '../../components/DownPaymentCalculator';
+import LeadForm from '../../components/LeadForm';
+
+export const metadata: Metadata = {
+  title: 'Down Payment Calculator Canada | CMHC Insurance Rates',
+  description: 'Calculate minimum down payment requirements (5% vs 20%) and estimate CMHC mortgage default insurance premiums.',
+};
+
+export default function DownPaymentPage() {
+  return (
+    <div className="bg-white">
+      <section className="bg-black text-white py-20 text-center">
+        <h1 className="text-4xl md:text-6xl font-black uppercase tracking-tighter mb-4">Down Payment <br/> Calculator</h1>
+      </section>
+      <section className="py-20 bg-gray-50">
+        <div className="container mx-auto px-6 max-w-5xl"><DownPaymentCalculator /></div>
+      </section>
+      <section className="py-20 bg-white container mx-auto px-6 max-w-3xl">
+         <LeadForm type="Mortgage" title="Get Pre-Approved" subtitle="See what you qualify for." />
+      </section>
+    </div>
+  );
+}

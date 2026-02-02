@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    /* 1. PREMIUM FONT RENDERING */
+    /* This forces the browser to render text crisper and thinner */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    
+    /* 2. THINNER WEIGHT */
+    /* Standard is 400. 350 is "Book" (Modern Fintech Look). */
+    font-weight: 300; 
+    
+    @apply text-slate-900 bg-white;
+    overflow-x: hidden;
+  }
+
+  /* 3. HEADINGS OPTIMIZATION */
+  /* Tighten letter spacing for large text to make it look professional */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold; 
+    letter-spacing: -0.03em;
+  }
+}
+
+@layer utilities {
+  .cinematic-gradient {
+    background: radial-gradient(circle at center, transparent 0%, rgba(0,0,0,0.4) 60%, rgba(0,0,0,0.9) 100%);
+  }
+}

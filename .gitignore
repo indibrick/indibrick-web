@@ -1,0 +1,30 @@
+# Next.js
+.next/
+out/
+build/
+dist/
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# OS
+.DS_Store
+
+# Legacy Server & SPA (DO NOT COMMIT)
+server/
+index.html
+index.tsx
+vite.config.ts
+public/index.html
+public/placeholder.html
