@@ -174,6 +174,12 @@ export interface Referral {
       return false;
     }
   }
+  export interface MarketMetric {
+  label: string;
+  value: string;
+  trend: 'up' | 'down' | 'flat';
+  change: string;
+  }
 
   /**
    * 7. ADMIN: FETCH TEAM (Users)

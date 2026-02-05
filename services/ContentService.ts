@@ -1,9 +1,22 @@
 import { db } from "../firebase";
-import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from "firebase/firestore";
-import { BlogPost, NewsArticle, MortgageRate } from "../types";
+import { 
+  collection, 
+  getDocs, 
+  doc, 
+  setDoc, 
+  deleteDoc, 
+  getDoc, 
+  query, 
+  where 
+} from "firebase/firestore";
+import { BlogPost, NewsArticle, MortgageRate, MarketMetric } from "../types";
 
 export const ContentService = {
-  // --- BLOG POSTS ---
+  
+  // ===========================================================================
+  // 1. BLOG POSTS (Knowledge Base)
+  // ===========================================================================
+
   async fetchPosts(): Promise<BlogPost[]> {
     try {
       const postsRef = collection(db, "posts");
@@ -21,8 +34,33 @@ export const ContentService = {
     }
   },
 
+  async getPostBySlug(slug: string): Promise<BlogPost | null> {
+    try {
+      // First try to get by document ID (if slug is the ID)
+      const docRef = doc(db, "posts", slug);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() } as BlogPost;
+      }
+
+      // Fallback: Query by 'slug' field if IDs are different
+      const q = query(collection(db, "posts"), where("slug", "==", slug));
+      const snapshot = await getDocs(q);
+
+      if (!snapshot.empty) {
+        return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as BlogPost;
+      }
+
+      return null;
+    } catch (error) {
+      console.error("Error fetching single post:", error);
+      return null;
+    }
+  },
+
   async createPost(post: Omit<BlogPost, 'id'>) {
-    // Use the slug as the ID for SEO friendly URLs
+    // Use the slug as the ID for SEO-friendly URLs and easier lookup
     await setDoc(doc(db, "posts", post.slug), post);
   },
 
@@ -30,25 +68,68 @@ export const ContentService = {
     await deleteDoc(doc(db, "posts", id));
   },
 
-  // --- NEWS ARTICLES ---
+  // ===========================================================================
+  // 2. MARKET TICKER (Dynamic Real-Time Data)
+  // ===========================================================================
+
+  async fetchTicker(): Promise<MarketMetric[]> {
+    try {
+      const docRef = doc(db, "site_settings", "ticker");
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists() && docSnap.data().metrics) {
+        return docSnap.data().metrics as MarketMetric[];
+      }
+
+      // Fallback Default Data (Prevents empty bar if DB is new)
+      return [
+        { label: 'Prime Rate', value: '5.95%', trend: 'down', change: '-0.25%' },
+        { label: '5-Yr Bond Yield', value: '3.12%', trend: 'up', change: '+0.04%' },
+        { label: 'Qualifying Rate (B-20)', value: '5.25%', trend: 'flat', change: '0.00%' },
+        { label: 'Avg Toronto Detached', value: '$1.45M', trend: 'down', change: '-2.1%' },
+      ];
+    } catch (error) {
+      console.error("Error fetching ticker:", error);
+      return [];
+    }
+  },
+
+  async updateTicker(metrics: MarketMetric[]) {
+    await setDoc(doc(db, "site_settings", "ticker"), { 
+      metrics,
+      lastUpdated: new Date().toISOString() 
+    });
+  },
+
+  // ===========================================================================
+  // 3. NEWS ARTICLES
+  // ===========================================================================
+
   async fetchNews(): Promise<NewsArticle[]> {
     try {
       const snapshot = await getDocs(collection(db, "news"));
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as NewsArticle));
-    } catch (error) { return []; }
+    } catch (error) {
+      return [];
+    }
   },
 
   async createNews(news: Omit<NewsArticle, 'id'>) {
-    await setDoc(doc(collection(db, "news")), news);
+    // Auto-generate ID
+    const newsRef = doc(collection(db, "news"));
+    await setDoc(newsRef, { ...news, id: newsRef.id });
   },
 
-  // --- MORTGAGE RATES (FIXED) ---
+  // ===========================================================================
+  // 4. MORTGAGE RATES (Global Pricing)
+  // ===========================================================================
+
   async fetchRates(): Promise<MortgageRate[]> {
     try {
       const snapshot = await getDocs(collection(db, "rates"));
       
       if (snapshot.empty) {
-        // FALLBACK: Return default rates if DB is empty to prevent crash
+        // SAFETY NET: Return default rates if DB is empty to prevent crash
         const defaults: MortgageRate[] = [
           { id: '5-year-fixed-insured', name: '5-Year Fixed (Insured)', rate: 4.69, type: 'fixed', term: 5 },
           { id: '3-year-fixed-insured', name: '3-Year Fixed (Insured)', rate: 4.99, type: 'fixed', term: 3 },

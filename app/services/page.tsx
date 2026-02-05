@@ -52,7 +52,7 @@ export default function ServicesPage() {
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               
               {/* 1. FINANCE */}
-              <Link href="/rates" className="group bg-white border border-gray-200 rounded-[2.5rem] p-8 hover:shadow-2xl hover:border-blue-200 transition duration-500 relative overflow-hidden">
+              <Link href="/mortgages" className="group bg-white border border-gray-200 rounded-[2.5rem] p-8 hover:shadow-2xl hover:border-blue-200 transition duration-500 relative overflow-hidden">
                  <div className="relative z-10">
                     <div className="w-12 h-12 bg-blue-600 text-white rounded-xl flex items-center justify-center mb-6 shadow-lg shadow-blue-200">
                        <TrendingUp size={24} />

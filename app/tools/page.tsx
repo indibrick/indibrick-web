@@ -88,6 +88,19 @@ export default function ToolsPage() {
                     Launch Tool <ArrowRight size={14}/>
                  </div>
               </Link>
+              {/* Smith Maneuver (NEW) */}
+              <Link href="/tools/smith-maneuver-calculator" className="group bg-slate-900 text-white rounded-[2rem] p-8 hover:shadow-2xl transition duration-300 flex flex-col h-full relative overflow-hidden">
+                 <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/20 rounded-full blur-2xl -mr-10 -mt-10"></div>
+                 <div className="mb-6 flex justify-between items-start relative z-10">
+                    <RefreshCw size={32} className="text-blue-400 group-hover:text-white transition" />
+                    <span className="bg-blue-500/20 text-blue-300 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-blue-500/30">Tax Strategy</span>
+                 </div>
+                 <h3 className="text-xl font-black uppercase mb-2 relative z-10">Smith Maneuver™</h3>
+                 <p className="text-sm text-gray-400 mb-8 leading-relaxed relative z-10">Turn your mortgage interest into a tax deduction. Model the transformation of Bad Debt to Good Debt.</p>
+                 <div className="mt-auto flex items-center gap-2 text-xs font-black uppercase tracking-widest text-blue-400 group-hover:gap-4 transition-all">
+                    Launch Engine <ArrowRight size={14}/>
+                 </div>
+              </Link>
 
               {/* 3. Affordability */}
               <Link href="/affordability-calculator" className="group bg-white rounded-[2rem] p-8 border border-gray-100 hover:border-black hover:shadow-2xl transition duration-300 flex flex-col h-full">

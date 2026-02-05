@@ -47,6 +47,7 @@ const Header: React.FC = () => {
     {
       title: "Wealth Strategy",
       items: [
+        { name: 'Smith Maneuver', path: '/tools/smith-maneuver-calculator', icon: RefreshCw },
         { name: 'Universal Life (Tax)', path: '/tools/universal-life-calculator', icon: Lock },
         { name: 'Segregated Funds', path: '/tools/segregated-fund-calculator', icon: Shield },
       ]
