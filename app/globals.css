@@ -29,4 +29,31 @@
   .cinematic-gradient {
     background: radial-gradient(circle at center, transparent 0%, rgba(0,0,0,0.4) 60%, rgba(0,0,0,0.9) 100%);
   }
+  /* app/globals.css */
+
+@layer utilities {
+  /* Automatically scale down huge headings on mobile */
+  @media (max-width: 768px) {
+    .text-5xl, .text-6xl, .text-7xl, .text-8xl {
+      font-size: 2.5rem !important; /* Forces ~40px max on mobile */
+      line-height: 1.1 !important;
+    }
+    
+    .text-4xl {
+      font-size: 2rem !important; /* ~32px */
+    }
+
+    /* Fix container padding globally */
+    .container {
+      padding-left: 1.5rem !important;  /* 24px */
+      padding-right: 1.5rem !important; /* 24px */
+    }
+    
+    /* Tame those huge sections */
+    section {
+      padding-top: 4rem !important;
+      padding-bottom: 4rem !important;
+    }
+  }
+}
 }
