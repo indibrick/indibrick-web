@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import Script from "next/script"; // <--- 1. IMPORT SCRIPT COMPONENT
 import "./globals.css";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -56,11 +57,28 @@ export default async function RootLayout({
 
   return (
     <html lang="en">
+      
       {/* 2. APPLY CLASSES DIRECTLY HERE */}
       {/* antialiased = Makes font crisper/thinner (Apple style) */}
       {/* font-[350] = Forces the exact "Book" weight (thinner than normal 400) */}
       <body className={`${inter.className} bg-white text-slate-900 pb-20 md:pb-0 antialiased font-[350]`}> 
         
+        {/* --- 3. GOOGLE ADS TAG (AW-17924066227) --- */}
+        {/* Optimized to load after hydration to prevent blocking main thread */}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=AW-17924066227"
+          strategy="afterInteractive"
+        />
+        <Script id="google-ads-tag" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'AW-17924066227');
+          `}
+        </Script>
+        {/* --- END GOOGLE TAG --- */}
+
         <JsonLd data={organizationSchema} />
         
         <Providers>

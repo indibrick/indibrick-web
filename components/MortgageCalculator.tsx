@@ -135,7 +135,7 @@ export default function MortgageCalculator() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-2">Down Payment ($)</label>
+              <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-2">Down Payment($)</label>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-gray-400">$</span>
                 <input 
