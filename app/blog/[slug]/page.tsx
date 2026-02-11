@@ -1,25 +1,21 @@
 'use client';
 
-// Note: Next.js App Router Client Component needed for hooks/interactivity if tools use state.
-// However, since we are fetching data, we keep the main page Server-Side and use client slots if needed.
-// For simplicity in this architecture, we will keep it Server Component but import the tools which are Client Components.
-
 import React from 'react';
 import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
-import { db } from '../../firebase'; // Adjusted path for standard structure
+import { db } from '@/firebase'; // <--- FIXED
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { BlogPost } from '../../types';
+import { BlogPost } from '@/types'; // <--- FIXED
 import Link from 'next/link';
 import { ArrowLeft, Calendar, User, Tag, Calculator, Clock, Share2, ArrowRight, ShieldCheck } from 'lucide-react';
-import JsonLd from '../../components/JsonLd';
-import LeadForm from '../../components/LeadForm';
+import JsonLd from '@/components/JsonLd'; // <--- FIXED
+import LeadForm from '@/components/LeadForm'; // <--- FIXED
 
-// Import Calculators
-import MortgageCalculator from '../../components/MortgageCalculator';
-import LandTransferTaxCalculator from '../../components/LandTransferTaxCalculator';
-import ClosingCostsCalculator from '../../components/ClosingCostsCalculator';
-import AffordabilityCalculator from '../../components/AffordabilityCalculator';
+// Import Calculators (FIXED IMPORTS)
+import MortgageCalculator from '@/components/MortgageCalculator';
+import LandTransferTaxCalculator from '@/components/LandTransferTaxCalculator';
+import ClosingCostsCalculator from '@/components/ClosingCostsCalculator';
+import AffordabilityCalculator from '@/components/AffordabilityCalculator';
 
 // --- 1. DATA FETCHING ---
 async function getPost(slug: string): Promise<BlogPost | null> {
@@ -29,7 +25,6 @@ async function getPost(slug: string): Promise<BlogPost | null> {
     if (snapshot.empty) return null;
     const data = snapshot.docs[0].data();
     
-    // Handle Firestore Timestamp conversion if needed
     let date = new Date().toISOString();
     if (data.date && typeof data.date.toDate === 'function') {
         date = data.date.toDate().toISOString();
@@ -69,7 +64,6 @@ function getContextualTool(slug: string, category: string) {
       component: <ClosingCostsCalculator />
     };
   }
-  // Default Mortgage Tool
   if (category === 'Mortgage' || s.includes('rate') || s.includes('payment') || s.includes('refinance')) {
     return {
       title: "Mortgage Payment Scenarios",
@@ -102,15 +96,14 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
     <div className="bg-white min-h-screen font-sans text-slate-900">
       <JsonLd data={articleSchema} />
 
-      {/* --- PROGRESS BAR (Optional visual flare) --- */}
+      {/* --- PROGRESS BAR --- */}
       <div className="fixed top-0 left-0 w-full h-1 bg-gray-100 z-50">
         <div className="h-full bg-blue-600 w-0 animate-scroll-progress"></div>
       </div>
 
-      {/* --- HEADER SECTION (Editorial Style) --- */}
+      {/* --- HEADER SECTION --- */}
       <header className="pt-32 pb-12 px-6 bg-white border-b border-gray-100">
          <div className="container mx-auto max-w-5xl">
-            {/* Breadcrumb / Nav */}
             <div className="flex items-center justify-between mb-8">
                 <Link href="/blog" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-blue-600 transition">
                     <ArrowLeft size={12} /> Intelligence Hub
@@ -122,17 +115,13 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
                 </div>
             </div>
 
-            {/* Title Block */}
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-black text-slate-900 tracking-tighter leading-[1.1] mb-8 max-w-4xl">
                 {post.title}
             </h1>
 
-            {/* Author / Meta Row */}
             <div className="flex flex-wrap items-center gap-6 text-sm border-t border-gray-100 pt-6">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-slate-900 rounded-full flex items-center justify-center text-white font-bold">
-                        IB
-                    </div>
+                    <div className="w-10 h-10 bg-slate-900 rounded-full flex items-center justify-center text-white font-bold">IB</div>
                     <div>
                         <p className="font-bold text-slate-900 leading-tight">IndiBrick Research</p>
                         <p className="text-gray-500 text-xs">Financial Strategy Team</p>
@@ -150,10 +139,9 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
       <div className="container mx-auto max-w-7xl px-6 py-12 md:py-20">
          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 xl:gap-20">
             
-            {/* LEFT COLUMN: Article Content (8 cols) */}
+            {/* LEFT COLUMN: Article Content */}
             <main className="lg:col-span-8">
                 
-                {/* Featured Image */}
                 <div className="mb-12 rounded-[2rem] overflow-hidden shadow-2xl bg-gray-100 relative aspect-video">
                     <img 
                         src={post.imageUrl} 
@@ -162,7 +150,6 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
                     />
                 </div>
 
-                {/* The Content */}
                 <div className="prose prose-lg md:prose-xl prose-slate max-w-none 
                     prose-headings:font-black prose-headings:tracking-tight prose-headings:text-slate-900 
                     prose-p:text-gray-600 prose-p:leading-relaxed prose-p:font-medium
@@ -173,12 +160,10 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
                     <div dangerouslySetInnerHTML={{ __html: post.content }} />
                 </div>
 
-                {/* INJECTED TOOL (Wide Breakout) */}
+                {/* INJECTED TOOL */}
                 {activeTool && (
                     <div className="mt-20 mb-20 -mx-6 md:-mx-12 p-6 md:p-12 bg-slate-900 text-white rounded-[2.5rem] shadow-2xl relative overflow-hidden group">
-                        {/* Background FX */}
                         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[100px] -mr-20 -mt-20 pointer-events-none"></div>
-                        
                         <div className="relative z-10 mb-8 flex items-center gap-4 border-b border-white/10 pb-6">
                             <div className="p-3 bg-blue-600 rounded-xl shadow-lg shadow-blue-900/50">
                                 <Calculator size={24} className="text-white" />
@@ -188,20 +173,15 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
                                 <p className="text-blue-200 text-sm font-medium">{activeTool.subtitle}</p>
                             </div>
                         </div>
-
-                        {/* The Actual Tool Component */}
                         <div className="bg-white rounded-3xl p-1 shadow-inner">
                             {activeTool.component}
                         </div>
                     </div>
                 )}
-
             </main>
 
-            {/* RIGHT COLUMN: Sticky Sidebar (4 cols) */}
+            {/* RIGHT COLUMN: Sticky Sidebar */}
             <aside className="lg:col-span-4 space-y-8">
-                
-                {/* 1. Author/Strategy Card (Sticky) */}
                 <div className="sticky top-32">
                     <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-xl text-center">
                         <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-200">
@@ -211,14 +191,12 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
                         <p className="text-gray-500 text-sm mb-8 leading-relaxed">
                             Reading is research. Execution is wealth. Our team can structure this exact strategy for your portfolio.
                         </p>
-                        
                         <a href="/contact" className="block w-full bg-slate-900 text-white py-4 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-blue-600 transition shadow-lg mb-4">
                             Book Strategy Call
                         </a>
                         <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Free • No Obligation</p>
                     </div>
 
-                    {/* 2. Related Categories (Desktop Only) */}
                     <div className="mt-8 bg-gray-50 p-8 rounded-[2rem] border border-gray-100 hidden lg:block">
                         <h4 className="font-black uppercase text-xs tracking-widest text-gray-400 mb-6">Related Intel</h4>
                         <div className="flex flex-wrap gap-2">
@@ -230,9 +208,7 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
                         </div>
                     </div>
                 </div>
-
             </aside>
-
          </div>
       </div>
 
@@ -244,7 +220,6 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
               Book Call
           </a>
       </section>
-
     </div>
   );
 }
