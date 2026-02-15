@@ -2,12 +2,12 @@ import React from 'react';
 import Link from 'next/link';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/firebase'; 
-import LeadForm from '@/components/LeadForm';
+import GamifiedContactForm from '@/components/GamifiedContactForm'; // <-- NEW FORM IMPORT
 import { 
   ShieldCheck, CheckCircle, Phone, 
   Building2, Users, TrendingDown, Lock, 
   Briefcase, AlertCircle, LayoutGrid, Calculator, 
-  Zap, Scale, Home, Loader2
+  Scale, Home
 } from 'lucide-react';
 
 // --- SERVER SIDE CONFIG ---
@@ -178,7 +178,6 @@ export default async function LandingPage() {
                   </p>
                   
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                     {/* Buttons */}
                      <Link href="/tools" target="_blank" className="group flex flex-col items-center justify-center p-4 bg-white border border-gray-200 rounded-2xl hover:border-blue-500 hover:shadow-lg transition text-center">
                         <Calculator size={20} className="text-gray-400 group-hover:text-blue-500 mb-2"/>
                         <span className="text-[9px] font-bold uppercase tracking-widest text-gray-500 group-hover:text-black">Calculators</span>
@@ -201,27 +200,20 @@ export default async function LandingPage() {
             </div>
          </div>
 
-         {/* RIGHT SIDE: STICKY FORM */}
+         {/* RIGHT SIDE: STICKY FORM (Primary Conversion) */}
          <div className="lg:w-2/5 bg-white border-l border-gray-100 relative z-20 shadow-2xl lg:shadow-none order-1 lg:order-2">
             <div className="sticky top-20 h-auto lg:h-[calc(100vh-80px)] overflow-y-auto custom-scrollbar">
-               {/* Padding and Width adjusted to prevent compression */}
                <div className="p-6 lg:p-12 max-w-lg mx-auto w-full">
                   
                   <div className="lg:hidden mb-6 text-center">
                      <h1 className="text-3xl font-black uppercase tracking-tighter leading-none mb-2 text-slate-900">
                         Stop Overpaying.
                      </h1>
-                     <p className="text-sm text-gray-500">Get your custom rate quote below.</p>
+                     <p className="text-sm text-gray-500">Find out your options below.</p>
                   </div>
 
-                  <div className="bg-white rounded-3xl shadow-none">
-                     <LeadForm 
-                        type="Mortgage" 
-                        title="Check Eligibility" 
-                        subtitle="Compare 50+ lenders in 60 seconds. No hard credit check required to view rates."
-                        ctaText="See My Custom Rate"
-                     />
-                  </div>
+                  {/* INJECT GAMIFIED FORM */}
+                  <GamifiedContactForm />
 
                   <div className="mt-6 flex items-center justify-center gap-6 text-gray-400 grayscale opacity-70">
                      <div className="flex items-center gap-1.5"><Lock size={12}/><span className="text-[9px] font-bold uppercase tracking-widest">Bank-Grade Security</span></div>
