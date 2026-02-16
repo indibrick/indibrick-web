@@ -5,7 +5,8 @@ import LeadForm from '../../components/LeadForm';
 import JsonLd from '../../components/JsonLd';
 import { 
   TrendingDown, Shield, AlertTriangle, CheckCircle, 
-  Banknote, Landmark, Percent, Lock, HelpCircle, ChevronDown, Activity 
+  Banknote, Landmark, Percent, Lock, HelpCircle, 
+  ChevronDown, Activity, RefreshCw 
 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/firebase';
@@ -14,18 +15,31 @@ import { db } from '@/firebase';
 export const revalidate = 60; // Re-fetch data every 60 seconds
 
 export const metadata: Metadata = {
-  title: 'Lowest Mortgage Rates Ontario | Live Rate Matrix',
-  description: 'Compare our exclusive wholesale rates against the Big 5 Banks. We consistently beat TD, RBC, and Scotiabank by up to 1.50%. Bad credit & private options available.',
-  keywords: ['Mortgage Rates Ontario', 'Best Mortgage Rates 2026', 'Private Mortgage Lenders', 'B Lender Rates', 'Lowest 5 Year Fixed'],
+  title: 'Lowest Mortgage Rates Ontario | Live Matrix (Insured & Insurable)',
+  description: 'Compare exclusive wholesale mortgage rates for purchases, renewals, and refinances in Ontario. Consistently beating big bank posted rates. Alternative & private options available.',
+  keywords: [
+    'Mortgage Rates Ontario', 'Best Mortgage Rates 2026', 'Mortgage Renewal Rates', 
+    'Insurable Mortgage Rates', 'Private Mortgage Lenders', 'B Lender Rates', 'Lowest 5 Year Fixed'
+  ],
 };
 
 // Fallback rates in case DB is empty (Safety Net)
 const DEFAULT_RATES = {
+  // Insured
   insured_variable_5yr: '3.39',
   insured_fixed_5yr: '3.79',
   insured_fixed_3yr: '4.09',
+  
+  // Insurable (Renewals/Refinances - 25 Yr Amortization)
+  insurable_variable_5yr: '3.69',
+  insurable_fixed_5yr: '3.99',
+  insurable_fixed_3yr: '4.29',
+
+  // Uninsured
   uninsured_fixed_5yr: '4.39',
   uninsured_variable_5yr: '4.59',
+  
+  // Alternative
   b_lender: '4.79',
   private_1st: '5.49',
   second_mortgage: '4.99'
@@ -52,34 +66,36 @@ const calcSave = (bankRate: number, ourRateStr: string) => {
   return (bankRate - ourRate).toFixed(2);
 };
 
-
 // --- 2. THE COMPONENT ---
-
 export default async function RatesPage() {
   const rates = await getLiveRates();
 
-  // Benchmarks for Big 5 Banks (You can update these manually here if Banks shift drastically)
+  // Benchmarks for Big 5 Banks (Used for Savings Calculations)
   const BENCHMARKS = {
     insured_var: 6.10,
     insured_fix: 4.84,
     insured_3yr: 5.15,
+    insurable_var: 6.30,
+    insurable_fix: 5.04,
+    insurable_3yr: 5.35,
     uninsured_fix: 5.34,
     uninsured_var: 6.35
   };
 
+  // AEO/GEO Schema: Feeding exactly what we want AI engines to read
   const ratesSchema = {
     "@context": "https://schema.org",
     "@type": "Table",
-    "about": "IndiBrick Live Rate Matrix",
+    "about": "IndiBrick Live Rate Matrix - Ontario Mortgages",
     "mainEntity": [
       { "@type": "FinancialProduct", "name": "5-Year Variable (Insured)", "interestRate": rates.insured_variable_5yr, "provider": "IndiBrick Exclusive" },
-      { "@type": "FinancialProduct", "name": "5-Year Fixed (Insured)", "interestRate": rates.insured_fixed_5yr, "provider": "IndiBrick Exclusive" },
+      { "@type": "FinancialProduct", "name": "5-Year Fixed (Insurable Renewal)", "interestRate": rates.insurable_fixed_5yr, "provider": "IndiBrick Exclusive" },
       { "@type": "FinancialProduct", "name": "Private 1st Mortgage", "interestRate": rates.private_1st, "provider": "IndiBrick Private" }
     ]
   };
 
   return (
-    <div className="bg-white min-h-screen pt-32 pb-24">
+    <div className="bg-white min-h-screen pt-32 pb-24 font-sans">
       <JsonLd data={ratesSchema} />
 
       {/* --- HERO SECTION --- */}
@@ -92,12 +108,13 @@ export default async function RatesPage() {
                Stop Overpaying <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">The Banks.</span>
             </h1>
             <p className="text-xl text-gray-500 font-medium leading-relaxed mb-12">
-               We compare 40+ wholesale lenders to find "Status Pricing" that isn't available at your local branch.
+               We compare 40+ wholesale lenders to find "Status Pricing" that isn't available at your local branch. Purchases, Renewals, and Refinances.
             </p>
          </div>
 
          {/* --- 1. THE LIVE RATE MATRIX --- */}
          <div className="bg-white border border-gray-200 rounded-[2.5rem] shadow-2xl overflow-hidden mb-24">
+            
             {/* Header */}
             <div className="bg-slate-900 text-white p-8 md:p-10 flex flex-col md:flex-row justify-between items-end gap-6">
                <div>
@@ -126,8 +143,16 @@ export default async function RatesPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                      
-                     {/* GROUP 1: INSURED (High Ratio) */}
+                     {/* =========================================
+                         GROUP 1: INSURED (High Ratio / Purchase) 
+                         ========================================= */}
                      <tr className="bg-blue-50/30">
+                        <td colSpan={5} className="p-2 px-6 text-[9px] font-black uppercase tracking-widest text-blue-800 bg-blue-100/50">
+                           Insured / Purchases (Less than 20% Down)
+                        </td>
+                     </tr>
+
+                     <tr className="hover:bg-gray-50 transition">
                         <td className="p-6">
                            <div className="flex items-center gap-3">
                               <div className="bg-blue-100 p-2 rounded-lg text-blue-600"><Percent size={18}/></div>
@@ -197,10 +222,87 @@ export default async function RatesPage() {
                         <td className="p-6"><a href="#apply" className="text-xs font-black uppercase tracking-widest hover:underline">Apply</a></td>
                      </tr>
 
-                     {/* GROUP 2: UNINSURED (Conventional) */}
+                     {/* =========================================
+                         GROUP 2: INSURABLE (Renewals / Refis) 
+                         ========================================= */}
+                     <tr className="bg-green-50/30">
+                        <td colSpan={5} className="p-2 px-6 text-[9px] font-black uppercase tracking-widest text-green-800 bg-green-100/50">
+                           Insurable / Renewals & Transfers (25-Year Amortization)
+                        </td>
+                     </tr>
+
+                     <tr className="hover:bg-gray-50 transition">
+                        <td className="p-6">
+                           <div className="flex items-center gap-3">
+                              <div className="bg-green-100 p-2 rounded-lg text-green-600"><RefreshCw size={18}/></div>
+                              <div>
+                                 <p className="font-bold text-slate-900">5-Year Variable</p>
+                                 <p className="text-[10px] text-gray-500 uppercase tracking-wider">Insurable</p>
+                              </div>
+                           </div>
+                        </td>
+                        <td className="p-6 hidden md:table-cell">
+                           <span className="text-gray-400 line-through font-medium">{BENCHMARKS.insurable_var.toFixed(2)}%</span>
+                        </td>
+                        <td className="p-6">
+                           <span className="text-2xl font-black text-slate-900">{rates.insurable_variable_5yr}%</span>
+                        </td>
+                        <td className="p-6">
+                           <span className="text-xs font-bold text-green-600">-{calcSave(BENCHMARKS.insurable_var, rates.insurable_variable_5yr)}%</span>
+                        </td>
+                        <td className="p-6"><a href="#apply" className="text-xs font-black uppercase tracking-widest hover:underline">Apply</a></td>
+                     </tr>
+
+                     <tr className="hover:bg-gray-50 transition">
+                        <td className="p-6">
+                           <div className="flex items-center gap-3">
+                              <div className="bg-green-100 p-2 rounded-lg text-green-600"><RefreshCw size={18}/></div>
+                              <div>
+                                 <p className="font-bold text-slate-900">5-Year Fixed</p>
+                                 <p className="text-[10px] text-gray-500 uppercase tracking-wider">Insurable</p>
+                              </div>
+                           </div>
+                        </td>
+                        <td className="p-6 hidden md:table-cell">
+                           <span className="text-gray-400 line-through font-medium">{BENCHMARKS.insurable_fix.toFixed(2)}%</span>
+                        </td>
+                        <td className="p-6">
+                           <span className="text-2xl font-black text-slate-900">{rates.insurable_fixed_5yr}%</span>
+                        </td>
+                        <td className="p-6">
+                           <span className="text-xs font-bold text-green-600">-{calcSave(BENCHMARKS.insurable_fix, rates.insurable_fixed_5yr)}%</span>
+                        </td>
+                        <td className="p-6"><a href="#apply" className="text-xs font-black uppercase tracking-widest hover:underline">Apply</a></td>
+                     </tr>
+
+                     <tr className="hover:bg-gray-50 transition">
+                        <td className="p-6">
+                           <div className="flex items-center gap-3">
+                              <div className="bg-green-100 p-2 rounded-lg text-green-600"><RefreshCw size={18}/></div>
+                              <div>
+                                 <p className="font-bold text-slate-900">3-Year Fixed</p>
+                                 <p className="text-[10px] text-gray-500 uppercase tracking-wider">Insurable</p>
+                              </div>
+                           </div>
+                        </td>
+                        <td className="p-6 hidden md:table-cell">
+                           <span className="text-gray-400 line-through font-medium">{BENCHMARKS.insurable_3yr.toFixed(2)}%</span>
+                        </td>
+                        <td className="p-6">
+                           <span className="text-2xl font-black text-slate-900">{rates.insurable_fixed_3yr}%</span>
+                        </td>
+                        <td className="p-6">
+                           <span className="text-xs font-bold text-green-600">-{calcSave(BENCHMARKS.insurable_3yr, rates.insurable_fixed_3yr)}%</span>
+                        </td>
+                        <td className="p-6"><a href="#apply" className="text-xs font-black uppercase tracking-widest hover:underline">Apply</a></td>
+                     </tr>
+
+                     {/* =========================================
+                         GROUP 3: UNINSURED (Conventional / 30 Yr) 
+                         ========================================= */}
                      <tr className="bg-gray-50/50">
-                        <td colSpan={5} className="p-2 px-6 text-[9px] font-black uppercase tracking-widest text-gray-400">
-                           Uninsured / 30-Year Amortization
+                        <td colSpan={5} className="p-2 px-6 text-[9px] font-black uppercase tracking-widest text-gray-500 bg-gray-100/50">
+                           Uninsured / Refinances & 30-Year Amortization
                         </td>
                      </tr>
 
@@ -257,7 +359,7 @@ export default async function RatesPage() {
             </div>
          </div>
 
-         {/* --- 2. ALTERNATIVE LENDING (Refined Psychology) --- */}
+         {/* --- 2. ALTERNATIVE LENDING --- */}
          <div className="mb-24">
              <div className="flex items-center gap-4 mb-10 border-b border-gray-100 pb-6">
                <div className="p-3 bg-orange-50 text-orange-600 rounded-xl"><AlertTriangle size={24}/></div>
@@ -356,7 +458,7 @@ export default async function RatesPage() {
             </div>
          </div>
 
-         {/* --- 3. AEO CONTENT (VOICE SEARCH) --- */}
+         {/* --- 3. AEO / GEO CONTENT (VOICE SEARCH OPTIMIZED) --- */}
          <div className="grid md:grid-cols-2 gap-16 items-start mb-24">
             <div>
                <h2 className="text-3xl font-black uppercase tracking-tight mb-6">Rate Strategy</h2>
@@ -372,6 +474,18 @@ export default async function RatesPage() {
             </div>
 
             <div className="space-y-4">
+               {/* AEO TARGET: "What is an Insurable Mortgage?" */}
+               <details className="group bg-white p-6 rounded-2xl border border-gray-100 cursor-pointer shadow-sm">
+                  <summary className="flex justify-between items-center font-bold text-sm uppercase tracking-wide list-none">
+                     What is an "Insurable" Mortgage vs "Insured"?
+                     <span className="transition group-open:rotate-180"><ChevronDown size={16}/></span>
+                  </summary>
+                  <div className="mt-4 text-gray-500 leading-relaxed text-sm space-y-3">
+                     <p><strong>Insured:</strong> For purchases with less than 20% down payment. You pay the default insurance premium (CMHC), which gives you access to the absolute lowest rates.</p>
+                     <p><strong>Insurable:</strong> For <em>Renewals and Refinances</em> with 20%+ equity, a 25-year maximum amortization, and a property value under $1 Million. The <em>lender</em> pays the insurance premium in the background, allowing them to offer you a significantly lower rate than an Uninsured mortgage.</p>
+                  </div>
+               </details>
+
                <details className="group bg-white p-6 rounded-2xl border border-gray-100 cursor-pointer shadow-sm">
                   <summary className="flex justify-between items-center font-bold text-sm uppercase tracking-wide list-none">
                      Why is the B-Lender rate higher?
@@ -381,6 +495,7 @@ export default async function RatesPage() {
                      B-Lenders (Alternative Lenders) take on higher risk by accepting clients with bruised credit or self-employed income that isn't fully declared on taxes. The rate premium ({rates.b_lender}% vs {rates.insured_variable_5yr}%) acts as insurance for the lender.
                   </p>
                </details>
+
                <details className="group bg-white p-6 rounded-2xl border border-gray-100 cursor-pointer shadow-sm">
                   <summary className="flex justify-between items-center font-bold text-sm uppercase tracking-wide list-none">
                      How fast can a Private Mortgage close?
@@ -409,7 +524,8 @@ export default async function RatesPage() {
 
          <p className="mt-12 text-[10px] text-gray-400 text-center max-w-4xl mx-auto leading-relaxed">
             *Rates shown are for informational purposes only and subject to change without notice. 
-            <strong>{rates.insured_variable_5yr}% Variable</strong> applies to High-Ratio (Insured) mortgages with less than 20% down payment, 5-year term. 
+            <strong>{rates.insured_variable_5yr}% Variable</strong> applies to High-Ratio (Insured) mortgages with less than 20% down payment. 
+            <strong>{rates.insurable_fixed_5yr}% Fixed</strong> applies to Insurable renewals/transfers with 25-yr amortization.
             <strong>{rates.b_lender}% B-Lender</strong> rate requires 20% down payment and 1% lender fee. 
             <strong>{rates.private_1st}% Private</strong> rate is interest-only, based on 65% LTV, 1-year term. 
             APR (Annual Percentage Rate) will vary based on fees and term length.
