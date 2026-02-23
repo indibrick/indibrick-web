@@ -1,80 +1,83 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAdmin } from '../../AdminContext';
 import { CRMService } from '../../services/CRMService';
-import { Referral, PartnerProfile } from '../../types';
+import { Referral, Task, ActivityLog } from '../../types';
 import { 
-  Plus, ArrowUpRight, ArrowDownLeft, Send, X, 
-  Wallet, Users, Briefcase, ChevronRight, Activity 
+  Plus, Send, X, Wallet, Activity, Upload, 
+  PhoneCall, Calendar, Mail, Network, Trash2 
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore'; 
 import { db } from '../../firebase'; 
 
-export default function PartnerPortal() {
+export default function EnterpriseCRM() {
   const { user, loading } = useAdmin();
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // --- STATE ---
-  const [activeTab, setActiveTab] = useState<'sent' | 'received'>('received');
+  const [activeTab, setActiveTab] = useState<'received' | 'sent' | 'mine'>('received');
   const [sentReferrals, setSentReferrals] = useState<Referral[]>([]);
   const [receivedReferrals, setReceivedReferrals] = useState<Referral[]>([]);
+  const [myLeads, setMyLeads] = useState<Referral[]>([]);
+  const [dailyTasks, setDailyTasks] = useState<Task[]>([]);
+  const [ecosystemPartners, setEcosystemPartners] = useState<any[]>([]); 
   
-  // User Profile Data
+  // Profile
   const [referralVolume, setReferralVolume] = useState('$0.00');
   const [firstName, setFirstName] = useState('');
-  const [partnerRole, setPartnerRole] = useState<'partner_realtor' | 'partner_lawyer' | 'other'>('partner_realtor');
+  const [partnerRole, setPartnerRole] = useState<'partner_realtor' | 'partner_lawyer' | 'partner_mortgage' | 'admin' | 'other'>('partner_realtor');
 
-  // Modal State
+  // Modals & Inputs
   const [selectedDeal, setSelectedDeal] = useState<Referral | null>(null);
-  const [noteInput, setNoteInput] = useState('');
+  const [logType, setLogType] = useState<'note' | 'log_call' | 'log_email' | 'task' | 'route'>('note');
+  const [logInput, setLogInput] = useState('');
+  const [taskDate, setTaskDate] = useState('');
+  const [targetPartnerId, setTargetPartnerId] = useState('');
   const [showNewReferralForm, setShowNewReferralForm] = useState(false);
-  
-  // New Lead Form
-  const [newClient, setNewClient] = useState({ 
-    name: '', 
-    phone: '', 
-    email: '', 
-    service: 'Mortgage Pre-Approval', 
-    message: '' 
-  });
+  const [newClient, setNewClient] = useState({ name: '', phone: '', email: '', service: 'General Inquiry', message: '' });
 
   // --- INIT ---
   useEffect(() => {
     if (!loading && !user) router.push('/partner/login');
-    if (user) {
-        loadProfileAndData();
-    }
+    if (user) loadProfileAndData();
   }, [user, loading]);
 
   const loadProfileAndData = async () => {
     if (!user) return;
-    
     try {
         const userDoc = await getDoc(doc(db, "users", user.uid));
         if (userDoc.exists()) {
             const data = userDoc.data();
             setReferralVolume(data.referralVolume || '$0.00');
             setPartnerRole(data.role as any);
-            const nameParts = (data.displayName || user.displayName || 'Partner').split(' ');
-            setFirstName(nameParts[0]);
+            setFirstName((data.displayName || user.displayName || 'Partner').split(' ')[0]);
+            
+            // Auto-set default tab based on role
+            if (['partner_mortgage', 'admin'].includes(data.role) && activeTab === 'received') {
+                setActiveTab('mine');
+            }
         }
-    } catch (e) {
-        console.error("Profile Load Error", e);
-    }
+        
+        const profile = { uid: user.uid, role: userDoc.exists() ? userDoc.data().role : 'partner', displayName: user.displayName || 'Partner' };
+        const { sent, received, mine } = await CRMService.getPartnerDashboard(profile as any);
+        setSentReferrals(sent);
+        setReceivedReferrals(received);
+        setMyLeads(mine);
+        
+        const tasks = await CRMService.fetchDailyTasks(user.uid);
+        setDailyTasks(tasks);
 
-    const profile = { uid: user.uid, role: 'partner', displayName: user.displayName || 'Partner' } as PartnerProfile;
-    const { sent, received } = await CRMService.getPartnerDashboard(profile);
-    setSentReferrals(sent);
-    setReceivedReferrals(received);
+        const partners = await CRMService.getEcosystemPartners();
+        setEcosystemPartners(partners.filter(p => p.uid !== user.uid));
+    } catch (e) { console.error("Data Load Error", e); }
   };
 
-  // --- STATUS LOGIC ---
   const getStatusOptions = () => {
-    if (partnerRole === 'partner_lawyer') {
-      return ['File Open', 'Title Search', 'Signing Set', 'Funds Requested', 'Closed'];
-    }
+    if (partnerRole === 'partner_lawyer') return ['File Open', 'Title Search', 'Signing Set', 'Funds Requested', 'Closed'];
+    if (partnerRole === 'partner_mortgage' || partnerRole === 'admin') return ['Application', 'Underwriting', 'Commitment Issued', 'Funded', 'Declined'];
     return ['Contacted', 'Showing', 'Offer Made', 'Firm / Conditional', 'Closed', 'Dead Deal'];
   };
 
@@ -86,223 +89,309 @@ export default function PartnerPortal() {
     setSelectedDeal({ ...selectedDeal, status: newStatus });
   };
 
-  const handleAddNote = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedDeal || !user || !noteInput.trim()) return;
-    await CRMService.addNoteToReferral(selectedDeal.id, noteInput, user.displayName || 'Partner');
-    setNoteInput('');
-    loadProfileAndData();
-  };
-  
-  const handleCreateReferral = async (e: React.FormEvent) => {
+  const handleManualLeadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    
-    const profile = { uid: user.uid, role: partnerRole, displayName: user.displayName || 'Partner' } as PartnerProfile;
-    
-    const finalData = {
-        ...newClient,
-        message: `[Service: ${newClient.service}] ${newClient.message}`,
-        type: newClient.service 
-    };
-
-    await CRMService.createReferral(profile, finalData);
+    await CRMService.createReferral({ uid: user.uid, role: partnerRole, displayName: user.displayName || 'Partner' } as any, { ...newClient, type: 'Manual Entry' });
     setShowNewReferralForm(false);
-    setNewClient({ name: '', phone: '', email: '', service: 'Mortgage Pre-Approval', message: '' }); 
+    setNewClient({ name: '', phone: '', email: '', service: 'General Inquiry', message: '' });
     loadProfileAndData();
   };
 
-  if (loading || !user) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><Activity className="animate-spin text-gray-400"/></div>;
+  const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    const reader = new FileReader();
+    
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string;
+        const rows = text.split('\n').slice(1); 
+        
+        const parsedLeads = rows.map(row => {
+          const cols = row.split(','); 
+          return { name: cols[0]?.trim(), phone: cols[1]?.trim(), email: cols[2]?.trim(), notes: cols[3]?.trim() };
+        }).filter(lead => lead.name); 
+
+        if (parsedLeads.length > 0) {
+           await CRMService.batchImportLeads({ uid: user.uid, role: partnerRole, displayName: user.displayName }, parsedLeads);
+           alert(`Successfully imported ${parsedLeads.length} leads into the engine.`);
+           loadProfileAndData();
+        }
+      } catch (error) {
+        alert("Error parsing CSV. Ensure format is: Name, Phone, Email, Notes");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleDeleteLead = async (id: string) => {
+    if (window.confirm("CRITICAL WARNING: Are you sure you want to permanently delete this lead? This action cannot be undone.")) {
+      await CRMService.deleteReferral(id);
+      setSelectedDeal(null);
+      loadProfileAndData();
+    }
+  };
+
+  const handleActionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDeal || !user) return;
+
+    if (logType === 'route') {
+      const partner = ecosystemPartners.find(p => p.uid === targetPartnerId);
+      if (partner) {
+        await CRMService.routeLeadToPartner(selectedDeal.id, user.displayName || 'Partner', partner.uid, partner.displayName);
+        alert(`Lead routed securely to ${partner.displayName}`);
+        setSelectedDeal(null); 
+      }
+    } else if (logType === 'task') {
+      await CRMService.scheduleTask({
+          referralId: selectedDeal.id, clientName: selectedDeal.clientName, assigneeId: user.uid,
+          dueDate: taskDate, description: logInput || `Follow up with ${selectedDeal.clientName}`, status: 'Pending'
+      });
+      alert('Task Scheduled Successfully.');
+    } else {
+      let prefix = '';
+      if (logType === 'log_call') prefix = '📞 LOGGED CALL: ';
+      if (logType === 'log_email') prefix = '✉️ LOGGED EMAIL: ';
+
+      const activity: ActivityLog = {
+        type: 'note', 
+        author: user.displayName || 'Partner',
+        content: prefix + logInput,
+        timestamp: new Date().toISOString()
+      };
+      await CRMService.logActivity(selectedDeal.id, activity);
+    }
+
+    setLogInput('');
+    setTaskDate('');
+    loadProfileAndData();
+  };
+
+  const handleCompleteTask = async (taskId: string) => {
+      await CRMService.completeTask(taskId);
+      loadProfileAndData();
+  };
+
+  const getActiveLeads = () => {
+    if (activeTab === 'received') return receivedReferrals;
+    if (activeTab === 'sent') return sentReferrals;
+    return myLeads;
+  };
+
+  if (loading || !user) return <div className="min-h-screen flex items-center justify-center"><Activity className="animate-spin"/></div>;
 
   return (
     <div className="min-h-screen bg-gray-50 text-slate-900 font-sans pb-20">
-      
       {/* HEADER */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
-        <div className="max-w-6xl mx-auto px-6 py-6 flex justify-between items-center">
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
             <div>
                <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">
-                 {partnerRole === 'partner_lawyer' ? 'Legal Portal' : 'Realtor Portal'}
+                 {partnerRole.replace('partner_', '').toUpperCase()} CRM Engine
                </p>
-               <h1 className="text-3xl font-black text-slate-900 tracking-tight">
-                 Hi, {firstName}.
-               </h1>
+               <h1 className="text-2xl font-black text-slate-900 tracking-tight">System Online, {firstName}.</h1>
             </div>
             
-            <button 
-                onClick={() => setShowNewReferralForm(true)} 
-                className="bg-black text-white pl-5 pr-6 py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-gray-800 transition flex items-center gap-2 shadow-lg shadow-black/20"
-            >
-               <Plus size={16} /> Send Lead
-            </button>
+            <div className="flex gap-3">
+                <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={handleCSVUpload} />
+                <button onClick={() => fileInputRef.current?.click()} className="bg-white border border-gray-200 text-slate-900 px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest hover:border-black transition flex items-center gap-2">
+                   <Upload size={14} /> Import CSV
+                </button>
+                <button onClick={() => setShowNewReferralForm(true)} className="bg-black text-white px-5 py-2 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-gray-800 transition flex items-center gap-2 shadow-lg">
+                   <Plus size={14} /> Manual Lead
+                </button>
+            </div>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 py-10">
+      <div className="max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        {/* DASHBOARD STATS (UPDATED LOGIC) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-            <div className="bg-slate-900 text-white p-8 rounded-[2rem] relative overflow-hidden shadow-2xl">
+        {/* PIPELINE COL */}
+        <div className="lg:col-span-8 space-y-6">
+           <div className="flex gap-8 border-b border-gray-200 mb-6">
+              {['partner_mortgage', 'admin'].includes(partnerRole) && (
+                  <button onClick={() => setActiveTab('mine')} className={`pb-4 text-sm font-bold uppercase tracking-wider transition ${activeTab === 'mine' ? 'border-b-4 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}>
+                    My Leads {myLeads.length > 0 && `(${myLeads.length})`}
+                  </button>
+              )}
+              <button onClick={() => setActiveTab('received')} className={`pb-4 text-sm font-bold uppercase tracking-wider transition ${activeTab === 'received' ? 'border-b-4 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}>
+                {partnerRole === 'admin' ? 'Triage Inbox' : 'Received Leads'} {receivedReferrals.length > 0 && `(${receivedReferrals.length})`}
+              </button>
+              <button onClick={() => setActiveTab('sent')} className={`pb-4 text-sm font-bold uppercase tracking-wider transition ${activeTab === 'sent' ? 'border-b-4 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}>
+                Sent Leads
+              </button>
+            </div>
+
+            {getActiveLeads().map((deal) => (
+                <div key={deal.id} onClick={() => setSelectedDeal(deal as any)} className="group bg-white p-5 rounded-2xl border border-gray-100 hover:border-blue-500 hover:shadow-lg transition cursor-pointer flex justify-between items-center">
+                    <div>
+                      <h3 className="text-lg font-black text-slate-900">{deal.clientName}</h3>
+                      <p className="text-xs text-gray-500 font-bold uppercase mt-1">Date: {new Date(deal.referralDate).toLocaleDateString()}</p>
+                    </div>
+                    <span className="px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-gray-100 text-gray-600">{deal.status}</span>
+                </div>
+            ))}
+            
+            {getActiveLeads().length === 0 && (
+                <div className="text-center p-12 bg-white rounded-3xl border border-dashed border-gray-300">
+                    <p className="text-gray-400 font-bold uppercase text-sm tracking-widest">No leads in this section.</p>
+                </div>
+            )}
+        </div>
+
+        {/* TASKS COL */}
+        <div className="lg:col-span-4 space-y-6">
+            <div className="bg-slate-900 text-white p-8 rounded-3xl relative overflow-hidden shadow-2xl">
                <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/20 rounded-full blur-3xl -mr-10 -mt-10"></div>
                <div className="relative z-10">
-                  <div className="flex items-center gap-3 mb-4 text-green-400">
-                     <Wallet size={24} />
-                     <span className="text-xs font-black uppercase tracking-widest">Funded Volume</span>
-                  </div>
-                  <h3 className="text-5xl font-black tracking-tighter mb-2">{referralVolume}</h3>
-                  <p className="text-sm text-gray-400 font-medium">Total closed business value YTD.</p>
+                  <div className="flex items-center gap-2 mb-2 text-green-400"><Wallet size={16} /><span className="text-[10px] font-black uppercase tracking-widest">Funded YTD</span></div>
+                  <h3 className="text-4xl font-black tracking-tighter">{referralVolume}</h3>
                </div>
             </div>
 
-            <div className="bg-white p-8 rounded-[2rem] relative overflow-hidden border border-gray-100 shadow-sm">
-               <div className="relative z-10">
-                  <div className="flex items-center gap-3 mb-4 text-blue-600">
-                     <Users size={24} />
-                     <span className="text-xs font-black uppercase tracking-widest">Leads Received</span>
-                  </div>
-                  {/* CHANGED: Shows only receivedReferrals count */}
-                  <h3 className="text-5xl font-black tracking-tighter text-slate-900 mb-2">{receivedReferrals.length}</h3>
-                  <p className="text-sm text-gray-500 font-medium">Total clients received from Indibrick.</p>
-               </div>
+            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                <h3 className="font-black uppercase tracking-tight mb-4 flex items-center gap-2"><Calendar size={18}/> Today's Tasks</h3>
+                {dailyTasks.length === 0 ? (
+                    <p className="text-sm text-gray-400 font-medium">No tasks scheduled for today. Inbox zero achieved.</p>
+                ) : (
+                    <div className="space-y-3">
+                        {dailyTasks.map(task => (
+                            <div key={task.id} className="p-3 bg-gray-50 border border-gray-100 rounded-xl flex justify-between items-start">
+                                <div>
+                                    <p className="text-xs font-black text-blue-600">{task.clientName}</p>
+                                    <p className="text-xs text-gray-600 mt-1">{task.description}</p>
+                                </div>
+                                <button onClick={() => handleCompleteTask(task.id)} className="text-[10px] font-bold uppercase bg-white border border-gray-200 px-2 py-1 rounded hover:bg-green-500 hover:text-white transition">Done</button>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
-
-        {/* TABS */}
-        <div className="flex gap-8 mb-8 border-b border-gray-200">
-          <button 
-            onClick={() => setActiveTab('received')}
-            className={`pb-4 text-sm font-bold uppercase tracking-wider flex items-center gap-2 transition ${activeTab === 'received' ? 'border-b-4 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}
-          >
-            <ArrowDownLeft size={18} /> 
-            Incoming 
-            {receivedReferrals.length > 0 && <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full ml-1">{receivedReferrals.length}</span>}
-          </button>
-          <button 
-            onClick={() => setActiveTab('sent')}
-            className={`pb-4 text-sm font-bold uppercase tracking-wider flex items-center gap-2 transition ${activeTab === 'sent' ? 'border-b-4 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}
-          >
-            <ArrowUpRight size={18} /> 
-            Sent 
-            <span className="bg-gray-100 text-gray-600 text-[10px] px-2 py-0.5 rounded-full ml-1">{sentReferrals.length}</span>
-          </button>
-        </div>
-
-        {/* LIST VIEW */}
-        <div className="grid gap-4">
-          {(activeTab === 'received' ? receivedReferrals : sentReferrals).map((deal) => (
-            <div 
-                key={deal.id} 
-                onClick={() => setSelectedDeal(deal)} 
-                className="group bg-white p-6 rounded-2xl border border-gray-100 hover:border-black/10 hover:shadow-lg transition cursor-pointer relative overflow-hidden"
-            >
-              <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${['Closed', 'Funded'].includes(deal.status) ? 'bg-green-500' : 'bg-blue-500'}`} />
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center pl-4 gap-4">
-                <div>
-                  <h3 className="text-xl font-black text-slate-900 group-hover:text-blue-600 transition">{deal.clientName}</h3>
-                  <div className="flex items-center gap-2 mt-1">
-                     <p className="text-xs text-gray-500 font-bold uppercase tracking-wide">
-                        {activeTab === 'received' ? `From: ${deal.referrerName}` : `Assigned: ${deal.assignedAgentName || 'Processing'}`}
-                     </p>
-                     <span className="text-gray-300">•</span>
-                     <p className="text-xs text-gray-400 font-medium">{new Date(deal.referralDate).toLocaleDateString()}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
-                  <span className="inline-block px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-gray-100 text-gray-600">{deal.status}</span>
-                  <ChevronRight size={16} className="text-gray-300 group-hover:text-black transition" />
-                </div>
-              </div>
-            </div>
-          ))}
-          {(activeTab === 'received' ? receivedReferrals : sentReferrals).length === 0 && (
-            <div className="text-center py-24 border-2 border-dashed border-gray-200 rounded-[2rem]">
-                <Briefcase className="mx-auto text-gray-300 mb-4" size={48} />
-                <p className="text-gray-400 font-bold text-sm uppercase tracking-widest">No active deals.</p>
-            </div>
-          )}
-        </div>
-
       </div>
 
-      {/* DEAL MODAL */}
+      {/* ENTERPRISE DEAL MODAL */}
       {selectedDeal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex justify-end">
-          <div className="w-full max-w-md bg-white h-full p-8 overflow-y-auto animate-in slide-in-from-right duration-300 shadow-2xl flex flex-col">
-            <button onClick={() => setSelectedDeal(null)} className="absolute top-6 right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition"><X size={16}/></button>
-            <h2 className="text-3xl font-black mb-1 text-slate-900">{selectedDeal.clientName}</h2>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-8">
-              {activeTab === 'received' ? 'Incoming Referral' : 'Outgoing Referral'}
-            </p>
+          <div className="w-full max-w-2xl bg-white h-full p-8 overflow-y-auto shadow-2xl flex flex-col">
+            <div className="flex justify-between items-start mb-6">
+                <div>
+                    <h2 className="text-3xl font-black text-slate-900">{selectedDeal.clientName}</h2>
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">📞 {selectedDeal.clientPhone} • ✉️ {selectedDeal.clientEmail}</p>
+                </div>
+                <div className="flex gap-2">
+                    <button onClick={() => handleDeleteLead(selectedDeal.id)} className="p-2 text-red-400 bg-red-50 rounded-full hover:bg-red-500 hover:text-white transition" title="Delete Lead"><Trash2 size={16}/></button>
+                    <button onClick={() => setSelectedDeal(null)} className="p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition"><X size={16}/></button>
+                </div>
+            </div>
 
-            {activeTab === 'received' && (
-              <div className="mb-8 p-6 bg-gray-50 rounded-2xl border border-gray-100">
-                <label className="text-xs font-bold uppercase text-gray-500 mb-3 block">Update Workflow ({partnerRole === 'partner_lawyer' ? 'Legal' : 'Realtor'})</label>
-                <div className="grid grid-cols-2 gap-2">
+            {/* Status Pipeline */}
+            <div className="mb-8 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                <p className="text-[10px] font-bold uppercase text-gray-400 mb-2">Advance Pipeline Stage</p>
+                <div className="flex flex-wrap gap-2">
                   {getStatusOptions().map(status => (
-                    <button key={status} onClick={() => handleStatusUpdate(status)} className={`py-2 text-[10px] font-bold uppercase rounded-lg border transition ${selectedDeal.status === status ? 'bg-black text-white border-black' : 'bg-white border-gray-200 text-gray-600 hover:border-black'}`}>
+                    <button key={status} onClick={() => handleStatusUpdate(status)} className={`py-2 px-4 text-[10px] font-bold uppercase rounded-lg border transition ${selectedDeal.status === status ? 'bg-black text-white border-black' : 'bg-white border-gray-200 text-gray-600 hover:border-black'}`}>
                       {status}
                     </button>
                   ))}
                 </div>
-              </div>
-            )}
+            </div>
 
-            <div className="flex-1 flex flex-col mb-4">
-              <label className="text-xs font-bold uppercase text-gray-500 mb-3 block">Activity Log</label>
-              <div className="bg-gray-50 rounded-2xl p-4 flex-1 overflow-y-auto space-y-4 border border-gray-100 mb-4 min-h-[300px]">
-                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-                   <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Original Request</p>
-                   <p className="text-sm text-gray-800 leading-relaxed">{selectedDeal.notes}</p>
-                </div>
-                {selectedDeal.timeline?.map((note, i) => (
-                  <div key={i} className={`p-3 rounded-xl text-sm ${note.isSystemMessage ? 'bg-gray-200 text-center text-gray-600 text-[10px] font-bold uppercase' : 'bg-blue-50 border border-blue-100'}`}>
-                    {!note.isSystemMessage && <p className="text-[10px] font-bold text-blue-600 uppercase mb-1">{note.author}</p>}
-                    <p className="text-slate-800">{note.content}</p>
+            {/* Offline Omnichannel Controls */}
+            <div className="flex-1 flex flex-col">
+              <div className="flex flex-wrap gap-4 mb-4 border-b border-gray-100 pb-2">
+                  <button onClick={() => setLogType('note')} className={`text-[11px] font-black uppercase tracking-widest ${logType === 'note' ? 'text-black' : 'text-gray-400'}`}>Note</button>
+                  <button onClick={() => setLogType('log_call')} className={`text-[11px] font-black uppercase tracking-widest ${logType === 'log_call' ? 'text-blue-600' : 'text-gray-400'}`}><PhoneCall size={12} className="inline mr-1"/> Log Call</button>
+                  <button onClick={() => setLogType('log_email')} className={`text-[11px] font-black uppercase tracking-widest ${logType === 'log_email' ? 'text-green-600' : 'text-gray-400'}`}><Mail size={12} className="inline mr-1"/> Log Email</button>
+                  <button onClick={() => setLogType('task')} className={`text-[11px] font-black uppercase tracking-widest ${logType === 'task' ? 'text-orange-600' : 'text-gray-400'}`}><Calendar size={12} className="inline mr-1"/> Task</button>
+                  <button onClick={() => setLogType('route')} className={`text-[11px] font-black uppercase tracking-widest ${logType === 'route' ? 'text-purple-600' : 'text-gray-400'}`}><Network size={12} className="inline mr-1"/> Route</button>
+              </div>
+
+              {/* Dynamic Action Area */}
+              <div className="mb-4">
+                  {logType === 'route' ? (
+                      <div className="bg-purple-50 p-6 rounded-2xl border border-purple-100">
+                           <select className="w-full p-3 rounded-xl border border-purple-200 outline-none mb-4" value={targetPartnerId} onChange={e => setTargetPartnerId(e.target.value)}>
+                              <option value="">Select Partner...</option>
+                              {ecosystemPartners.map(p => (
+                                  <option key={p.uid} value={p.uid}>{p.displayName} ({p.role.replace('partner_', '')})</option>
+                              ))}
+                          </select>
+                          <button onClick={handleActionSubmit} disabled={!targetPartnerId} className="w-full bg-purple-600 text-white py-3 rounded-xl font-black uppercase text-xs hover:bg-purple-700 transition">Execute Routing Protocol</button>
+                      </div>
+                  ) : logType === 'task' ? (
+                      <div className="bg-orange-50 p-6 rounded-2xl border border-orange-100">
+                           <input type="date" className="w-full mb-3 p-3 rounded-xl border border-orange-200 outline-none" value={taskDate} onChange={e => setTaskDate(e.target.value)} required />
+                           <textarea className="w-full bg-white border border-orange-200 p-3 rounded-xl focus:border-orange-500 outline-none mb-3 resize-none" rows={2} placeholder="Task description..." value={logInput} onChange={e => setLogInput(e.target.value)} />
+                           <button onClick={handleActionSubmit} disabled={!taskDate} className="w-full bg-orange-600 text-white py-3 rounded-xl font-black uppercase text-xs hover:bg-orange-700 transition">Schedule Task</button>
+                      </div>
+                  ) : (
+                      <form onSubmit={handleActionSubmit} className="space-y-3">
+                        <textarea className="w-full bg-gray-50 border-2 border-gray-200 p-4 rounded-xl font-medium focus:border-black outline-none transition resize-none" rows={3} placeholder={logType === 'log_call' ? "Notes from your call..." : logType === 'log_email' ? "Notes on the email you sent offline..." : "Add a general note..."} value={logInput} onChange={e => setLogInput(e.target.value)} required />
+                        <button className="w-full bg-black text-white py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-gray-800 transition">
+                            {logType === 'log_call' ? 'Save Call Log' : logType === 'log_email' ? 'Save Email Log' : 'Save Note'}
+                        </button>
+                      </form>
+                  )}
+              </div>
+
+              {/* Timeline History */}
+              <div className="bg-gray-50 rounded-2xl p-4 flex-1 overflow-y-auto space-y-4 border border-gray-100 min-h-[250px]">
+                {selectedDeal.timeline?.slice().reverse().map((log, i) => (
+                  <div key={i} className={`p-3 rounded-xl text-sm border ${log.isSystemMessage ? 'bg-gray-100 border-transparent text-center' : 'bg-white border-gray-200 shadow-sm'}`}>
+                    {!log.isSystemMessage && <div className="flex justify-between items-center mb-1"><span className="text-[10px] font-bold text-gray-500 uppercase">{log.author}</span><span className="text-[9px] text-gray-400">{new Date(log.timestamp).toLocaleString()}</span></div>}
+                    <p className={`text-slate-800 ${log.isSystemMessage ? 'text-[10px] font-bold uppercase tracking-widest text-gray-500' : ''}`}>{log.content}</p>
                   </div>
                 ))}
               </div>
-              <form onSubmit={handleAddNote} className="relative">
-                <input className="w-full bg-white border-2 border-gray-200 p-4 rounded-2xl pr-12 font-medium focus:border-black outline-none transition" placeholder="Add a progress note..." value={noteInput} onChange={e => setNoteInput(e.target.value)} />
-                <button className="absolute right-3 top-3 bg-black text-white p-2 rounded-xl hover:bg-gray-800 transition"><Send size={14} /></button>
-              </form>
-            </div>
-
-            <div className="border-t border-gray-100 pt-6">
-              <h4 className="font-bold text-sm mb-3 uppercase tracking-wide">Contact Details</h4>
-              <p className="text-gray-600 text-sm flex items-center gap-3">
-                 <span className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-xs">📞</span> 
-                 <a href={`tel:${selectedDeal.clientPhone}`} className="hover:underline font-bold">{selectedDeal.clientPhone}</a>
-              </p>
-              {selectedDeal.clientEmail && <p className="text-gray-600 text-sm flex items-center gap-3 mt-2"><span className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-xs">✉️</span> <a href={`mailto:${selectedDeal.clientEmail}`} className="hover:underline font-bold">{selectedDeal.clientEmail}</a></p>}
             </div>
           </div>
         </div>
       )}
-
-      {/* NEW REFERRAL FORM (SERVICE DROPDOWN) */}
+      
+      {/* MANUAL LEAD MODAL */}
       {showNewReferralForm && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-           <div className="bg-white rounded-[2rem] p-8 max-w-lg w-full shadow-2xl animate-in zoom-in duration-200">
-             <div className="flex justify-between items-start mb-6">
-                <div><h3 className="font-black text-3xl text-slate-900 tracking-tight">New Lead</h3><p className="text-gray-500 font-medium text-sm">Submit a client to Indibrick HQ.</p></div>
-                <button onClick={() => setShowNewReferralForm(false)} className="bg-gray-100 p-2 rounded-full hover:bg-gray-200 transition"><X size={20}/></button>
-             </div>
-             <form onSubmit={handleCreateReferral} className="space-y-4">
-                <div>
-                    <label className="text-xs font-bold uppercase text-gray-500 ml-1 mb-1 block">Service Required</label>
-                    <select className="w-full p-4 bg-gray-50 border-r-[16px] border-transparent focus:bg-white focus:border-black rounded-xl font-bold outline-none transition cursor-pointer appearance-none" value={newClient.service} onChange={e => setNewClient({...newClient, service: e.target.value})}>
-                        <option>Mortgage Pre-Approval</option><option>Purchase Financing (Live Deal)</option><option>Refinance / Equity Takeout</option><option>Private Mortgage / B-Lender</option><option>Commercial Loan</option><option>Construction Financing</option><option>Insurance (Life / Critical Illness)</option><option>Investment Planning</option><option>Other / General Inquiry</option>
-                    </select>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-black text-slate-900 tracking-tight">Ingest Lead</h2>
+                    <button onClick={() => setShowNewReferralForm(false)} className="text-gray-400 hover:text-black"><X size={20}/></button>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <input placeholder="Client Name" className="w-full p-4 bg-gray-50 border border-transparent focus:bg-white focus:border-black rounded-xl font-bold outline-none transition" onChange={e => setNewClient({...newClient, name: e.target.value})} required />
-                    <input placeholder="Client Phone" className="w-full p-4 bg-gray-50 border border-transparent focus:bg-white focus:border-black rounded-xl font-bold outline-none transition" onChange={e => setNewClient({...newClient, phone: e.target.value})} required />
-                </div>
-                <input placeholder="Client Email (Optional)" className="w-full p-4 bg-gray-50 border border-transparent focus:bg-white focus:border-black rounded-xl font-bold outline-none transition" onChange={e => setNewClient({...newClient, email: e.target.value})} />
-                <textarea placeholder="Notes: e.g. Purchase price $900k, closing date Nov 1st, self-employed..." className="w-full p-4 bg-gray-50 border border-transparent focus:bg-white focus:border-black rounded-xl font-bold outline-none transition min-h-[100px]" onChange={e => setNewClient({...newClient, message: e.target.value})} />
-                <button className="w-full bg-black text-white py-4 rounded-xl font-black uppercase tracking-widest hover:bg-gray-900 transition shadow-xl mt-4 flex items-center justify-center gap-2"><Send size={16} /> Send to Indibrick</button>
-             </form>
-           </div>
+                <form onSubmit={handleManualLeadSubmit} className="space-y-4">
+                    <div>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Client Name</label>
+                        <input type="text" required value={newClient.name} onChange={e=>setNewClient({...newClient, name: e.target.value})} className="w-full mt-1 bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-black" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Phone</label>
+                            <input type="tel" required value={newClient.phone} onChange={e=>setNewClient({...newClient, phone: e.target.value})} className="w-full mt-1 bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-black" />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Email</label>
+                            <input type="email" value={newClient.email} onChange={e=>setNewClient({...newClient, email: e.target.value})} className="w-full mt-1 bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-black" />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Service Required</label>
+                        <select value={newClient.service} onChange={e=>setNewClient({...newClient, service: e.target.value})} className="w-full mt-1 bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-black appearance-none">
+                            <option>Mortgage Pre-Approval</option>
+                            <option>Property Search</option>
+                            <option>Legal Closing</option>
+                            <option>General Inquiry</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Internal Notes</label>
+                        <textarea value={newClient.message} onChange={e=>setNewClient({...newClient, message: e.target.value})} className="w-full mt-1 bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-black resize-none" rows={3}></textarea>
+                    </div>
+                    <button type="submit" className="w-full bg-black text-white py-4 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-gray-800 transition shadow-lg mt-2">
+                        Inject to Pipeline
+                    </button>
+                </form>
+            </div>
         </div>
       )}
     </div>

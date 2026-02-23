@@ -197,3 +197,29 @@ export interface Referral {
       return [];
     }
   }
+  export type UserRole = 'admin' | 'internal_agent' | 'external_agent' | 'partner_realtor' | 'partner_lawyer' | 'partner_mortgage';
+
+export interface Task {
+  id: string;
+  referralId: string;
+  clientName: string;
+  assigneeId: string;
+  dueDate: string; // ISO date string (YYYY-MM-DD)
+  description: string;
+  status: 'Pending' | 'Completed';
+}
+
+export interface ActivityLog {
+  id?: string;
+  type: 'note' | 'call' | 'email' | 'status_change' | 'system';
+  author: string;
+  content: string;
+  timestamp: string;
+  isSystemMessage?: boolean;
+}
+
+export interface Referral {
+  // ... (keep existing fields)
+  nextScheduledCall?: string; // ISO string
+  timeline: ActivityLog[]; // Replace Note[] with ActivityLog[]
+}

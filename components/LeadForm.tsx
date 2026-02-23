@@ -9,12 +9,14 @@ interface LeadFormProps {
   type?: 'General' | 'Mortgage' | 'Realtor' | 'Legal' | 'Contractor' | 'Pre-Con' | 'Commercial' | 'Insurance' | 'Investment' | 'GeneralInsurance';
   title?: string;
   subtitle?: string;
+  ctaText?: string; // <--- NEW PROP
 }
 
 const LeadForm: React.FC<LeadFormProps> = ({ 
   type = 'General', 
   title = 'Initiate Strategy', 
-  subtitle = 'One form. One team. Complete 360° solution.' 
+  subtitle = 'One form. One team. Complete 360° solution.',
+  ctaText = 'Submit Request' // Default fallback
 }) => {
   const currentPath = usePathname() || '';
   const isCityPage = currentPath.includes('/mortgage-real-estate/') || currentPath.includes('/pre-construction-condos/');
@@ -51,9 +53,9 @@ const LeadForm: React.FC<LeadFormProps> = ({
     if (result.success) {
       setLoading(false);
       setSubmitted(true);
-      // Optional: Add conversion tracking event here
+      // Google Ads Conversion Event
       if (typeof window !== 'undefined' && (window as any).gtag) {
-         (window as any).gtag('event', 'generate_lead', { 'event_category': 'form', 'event_label': type });
+         (window as any).gtag('event', 'generate_lead', { 'event_category': 'form', 'event_label': 'PPC_Landing' });
       }
       setTimeout(() => {
         window.location.href = '/thank-you';
@@ -82,10 +84,10 @@ const LeadForm: React.FC<LeadFormProps> = ({
   }
 
   return (
-    <div className="bg-white p-6 md:p-10 rounded-[2rem] shadow-xl border border-gray-100 relative overflow-hidden">
+    <div className="bg-white p-6 md:p-10 rounded-[2rem] shadow-2xl border border-gray-100 relative overflow-hidden">
       
       {/* Decorative Top Line */}
-      <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-600 to-indigo-600"></div>
+      <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-600 to-indigo-600"></div>
 
       <div className="mb-8">
         <h3 className="text-2xl md:text-3xl font-black text-slate-900 mb-2 uppercase tracking-tight">{title}</h3>
@@ -108,15 +110,12 @@ const LeadForm: React.FC<LeadFormProps> = ({
               <option value="Realtor">Buying / Selling Real Estate</option>
               <option value="Pre-Con">Pre-Construction Investment</option>
               <option value="Commercial">Commercial Lending</option>
-              <option value="Insurance">Life Insurance Strategy</option>
-              <option value="GeneralInsurance">Home & Auto Insurance</option>
-              <option value="Legal">Real Estate Legal Services</option>
             </select>
             <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none group-hover:text-blue-600 transition" size={18} />
           </div>
         </div>
 
-        {/* Row 1: Name & City (Stacked on Mobile, Split on Desktop) */}
+        {/* Row 1: Name & City */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
             <label className="block text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Full Name</label>
@@ -177,9 +176,9 @@ const LeadForm: React.FC<LeadFormProps> = ({
           <label className="block text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Goal / Strategy</label>
           <textarea
             name="message"
-            rows={3}
+            rows={2}
             className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl font-bold text-base text-slate-900 focus:ring-2 focus:ring-blue-600 focus:bg-white focus:border-transparent outline-none transition placeholder:text-gray-300 resize-none"
-            placeholder="I am looking to buy a property in Vaughan..."
+            placeholder="I am looking to buy a property..."
             value={formData.message}
             onChange={handleChange}
           ></textarea>
@@ -197,7 +196,7 @@ const LeadForm: React.FC<LeadFormProps> = ({
               className="mt-1 w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-600 shrink-0 cursor-pointer"
             />
             <label htmlFor="consent" className="text-[10px] md:text-xs text-gray-500 font-medium leading-relaxed cursor-pointer select-none">
-              I authorize IndiBrick Financial and its partners to contact me via email/phone. Your data is encrypted and never sold.
+              I authorize IndiBrick Financial to contact me via email/phone regarding this request.
             </label>
           </div>
 
@@ -211,7 +210,7 @@ const LeadForm: React.FC<LeadFormProps> = ({
           <button
             type="submit"
             disabled={loading}
-            className={`w-full bg-slate-900 text-white font-black uppercase text-xs md:text-sm tracking-[0.2em] py-5 rounded-2xl hover:bg-blue-600 hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-300 flex items-center justify-center gap-3 ${loading ? 'opacity-80 cursor-wait' : ''}`}
+            className={`w-full bg-blue-600 text-white font-black uppercase text-xs md:text-sm tracking-[0.2em] py-5 rounded-2xl hover:bg-blue-500 hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-300 flex items-center justify-center gap-3 ${loading ? 'opacity-80 cursor-wait' : ''}`}
           >
             {loading ? (
               <>
@@ -220,15 +219,13 @@ const LeadForm: React.FC<LeadFormProps> = ({
               </>
             ) : (
               <>
-                <Lock size={18} className="text-gray-400" />
-                Submit Request
-                <Zap size={18} className="text-yellow-400" />
+                {ctaText} <Zap size={18} className="text-yellow-400 fill-yellow-400" />
               </>
             )}
           </button>
           
           <p className="text-center text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-4 flex items-center justify-center gap-2">
-             <ShieldCheck size={12}/> 256-Bit SSL Secured
+             <Lock size={12}/> 256-Bit SSL Secured & Private
           </p>
         </div>
 
