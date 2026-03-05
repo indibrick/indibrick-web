@@ -14,7 +14,7 @@ import { BlogPost, NewsArticle, MortgageRate, MarketMetric } from "../types";
 export const ContentService = {
   
   // ===========================================================================
-  // 1. BLOG POSTS (Knowledge Base)
+  // 1. BLOG POSTS (Knowledge Base & SEO Content)
   // ===========================================================================
 
   async fetchPosts(): Promise<BlogPost[]> {
@@ -60,8 +60,36 @@ export const ContentService = {
   },
 
   async createPost(post: Omit<BlogPost, 'id'>) {
-    // Use the slug as the ID for SEO-friendly URLs and easier lookup
+    // 1. Write the new post to Firestore
     await setDoc(doc(db, "posts", post.slug), post);
+
+    // 2. 🚀 SEO PIPELINE: Trigger Google Indexing API Webhook
+    try {
+      // Use environment variable for base URL, fallback to production URL
+      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://indibrick.ca';
+      
+      // We ping the API route we created to securely handle the Google JWT auth
+      const response = await fetch(`${baseUrl}/api/admin/index-url`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Assuming this service is called from a secure server context or Next.js API route
+          'Authorization': `Bearer ${process.env.ADMIN_SECRET_KEY}` 
+        },
+        body: JSON.stringify({
+          urlToUpdate: `${baseUrl}/blog/${post.slug}`
+        })
+      });
+
+      if (response.ok) {
+        console.log(`✅ [SEO] Successfully pinged Indexing API for: ${post.slug}`);
+      } else {
+        console.warn(`⚠️ [SEO] Indexing API returned status: ${response.status}`);
+      }
+    } catch (error) {
+      // Non-blocking error: We don't want a failed ping to crash the post creation
+      console.error("❌ Failed to trigger Google Indexing API:", error);
+    }
   },
 
   async deletePost(id: string) {

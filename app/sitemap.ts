@@ -3,71 +3,50 @@ import { CityService } from '../services/CityService';
 import { ContentService } from '../services/ContentService';
 import { PropertyService } from '../services/PropertyService';
 
-// 1. FORCE DYNAMIC: This tells Next.js "Don't cache this. Run it every time."
-export const dynamic = 'force-dynamic';
-export const revalidate = 0; 
+// 🚀 CTO DIRECTIVE: Shift from force-dynamic to ISR. 
+// Revalidate every 3600 seconds (1 hour). This protects our database 
+// from bot-spam while keeping Google fed with fresh data.
+export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://indibrick.ca';
   
-  console.log("------------------------------------------------");
-  console.log("GENERATING SITEMAP... (Server Side)");
+  console.log("🚀 [SEO] GENERATING CACHED SITEMAP...");
 
-  // 1. Static Pages
+  // 1. Core Platform Pages
   const staticRoutes = [
-    '', 
-    '/about', 
-    '/services', 
-    '/mortgages', 
-    '/contact', 
-    '/rates', 
-    '/listings',
-    '/market-news',
-    '/careers',
-    '/privacy-policy',
-    '/terms-and-conditions',
-    '/tools',
-    '/mortgage-payment-calculator',
-    '/land-transfer-tax-calculator-ontario',
-    '/affordability-calculator',
-    '/closing-costs-calculator',
-    '/down-payment-calculator',
-    '/mortgage-renewal-calculator',
-    '/refinance-calculator',
-    '/trigger-rate-calculator',
-    '/tools/universal-life-calculator',
-    '/tools/segregated-fund-calculator',
-    '/commercial-lending',
-    '/insurance-financial-protection',
-    '/investment-planning-wealth-growth',
-    '/pre-construction-projects',
-    '/property-management',
-    '/realtor-network',
-    '/renovation-contractors',
-    '/trusted-real-estate-lawyers',
-    '/commercial-auto-home-insurance',
-    '/mortgage-rate-forecast',
+    '', '/about', '/services', '/mortgages', '/contact', '/rates', 
+    '/listings', '/market-news', '/careers', '/privacy-policy', 
+    '/terms-and-conditions', '/tools', '/mortgage-payment-calculator', 
+    '/land-transfer-tax-calculator-ontario', '/affordability-calculator', 
+    '/closing-costs-calculator', '/down-payment-calculator', 
+    '/mortgage-renewal-calculator', '/refinance-calculator', 
+    '/trigger-rate-calculator', '/tools/universal-life-calculator', 
+    '/tools/segregated-fund-calculator', '/commercial-lending', 
+    '/insurance-financial-protection', '/investment-planning-wealth-growth', 
+    '/pre-construction-projects', '/property-management', '/realtor-network', 
+    '/renovation-contractors', '/trusted-real-estate-lawyers', 
+    '/commercial-auto-home-insurance', '/mortgage-rate-forecast',
   ];
 
   const staticPages = staticRoutes.map(route => ({
     url: `${baseUrl}${route}`,
     lastModified: new Date(),
     changeFrequency: 'weekly' as const,
-    priority: route === '' ? 1 : 0.8,
+    priority: route === '' ? 1.0 : 0.8,
   }));
 
   try {
-    // 2. Dynamic Data Fetching with Logging
-    const cities = await CityService.getAllCities();
-    console.log(`> Found ${cities.length} Cities`);
+    // 2. Parallel Data Fetching for Maximum Speed
+    const [cities, posts, properties] = await Promise.all([
+      CityService.getAllCities(),
+      ContentService.fetchPosts(),
+      PropertyService.fetchProperties()
+    ]);
 
-    const posts = await ContentService.fetchPosts();
-    console.log(`> Found ${posts.length} Blog Posts`);
+    console.log(`📊 Indexing: ${cities.length} Cities | ${posts.length} Posts | ${properties.length} Properties`);
 
-    const properties = await PropertyService.fetchProperties();
-    console.log(`> Found ${properties.length} Properties`);
-
-    // 3. Map Data to URLs
+    // 3. Map Data to High-Value Arbitrage URLs
     const cityUrls = cities.map(city => ({
         url: `${baseUrl}/mortgage-real-estate/${city.slug}`,
         lastModified: new Date(), 
@@ -82,22 +61,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.85,
     }));
 
-    const blogUrls = posts.map(post => ({
-        url: `${baseUrl}/blog/${post.slug}`,
-        lastModified: new Date(post.date),
-        changeFrequency: 'monthly' as const,
-        priority: 0.7,
-    }));
+    const blogUrls = posts.map(post => {
+        // Defensive date parsing for Firestore timestamps
+        const lastMod = post.date?.toDate ? post.date.toDate() : new Date(post.date || Date.now());
+        return {
+            url: `${baseUrl}/blog/${post.slug}`,
+            lastModified: lastMod,
+            changeFrequency: 'monthly' as const,
+            priority: 0.7,
+        };
+    });
 
     const propertyUrls = properties.map(p => ({
-        url: `${baseUrl}/listings?id=${p.id}`, 
+        // 🚨 URGENT SEO FIX: Moving away from ?id= queries to clean URLs
+        // Ensure your Next.js routing supports /listings/[id] or /listings/[slug]
+        url: `${baseUrl}/listings/${p.slug || p.id}`, 
         lastModified: new Date(),
         changeFrequency: 'daily' as const,
         priority: 0.8,
     }));
 
-    console.log("SITEMAP GENERATION COMPLETE.");
-    console.log("------------------------------------------------");
+    console.log("✅ [SEO] SITEMAP GENERATION COMPLETE.");
 
     return [
         ...staticPages, 
@@ -108,8 +92,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ];
 
   } catch (error) {
-    console.error("ERROR GENERATING SITEMAP:", error);
-    // Fallback to static if DB fails
+    console.error("❌ CRITICAL SITEMAP ERROR:", error);
+    // Fallback gracefully so Google doesn't penalize the domain
     return staticPages;
   }
 }

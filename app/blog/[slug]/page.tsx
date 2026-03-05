@@ -1,17 +1,16 @@
-'use client';
-
 import React from 'react';
 import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
-import { db } from '@/firebase'; // <--- FIXED
+import { db } from '@/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { BlogPost } from '@/types'; // <--- FIXED
+import { BlogPost } from '@/types';
 import Link from 'next/link';
-import { ArrowLeft, Calendar, User, Tag, Calculator, Clock, Share2, ArrowRight, ShieldCheck } from 'lucide-react';
-import JsonLd from '@/components/JsonLd'; // <--- FIXED
-import LeadForm from '@/components/LeadForm'; // <--- FIXED
+import { ArrowLeft, Clock, Calculator, ShieldCheck } from 'lucide-react';
+import JsonLd from '@/components/JsonLd';
+import LeadForm from '@/components/LeadForm';
+import DOMPurify from 'isomorphic-dompurify'; // 🔒 SECURE: XSS Sanitizer Added
 
-// Import Calculators (FIXED IMPORTS)
+// Import Calculators
 import MortgageCalculator from '@/components/MortgageCalculator';
 import LandTransferTaxCalculator from '@/components/LandTransferTaxCalculator';
 import ClosingCostsCalculator from '@/components/ClosingCostsCalculator';
@@ -92,6 +91,9 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
     description: post.excerpt
   };
 
+  // 🔒 SECURE: Sanitize content before rendering
+  const cleanHTML = DOMPurify.sanitize(post.content);
+
   return (
     <div className="bg-white min-h-screen font-sans text-slate-900">
       <JsonLd data={articleSchema} />
@@ -157,7 +159,8 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
                     prose-blockquote:border-l-4 prose-blockquote:border-blue-600 prose-blockquote:bg-blue-50 prose-blockquote:py-2 prose-blockquote:px-6 prose-blockquote:rounded-r-lg prose-blockquote:not-italic
                     prose-img:rounded-3xl prose-img:shadow-lg">
                     
-                    <div dangerouslySetInnerHTML={{ __html: post.content }} />
+                    {/* 🔒 SECURE: Render sanitized HTML */}
+                    <div dangerouslySetInnerHTML={{ __html: cleanHTML }} />
                 </div>
 
                 {/* INJECTED TOOL */}
