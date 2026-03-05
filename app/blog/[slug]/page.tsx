@@ -8,7 +8,9 @@ import Link from 'next/link';
 import { ArrowLeft, Clock, Calculator, ShieldCheck } from 'lucide-react';
 import JsonLd from '@/components/JsonLd';
 import LeadForm from '@/components/LeadForm';
-import DOMPurify from 'isomorphic-dompurify'; // 🔒 SECURE: XSS Sanitizer Added
+
+// 🚀 CTO DIRECTIVE: Swapped to native Node.js parser to fix Docker/ESM build crash
+import sanitizeHtml from 'sanitize-html'; 
 
 // Import Calculators
 import MortgageCalculator from '@/components/MortgageCalculator';
@@ -91,8 +93,20 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
     description: post.excerpt
   };
 
-  // 🔒 SECURE: Sanitize content before rendering
-  const cleanHTML = DOMPurify.sanitize(post.content);
+  // 🔒 SECURE & SCALABLE: Sanitize content natively. Preserves styling, drops malicious scripts.
+  const cleanHTML = sanitizeHtml(post.content, {
+    allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+      'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'iframe', 'div', 'span', 'p'
+    ]),
+    allowedAttributes: {
+      ...sanitizeHtml.defaults.allowedAttributes,
+      '*': ['class', 'style', 'id'], // CRITICAL: Preserves our Tailwind CSS classes
+      'img': ['src', 'alt', 'width', 'height'],
+      'iframe': ['src', 'width', 'height', 'allowfullscreen', 'frameborder'],
+      'a': ['href', 'name', 'target', 'rel']
+    },
+    allowedIframeHostnames: ['www.youtube.com', 'player.vimeo.com'] // Security best practice
+  });
 
   return (
     <div className="bg-white min-h-screen font-sans text-slate-900">
@@ -159,7 +173,7 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
                     prose-blockquote:border-l-4 prose-blockquote:border-blue-600 prose-blockquote:bg-blue-50 prose-blockquote:py-2 prose-blockquote:px-6 prose-blockquote:rounded-r-lg prose-blockquote:not-italic
                     prose-img:rounded-3xl prose-img:shadow-lg">
                     
-                    {/* 🔒 SECURE: Render sanitized HTML */}
+                    {/* 🔒 SECURE: Render Native sanitized HTML */}
                     <div dangerouslySetInnerHTML={{ __html: cleanHTML }} />
                 </div>
 
