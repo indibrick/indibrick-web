@@ -193,7 +193,8 @@ export default function AdminPage() {
     else setCurrentListing({
       title: '', price: 0, address: '', city: 'Toronto', 
       bedrooms: 3, bathrooms: 2, type: 'Detached', 
-      purpose: 'Sale', imageUrl: '', isFeatured: false, status: 'Active'
+      purpose: 'Sale', imageUrl: '', isFeatured: false, status: 'Active',
+      landingPageUrl: '' // <-- NEW FIELD FOR CUSTOM VIP FUNNELS
     });
     setShowListingModal(true);
   };
@@ -319,7 +320,10 @@ export default function AdminPage() {
                          {item.imageUrl && <img src={item.imageUrl} className="w-full h-full object-cover" />}
                        </div>
                        <div>
-                         <p className="font-bold text-black">{item.title}</p>
+                         <p className="font-bold text-black flex items-center gap-2">
+                           {item.title}
+                           {item.landingPageUrl && <span className="bg-amber-100 text-amber-600 text-[9px] px-2 py-0.5 rounded-full uppercase tracking-widest">VIP</span>}
+                         </p>
                          <p className="text-xs text-gray-400 uppercase tracking-wide">{item.city}</p>
                        </div>
                      </td>
@@ -581,6 +585,20 @@ export default function AdminPage() {
                 <label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Image URL</label>
                 <input className="w-full bg-gray-50 p-3 rounded-lg font-bold outline-none text-xs" value={currentListing.imageUrl} onChange={e => setCurrentListing({...currentListing, imageUrl: e.target.value})} />
               </div>
+              
+              {/* --- NEW FIELD: CUSTOM VIP FUNNEL ROUTING --- */}
+              <div className="md:col-span-2">
+                <label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Custom Funnel URL (Optional)</label>
+                <input 
+                  placeholder="/vip-access/1515-pickering-pkwy" 
+                  className="w-full bg-blue-50 border border-blue-100 p-3 rounded-lg font-bold outline-none text-xs text-blue-700 focus:border-blue-300 transition" 
+                  value={currentListing.landingPageUrl || ''} 
+                  onChange={e => setCurrentListing({...currentListing, landingPageUrl: e.target.value})} 
+                />
+                <p className="text-[10px] text-gray-400 mt-1">If filled, users will bypass the modal and go straight to this high-converting landing page.</p>
+              </div>
+              {/* ------------------------------------------- */}
+
               <div className="md:col-span-2 pt-4 flex gap-4">
                 <button type="button" onClick={() => setShowListingModal(false)} className="flex-1 py-4 font-bold text-gray-500 hover:bg-gray-50 rounded-xl transition">Cancel</button>
                 <button className="flex-1 bg-black text-white py-4 rounded-xl font-black uppercase tracking-widest hover:bg-gray-800 transition shadow-lg">Save Changes</button>

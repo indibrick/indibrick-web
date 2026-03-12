@@ -21,7 +21,7 @@ export default function AboutPage() {
     "employees": [
        { "@type": "Person", "name": "Vikas Sharma", "jobTitle": "Broker" },
        { "@type": "Person", "name": "Amit Nagpal", "jobTitle": "Mortgage Agent Level 2" },
-       { "@type": "Person", "name": "Vignesh Karthikeyan", "jobTitle": "Investment Specialist" }
+       { "@type": "Person", "name": "Nitish Gupta", "jobTitle": "Mortgage Agent Level 1" }
     ]
   };
 
@@ -69,7 +69,7 @@ export default function AboutPage() {
             {/* THE GRID */}
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
 
-               {/* 2. MUDIT */}
+               {/* 1. MUDIT */}
                <div className={cardStyle}>
                   <div className={imageContainerStyle}>
                      <Image src="/mudit-in.jpg" fill alt="Mudit Chhura" className="object-cover" />
@@ -85,7 +85,8 @@ export default function AboutPage() {
                      <Linkedin size={18} /> LinkedIn
                   </a>
                </div>
-               {/* 1. SAAD */}
+               
+               {/* 2. SAAD */}
                <div className={cardStyle}>
                   <div className={imageContainerStyle}>
                      <Image src="/saad-in.jpg" fill alt="Saad Shaikh" className="object-cover" />
@@ -138,27 +139,27 @@ export default function AboutPage() {
                   </a>
                </div>
 
-               {/* 5. VIGNESH */}
+               {/* 5. NITISH */}
                <div className={cardStyle}>
                   <div className={imageContainerStyle}>
-                     <Image src="/vignesh-in.jpg" fill alt="Vignesh Karthikeyan" className="object-cover" />
+                     <Image src="/nitish.jpg" fill alt="Nitish Gupta" className="object-cover" />
                   </div>
                   <div>
-                     <h4 className={nameStyle}>Vignesh Karthikeyan</h4>
-                     <p className={roleStyle}>Investment and Insurance Specialist</p>
+                     <h4 className={nameStyle}>Nitish Gupta</h4>
+                     <p className={roleStyle}>Mortgage Agent Level 1</p>
                   </div>
                   <p className={textStyle}>
                      <strong className="text-blue-600 block mb-2">Part of Dream Home + Life</strong>
-                     Leading the wealth protection division. Vignesh designs comprehensive insurance and investment strategies (Segregated Funds, Life Insurance) to secure your financial future.
+                     An ex-banker with 6 years of experience with major financial institutions, now working as a mortgage agent with Dream Home + Life, Nitish supports Indibrick in business development, bringing deep institutional knowledge to complex files.
                   </p>
-                  <a href="https://www.linkedin.com/in/doctroffinance/" target="_blank" rel="noopener noreferrer" className={linkedinButtonStyle}>
+                  <a href="https://www.linkedin.com/in/nitish-g-74a5b139/" target="_blank" rel="noopener noreferrer" className={linkedinButtonStyle}>
                      <Linkedin size={18} /> LinkedIn
                   </a>
                </div>
-               {/* SANA KHAN */}
+               
+               {/* 6. SANA KHAN */}
                <div className={cardStyle}>
                   <div className={imageContainerStyle}>
-                     {/* Ensure file is named 'sana-in.jpg' (lowercase) */}
                      <Image src="/sana-in.jpg" fill alt="Sana Khan" className="object-cover" />
                   </div>
                   <div>
@@ -169,7 +170,6 @@ export default function AboutPage() {
                      <strong className="text-blue-600 block mb-2">Indibrick Team</strong>
                      Driving the digital narrative. Sana curates high-impact content that bridges the gap between complex financial data and user engagement, amplifying Indibrick's market presence.
                   </p>
-                  {/* Replace '#' with her actual LinkedIn URL if available */}
                   <a href="https://www.linkedin.com/in/sana-k-a54b6b389/" target="_blank" rel="noopener noreferrer" className={linkedinButtonStyle}>
                      <Linkedin size={18} /> LinkedIn
                   </a>

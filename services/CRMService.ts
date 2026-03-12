@@ -20,24 +20,21 @@ import { Referral, PartnerProfile, Task, ActivityLog } from "../types";
 export class CRMService {
   
   // ===========================================================================
-  // 1. DASHBOARD & DATA FETCHING (WITH ADMIN OVERRIDE)
+  // 1. DASHBOARD & DATA FETCHING
   // ===========================================================================
 
   static async getPartnerDashboard(profile: { uid: string, role: string, displayName: string }) {
     const referralsRef = collection(db, "referrals");
 
     if (profile.role === 'admin') {
-       // Inbox: Web leads waiting in the triage queue
        const inboxQuery = query(referralsRef, where("assignedAgentId", "==", "ADMIN_INBOX"));
        const inboxSnap = await getDocs(inboxQuery);
        const inbox = inboxSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Referral));
 
-       // Mine: Leads specifically routed/assigned to the Admin's personal account to work on
        const mineQuery = query(referralsRef, where("assignedAgentId", "==", profile.uid));
        const mineSnap = await getDocs(mineQuery);
        const mine = mineSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Referral));
 
-       // Sent: Leads the Admin created/ingested manually and routed to others
        const sentQuery = query(referralsRef, where("referrerId", "==", profile.uid));
        const sentSnap = await getDocs(sentQuery);
        const sentAll = sentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Referral));
@@ -46,7 +43,6 @@ export class CRMService {
        return { sent, received: inbox, mine };
     }
 
-    // Standard Partner Queries
     const sentQuery = query(referralsRef, where("referrerId", "==", profile.uid));
     const sentSnapshot = await getDocs(sentQuery);
     const sentAll = sentSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Referral));
@@ -72,13 +68,74 @@ export class CRMService {
   }
 
   // ===========================================================================
-  // 2. INBOUND FLOW & INGESTION
+  // 2. ADMIN COMMAND CENTER METHODS (FIXES THE TYPE ERROR)
+  // ===========================================================================
+
+  static async getAllReferrals() {
+    const snapshot = await getDocs(collection(db, "referrals"));
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Referral));
+  }
+
+  static async getUsersByRole(rolePrefix: string) {
+    const snapshot = await getDocs(collection(db, "users"));
+    // Filter out users that match the requested role (e.g. 'partner_realtor' contains 'partner')
+    return snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }))
+      .filter((u: any) => u.role && u.role.includes(rolePrefix));
+  }
+
+  static async savePartnerProfile(partner: any) {
+    const userRef = doc(db, "users", partner.uid);
+    // Merge true ensures we don't accidentally wipe out other auth data if it exists
+    await setDoc(userRef, partner, { merge: true });
+  }
+
+  static async deletePartnerProfile(uid: string) {
+    const userRef = doc(db, "users", uid);
+    await deleteDoc(userRef);
+  }
+
+  static async addNoteToReferral(referralId: string, content: string, authorName: string) {
+    const ref = doc(db, "referrals", referralId);
+    const note = {
+      type: 'user', author: authorName, content,
+      timestamp: new Date().toISOString(), isSystemMessage: false
+    };
+    await updateDoc(ref, {
+      timeline: arrayUnion(note),
+      lastUpdated: new Date().toISOString()
+    });
+  }
+
+  static async assignWebLeadToPartner(leadId: string, leadData: any, partnerUid: string, partnerName: string) {
+    const timestamp = new Date().toISOString();
+    await addDoc(collection(db, "referrals"), {
+      leadId: leadId, // Link to original web lead
+      referrerId: 'INDIBRICK_WEB',
+      referrerName: 'Indibrick Website',
+      assignedAgentId: partnerUid,
+      assignedAgentName: partnerName,
+      status: 'Routed to Partner',
+      clientName: leadData.name || 'Unknown',
+      clientPhone: leadData.phone || '',
+      clientEmail: leadData.email || '',
+      referralDate: timestamp,
+      notes: leadData.serviceNeeded || 'Web Lead Transfer',
+      timeline: [{
+        type: 'system', author: 'Indibrick Routing Engine', 
+        content: `Lead captured from indibrick.ca and transferred to ${partnerName}.`,
+        timestamp: timestamp, isSystemMessage: true
+      }],
+      type: 'Web Lead'
+    });
+  }
+
+  // ===========================================================================
+  // 3. INBOUND FLOW & INGESTION
   // ===========================================================================
 
   static async createReferral(referrer: PartnerProfile, clientData: any) {
     try {
       const timestamp = new Date().toISOString();
-
       await addDoc(collection(db, "referrals"), {
         referrerId: referrer.uid,
         referrerName: referrer.displayName,
@@ -91,15 +148,11 @@ export class CRMService {
         referralDate: timestamp,
         notes: clientData.message || '',
         timeline: [{
-          type: 'system',
-          author: 'System',
-          content: `Lead ingested via ${clientData.type || 'Manual Entry'}.`,
-          timestamp: timestamp,
-          isSystemMessage: true
+          type: 'system', author: 'System', content: `Lead ingested via ${clientData.type || 'Manual Entry'}.`,
+          timestamp: timestamp, isSystemMessage: true
         }],
         type: clientData.type || 'Manual Entry' 
       });
-
       return { success: true };
     } catch (error) {
       console.error("CRM Error:", error);
@@ -126,19 +179,17 @@ export class CRMService {
         status: 'New',
         referralDate: new Date().toISOString(),
         timeline: [{
-          type: 'system', author: 'System',
-          content: 'Lead imported via CSV batch upload.',
+          type: 'system', author: 'System', content: 'Lead imported via CSV batch upload.',
           timestamp: new Date().toISOString(), isSystemMessage: true
         }],
         type: 'Imported Lead'
       });
     });
-
     await batch.commit(); 
   }
 
   // ===========================================================================
-  // 3. COLLABORATION, NOTES & LOGS (WITH PORTAL X 99 SYNC)
+  // 4. COLLABORATION, NOTES & LOGS
   // ===========================================================================
 
   static async logActivity(referralId: string, activity: ActivityLog) {
@@ -152,13 +203,11 @@ export class CRMService {
   static async updateReferralStatus(referralId: string, newStatus: string, authorName: string) {
     try {
       const ref = doc(db, "referrals", referralId);
-      
-      // Look up the referral to find the legacy leadId for Portal X 99 Sync
       const docSnap = await getDoc(ref);
+      
       if (docSnap.exists()) {
          const data = docSnap.data();
          if (data.leadId) {
-            // Write the status back to Portal X 99's database so they stay in sync
             const legacyRef = doc(db, "leads", data.leadId);
             const legacySnap = await getDoc(legacyRef);
             if(legacySnap.exists()){
@@ -195,7 +244,7 @@ export class CRMService {
   }
 
   // ===========================================================================
-  // 4. TRAFFIC CONTROL & ROUTING
+  // 5. TRAFFIC CONTROL & ROUTING
   // ===========================================================================
 
   static async routeLeadToPartner(referralId: string, currentPartnerName: string, targetPartnerUid: string, targetPartnerName: string) {
@@ -214,7 +263,7 @@ export class CRMService {
   }
 
   // ===========================================================================
-  // 5. TASKS & SCHEDULING
+  // 6. TASKS & SCHEDULING
   // ===========================================================================
 
   static async scheduleTask(taskData: Omit<Task, 'id'>) {

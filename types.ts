@@ -223,3 +223,19 @@ export interface Referral {
   nextScheduledCall?: string; // ISO string
   timeline: ActivityLog[]; // Replace Note[] with ActivityLog[]
 }
+export interface Property { 
+  id: string; 
+  title: string; 
+  price: number; 
+  address: string; 
+  city: string; 
+  bedrooms: number; 
+  bathrooms: number; 
+  type: string; 
+  purpose: string; 
+  imageUrl: string; 
+  isFeatured: boolean;
+  description?: string; 
+  status?: string;
+  landingPageUrl?: string; // <-- NEW: Routes to custom VIP funnels
+}
