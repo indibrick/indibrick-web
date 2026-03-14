@@ -9,14 +9,14 @@ interface LeadFormProps {
   type?: 'General' | 'Mortgage' | 'Realtor' | 'Legal' | 'Contractor' | 'Pre-Con' | 'Commercial' | 'Insurance' | 'Investment' | 'GeneralInsurance';
   title?: string;
   subtitle?: string;
-  ctaText?: string; // <--- NEW PROP
+  ctaText?: string; 
 }
 
 const LeadForm: React.FC<LeadFormProps> = ({ 
   type = 'General', 
   title = 'Initiate Strategy', 
   subtitle = 'One form. One team. Complete 360° solution.',
-  ctaText = 'Submit Request' // Default fallback
+  ctaText = 'Submit Request' 
 }) => {
   const currentPath = usePathname() || '';
   const isCityPage = currentPath.includes('/mortgage-real-estate/') || currentPath.includes('/pre-construction-condos/');
@@ -38,15 +38,26 @@ const LeadForm: React.FC<LeadFormProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // 1. Consent Check
     if (!formData.consent) {
       setError('Please confirm consent to proceed.');
       return;
     }
+
+    // 2. STRICT 10-DIGIT PHONE VALIDATION
+    const cleanedPhone = formData.phone.replace(/\D/g, ''); // Strip all non-numeric characters
+    if (cleanedPhone.length !== 10) {
+      setError('Please enter a valid 10-digit phone number.');
+      return;
+    }
+
     setError('');
     setLoading(true);
     
     const result = await LeadService.submitLead({
       ...formData,
+      phone: cleanedPhone, // Send the clean 10-digit version to the database
       serviceNeeded: formData.serviceNeeded
     });
 
@@ -67,8 +78,26 @@ const LeadForm: React.FC<LeadFormProps> = ({
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const value = e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value;
-    setFormData({ ...formData, [e.target.name]: value });
+    const { name, type } = e.target;
+    let value = type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value;
+
+    // REAL-TIME PHONE FORMATTER
+    if (name === 'phone' && typeof value === 'string') {
+      const cleaned = value.replace(/\D/g, ''); // Remove non-digits
+      const match = cleaned.match(/^(\d{0,3})(\d{0,3})(\d{0,4})$/);
+      
+      if (match) {
+        value = !match[2] 
+          ? match[1] 
+          : `(${match[1]}) ${match[2]}` + (match[3] ? `-${match[3]}` : '');
+      }
+      
+      // Prevent typing more than 14 characters formatted: (XXX) XXX-XXXX
+      if (value.length > 14) return;
+    }
+
+    setFormData({ ...formData, [name]: value });
+    if (error) setError(''); // Clear error when user types
   };
 
   if (submitted) {
