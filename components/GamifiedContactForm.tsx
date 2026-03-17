@@ -6,7 +6,7 @@ import { LeadService } from '../services/LeadService';
 
 type Step = 'GOAL' | 'TIMELINE' | 'DETAILS' | 'SUCCESS';
 
-// --- DATA CONSTANTS (Defined outside to prevent render issues) ---
+// --- DATA CONSTANTS ---
 const GOAL_OPTIONS = [
   { label: 'Buy a Property', icon: Home, val: 'Purchase' },
   { label: 'Refinance / Cash Out', icon: DollarSign, val: 'Refinance' },
@@ -31,6 +31,7 @@ export default function GamifiedContactForm() {
     email: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState(''); // NEW: Error state for validation
 
   // --- HANDLERS ---
   const handleSelect = (field: string, value: string) => {
@@ -39,14 +40,43 @@ export default function GamifiedContactForm() {
     if (field === 'timeline') setStep('DETAILS');
   };
 
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    
+    // REAL-TIME PHONE FORMATTER
+    const cleaned = value.replace(/\D/g, ''); // Remove non-digits
+    const match = cleaned.match(/^(\d{0,3})(\d{0,3})(\d{0,4})$/);
+    
+    if (match) {
+      value = !match[2] 
+        ? match[1] 
+        : `(${match[1]}) ${match[2]}` + (match[3] ? `-${match[3]}` : '');
+    }
+    
+    // Prevent typing more than 14 characters formatted: (XXX) XXX-XXXX
+    if (value.length > 14) return;
+
+    setFormData({ ...formData, phone: value });
+    if (error) setError(''); // Clear error when they start typing again
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // STRICT 10-DIGIT PHONE VALIDATION
+    const cleanedPhone = formData.phone.replace(/\D/g, ''); 
+    if (cleanedPhone.length !== 10) {
+      setError('Please enter a valid 10-digit phone number.');
+      return;
+    }
+
     setIsSubmitting(true);
+    setError(''); // Clear any previous errors
     
     await LeadService.submitLead({
        name: formData.name,
        email: formData.email,
-       phone: formData.phone,
+       phone: cleanedPhone, // Send the clean 10-digit version
        serviceNeeded: formData.goal,
        city: 'Gamified Form',
        message: `Timeline: ${formData.timeline}`,
@@ -153,8 +183,8 @@ export default function GamifiedContactForm() {
                  required
                  type="tel" 
                  value={formData.phone}
-                 onChange={e => setFormData({...formData, phone: e.target.value})}
-                 className="w-full bg-gray-50 text-slate-900 border border-gray-200 rounded-xl px-4 py-3 font-bold focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition placeholder:text-gray-300"
+                 onChange={handlePhoneChange}
+                 className={`w-full bg-gray-50 text-slate-900 border rounded-xl px-4 py-3 font-bold focus:outline-none focus:ring-1 transition placeholder:text-gray-300 ${error ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-black focus:ring-black'}`}
                  placeholder="(437) 241-6392"
               />
            </div>
@@ -170,6 +200,14 @@ export default function GamifiedContactForm() {
                  placeholder="jane@example.com"
               />
            </div>
+
+           {/* VALIDATION ERROR DISPLAY */}
+           {error && (
+             <div className="bg-red-50 p-4 rounded-xl flex items-center gap-3 animate-shake mt-2 mb-2">
+               <AlertCircle className="text-red-500 shrink-0" size={18} />
+               <p className="text-red-700 text-xs font-bold uppercase tracking-wide">{error}</p>
+             </div>
+           )}
 
            <button 
               type="submit" 
@@ -195,7 +233,7 @@ export default function GamifiedContactForm() {
            <p className="text-gray-500 text-sm max-w-xs mx-auto mb-8">
               We have received your request. A Senior Advisor is reviewing your file and will contact you at <strong>{formData.phone}</strong> shortly.
            </p>
-           <button onClick={() => window.location.reload()} className="text-xs font-bold underline text-black">Start Over</button>
+           <button onClick={() => { setStep('GOAL'); setFormData({ goal: '', timeline: '', name: '', phone: '', email: '' }); }} className="text-xs font-bold underline text-black">Start Over</button>
         </div>
       )}
 
