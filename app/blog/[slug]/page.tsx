@@ -76,7 +76,47 @@ function getContextualTool(slug: string, category: string) {
   return null;
 }
 
-// --- 3. PAGE COMPONENT ---
+// --- 3. DYNAMIC SEO METADATA ENGINE ---
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const post = await getPost(params.slug);
+
+  // Fallback if the URL is wrong
+  if (!post) {
+    return {
+      title: 'Article Not Found | IndiBrick Financial',
+      description: 'The requested financial strategy article could not be located.',
+    };
+  }
+
+  return {
+    title: `${post.title} | IndiBrick Financial`,
+    description: post.excerpt || `Read the latest market intelligence on ${post.title} from IndiBrick.`,
+    openGraph: {
+      title: post.title,
+      description: post.excerpt,
+      url: `https://indibrick.ca/blog/${params.slug}`,
+      type: 'article',
+      publishedTime: post.date,
+      authors: ['IndiBrick Financial'],
+      images: [
+        {
+          url: post.imageUrl || 'https://indibrick.ca/default-og.jpg', 
+          width: 1200,
+          height: 630,
+          alt: post.title,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: post.title,
+      description: post.excerpt,
+      images: [post.imageUrl || 'https://indibrick.ca/default-og.jpg'],
+    },
+  };
+}
+
+// --- 4. PAGE COMPONENT ---
 export default async function BlogPostPage({ params }: { params: { slug: string } }) {
   const post = await getPost(params.slug);
   if (!post) notFound();

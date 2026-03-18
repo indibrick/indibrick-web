@@ -17,6 +17,9 @@ export default function EnterpriseCRM() {
   const { user, loading } = useAdmin();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // NEW: Ref to prevent the tab from constantly resetting after initial load
+  const hasInitializedTab = useRef(false);
 
   // --- STATE ---
   const [activeTab, setActiveTab] = useState<'received' | 'sent' | 'mine'>('received');
@@ -64,8 +67,12 @@ export default function EnterpriseCRM() {
             loadedFullName = data.displayName || loadedFullName;
             setFirstName(loadedFullName.split(' ')[0]);
             
-            if (['partner_mortgage', 'admin'].includes(data.role) && activeTab === 'received') {
-                setActiveTab('mine');
+            // FIX: Only set default tab once on initial login, never reset while working
+            if (!hasInitializedTab.current) {
+                if (['partner_mortgage', 'admin'].includes(data.role)) {
+                    setActiveTab('mine');
+                }
+                hasInitializedTab.current = true;
             }
         }
         setFullName(loadedFullName);
@@ -74,6 +81,7 @@ export default function EnterpriseCRM() {
         const { sent, received, mine } = await CRMService.getPartnerDashboard(profile as any);
         
         let activePipeline: Referral[] = [];
+        let allVisibleDeals: Referral[] = [];
         let allVisibleDealIds = new Set<string>();
 
         // ===========================================================================
@@ -92,6 +100,7 @@ export default function EnterpriseCRM() {
             setMyLeads(personalDeals);
 
             activePipeline = [...unassigned, ...routedDeals, ...personalDeals];
+            allVisibleDeals = [...unassigned, ...routedDeals, ...personalDeals];
             allVisibleDealIds = new Set(allDeals.map(d => d.id));
         } else {
             setSentReferrals(sent);
@@ -99,7 +108,8 @@ export default function EnterpriseCRM() {
             setMyLeads(mine);
 
             activePipeline = [...mine, ...received]; 
-            allVisibleDealIds = new Set([...mine, ...received, ...sent].map(d => d.id));
+            allVisibleDeals = [...mine, ...received, ...sent];
+            allVisibleDealIds = new Set(allVisibleDeals.map(d => d.id));
         }
         // ===========================================================================
 
@@ -143,15 +153,21 @@ export default function EnterpriseCRM() {
         if (generatedNewTasks) {
             tasks = await CRMService.fetchDailyTasks(user.uid);
         }
-        // ===========================================================================
 
         // 🧹 ORPHANED TASK CLEANUP PROTOCOL
-        // Filters out any tasks connected to a deleted lead so they disappear from UI
         const validTasks = tasks.filter(t => allVisibleDealIds.has(t.referralId));
         setDailyTasks(validTasks);
 
         const partners = await CRMService.getEcosystemPartners();
         setEcosystemPartners(partners.filter(p => p.uid !== user.uid));
+
+        // FIX: Silently update the open modal with the newest background data
+        setSelectedDeal(currentSelected => {
+            if (!currentSelected) return null;
+            const updated = allVisibleDeals.find(d => d.id === currentSelected.id);
+            return updated ? { ...updated } : currentSelected;
+        });
+
     } catch (e) { console.error("Data Load Error", e); }
   };
 
@@ -165,8 +181,8 @@ export default function EnterpriseCRM() {
   const handleStatusUpdate = async (newStatus: string) => {
     if (!selectedDeal || !user) return;
     await CRMService.updateReferralStatus(selectedDeal.id, newStatus, fullName);
-    loadProfileAndData();
     setSelectedDeal({ ...selectedDeal, status: newStatus });
+    loadProfileAndData();
   };
 
   const handleCategoryUpdate = async (newCategory: 'active' | 'potential') => {
@@ -293,6 +309,12 @@ export default function EnterpriseCRM() {
         timestamp: new Date().toISOString()
       };
       
+      // FIX: Optimistic UI Update. Instantly drops the note onto the screen before server responds
+      setSelectedDeal(prev => prev ? {
+          ...prev,
+          timeline: [...(prev.timeline || []), activity]
+      } : null);
+
       await CRMService.logActivity(selectedDeal.id, activity);
 
       try {

@@ -3,172 +3,183 @@ import { Metadata } from 'next';
 import Link from 'next/link';
 import { ContentService } from '../../services/ContentService';
 import JsonLd from '../../components/JsonLd';
-import { 
-  ArrowRight, BookOpen, Star, MapPin, 
-  ShieldCheck, TrendingUp, Scale, Home
-} from 'lucide-react';
+import GamifiedContactForm from '../../components/GamifiedContactForm';
+import { ArrowRight, Calendar, Zap, BookOpen, ChevronRight } from 'lucide-react';
 
+// --- 1. ENTERPRISE SEO METADATA ---
 export const metadata: Metadata = {
-  title: 'Knowledge Command Center | Real Estate & Financial Strategy',
-  description: 'The central authority for Ontario real estate strategy. Mortgage planning, insurance guides, and exclusive IndiBrick investment analysis.',
+  title: 'Intelligence Hub | Market Data & Financial Strategy | IndiBrick',
+  description: 'The latest chronological market intelligence, mortgage strategies, and real estate data for Ontario investors and homeowners.',
+  openGraph: {
+    title: 'IndiBrick Intelligence Hub',
+    description: 'Latest market intelligence and financial strategies.',
+    type: 'website',
+    url: 'https://indibrick.ca/blog',
+  }
 };
 
 export const dynamic = 'force-dynamic';
 
 export default async function KnowledgeHubPage() {
+  // --- 2. DATA FETCHING & SORTING ---
   const allPosts = await ContentService.fetchPosts();
+  
+  // Sort all posts by date, newest first (Chronological Feed)
+  const sortedPosts = allPosts.sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return dateB - dateA;
+  });
 
-  // 1. FILTER: Exclusives (Limit 2 for clean look)
-  const exclusivePosts = allPosts
-    .filter(p => ['IndiBrick Exclusive', 'Market Strategy'].includes(p.category) || p.title.includes('IndiBrick'))
-    .slice(0, 2);
+  const featuredPost = sortedPosts[0];
+  const feedPosts = sortedPosts.slice(1);
 
-  // 2. FILTER: General Categories
-  const mortgagePosts = allPosts.filter(p => p.category === 'Mortgage').slice(0, 5);
-  const insurancePosts = allPosts.filter(p => p.category === 'Insurance' || p.category === 'Investment').slice(0, 5);
-  const legalPosts = allPosts.filter(p => p.category === 'Legal' || p.category === 'Real Estate').slice(0, 5);
-
+  // --- 3. AEO (ANSWER ENGINE OPTIMIZATION) SCHEMA ---
+  // This tells Google, ChatGPT, and Perplexity exactly what this list is.
   const hubSchema = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
-    "name": "IndiBrick Knowledge Hub",
-    "description": "Comprehensive financial and real estate guides for Canadians.",
-    "hasPart": [
-      { "@type": "SiteNavigationElement", "name": "City Intelligence", "url": "https://indibrick.ca/blog/city-intelligence" },
-      { "@type": "SiteNavigationElement", "name": "Mortgage Guides", "url": "https://indibrick.ca/mortgages" }
-    ]
+    "name": "IndiBrick Intelligence Hub",
+    "description": "Chronological database of real estate and mortgage market intelligence.",
+    "url": "https://indibrick.ca/blog",
+    "mainEntity": {
+      "@type": "ItemList",
+      "itemListElement": sortedPosts.map((post, index) => ({
+        "@type": "ListItem",
+        "position": index + 1,
+        "url": `https://indibrick.ca/blog/${post.slug}`,
+        "name": post.title,
+        "description": post.excerpt
+      }))
+    }
   };
 
   return (
-    <div className="bg-white min-h-screen">
+    <div className="bg-white min-h-screen font-sans text-slate-900 pt-24 pb-24">
       <JsonLd data={hubSchema} />
 
-      {/* HERO */}
-      <section className="bg-black text-white pt-32 pb-24 border-b border-white/10 relative overflow-hidden">
-        <div className="container mx-auto px-6 relative z-10 text-center">
-          <div className="inline-flex items-center gap-2 bg-white/10 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.3em] mb-8 border border-white/20">
-             <BookOpen size={14} /> Knowledge Command Center
-          </div>
-          <h1 className="text-5xl md:text-7xl font-black uppercase tracking-tighter mb-6 leading-none">
-            Strategy &<br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-gray-200 to-gray-500">Execution.</span>
-          </h1>
-          <p className="text-xl text-gray-400 max-w-2xl mx-auto font-medium leading-relaxed">
-            Expert-led guides on mortgages, wealth preservation, and legal structuring. 
-            We decode the complexity so you can execute with confidence.
-          </p>
-        </div>
-      </section>
-
-      <div className="container mx-auto px-6 py-24 space-y-24">
-        
-        {/* 1. INDIBRICK EXCLUSIVE (Featured) */}
-        {exclusivePosts.length > 0 && (
-          <section>
-             <div className="flex items-center gap-3 mb-10">
-                <Star className="text-black fill-black" size={24}/>
-                <h2 className="text-2xl font-black uppercase tracking-tight">IndiBrick Exclusive</h2>
+      <div className="container mx-auto max-w-7xl px-6">
+          
+          {/* HEADER */}
+          <header className="mb-16 border-b border-gray-100 pb-12">
+             <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.3em] mb-6">
+                <BookOpen size={14} /> Market Intelligence
              </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                {exclusivePosts.map(post => (
-                   <Link key={post.id} href={`/blog/${post.slug}`} className="group relative bg-gray-900 text-white rounded-[2.5rem] p-10 overflow-hidden hover:shadow-2xl transition duration-500 min-h-[300px] flex flex-col">
-                      <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-white/10 transition duration-500"></div>
-                      <div className="relative z-10 mt-auto">
-                         <span className="inline-block bg-white/20 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest mb-4">{post.category}</span>
-                         <h3 className="text-2xl md:text-3xl font-black uppercase tracking-tight mb-4 leading-tight group-hover:underline decoration-2 underline-offset-4">
-                            {post.title}
-                         </h3>
-                         <p className="text-gray-400 line-clamp-2 text-sm font-medium">{post.excerpt}</p>
-                      </div>
-                   </Link>
-                ))}
-             </div>
-          </section>
-        )}
+             <h1 className="text-5xl md:text-7xl font-black uppercase tracking-tighter mb-6 leading-none text-slate-900">
+                The <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Terminal.</span>
+             </h1>
+             <p className="text-xl text-gray-500 max-w-2xl font-medium leading-relaxed">
+                Chronological market data, mortgage rate analysis, and wealth preservation strategies. Updated in real-time by the IndiBrick team.
+             </p>
+          </header>
 
-        {/* 2. CITY INTELLIGENCE (Redirect Block) */}
-        <section>
-           <Link href="/blog/city-intelligence" className="block bg-green-50 border border-green-100 rounded-[2.5rem] p-12 text-center group hover:bg-green-100 hover:border-green-200 transition duration-500">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-white text-green-700 rounded-2xl shadow-sm mb-6 group-hover:scale-110 transition">
-                 <MapPin size={32} />
-              </div>
-              <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tighter mb-4 text-green-900">City Intelligence Hub</h2>
-              <p className="text-green-800/70 max-w-2xl mx-auto mb-8 font-medium">
-                 Access granular market data, neighborhood reports, and local mortgage insights for Toronto, Vaughan, and the GTA.
-              </p>
-              <span className="inline-flex items-center gap-2 bg-green-700 text-white px-8 py-4 rounded-xl font-black uppercase text-xs tracking-widest group-hover:bg-green-800 transition">
-                 Open Regional Map <ArrowRight size={16} />
-              </span>
-           </Link>
-        </section>
-
-        {/* 3. GENERAL KNOWLEDGE BASE (Categorized) */}
-        <section>
-           <div className="flex items-center gap-3 mb-12">
-              <BookOpen className="text-black" size={24}/>
-              <h2 className="text-2xl font-black uppercase tracking-tight">General Knowledge Base</h2>
-           </div>
-
-           <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 xl:gap-20">
               
-              {/* Column 1: Mortgages */}
-              <div>
-                 <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
-                    <Home size={20} className="text-blue-600"/>
-                    <h3 className="font-black uppercase text-sm tracking-wide">Mortgage Strategy</h3>
-                 </div>
-                 <ul className="space-y-4">
-                    {mortgagePosts.map(p => (
-                       <li key={p.id}>
-                          <Link href={`/blog/${p.slug}`} className="group block">
-                             <h4 className="font-bold text-gray-800 group-hover:text-blue-600 transition text-sm leading-snug mb-1">{p.title}</h4>
-                             <span className="text-[10px] text-gray-400 uppercase tracking-widest">Read Article</span>
+              {/* LEFT COLUMN: THE CHRONOLOGICAL FEED */}
+              <main className="lg:col-span-7 xl:col-span-8 space-y-12">
+                  
+                  {/* FEATURED LATEST POST */}
+                  {featuredPost && (
+                      <article className="group">
+                          <Link href={`/blog/${featuredPost.slug}`} className="block">
+                              <div className="relative w-full aspect-video md:aspect-[21/9] rounded-[2rem] overflow-hidden mb-6 shadow-xl border border-gray-100">
+                                  <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition z-10 duration-500" />
+                                  <img 
+                                      src={featuredPost.imageUrl} 
+                                      alt={featuredPost.title} 
+                                      className="w-full h-full object-cover transform group-hover:scale-105 transition duration-1000"
+                                  />
+                                  <div className="absolute top-6 left-6 z-20 bg-black text-white px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center gap-2">
+                                      <Zap size={12} className="text-yellow-400" /> Latest Release
+                                  </div>
+                              </div>
+                              
+                              <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-widest text-gray-400 mb-4">
+                                  <span className="text-blue-600">{featuredPost.category}</span>
+                                  <span>•</span>
+                                  <span className="flex items-center gap-1"><Calendar size={12}/> {new Date(featuredPost.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric'})}</span>
+                              </div>
+                              
+                              <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tight text-slate-900 mb-4 group-hover:text-blue-600 transition leading-[1.1]">
+                                  {featuredPost.title}
+                              </h2>
+                              <p className="text-gray-500 text-lg font-medium leading-relaxed mb-6">
+                                  {featuredPost.excerpt}
+                              </p>
+                              
+                              <span className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-900 group-hover:text-blue-600 transition border-b-2 border-black group-hover:border-blue-600 pb-1">
+                                  Read Full Analysis <ArrowRight size={14} />
+                              </span>
                           </Link>
-                       </li>
-                    ))}
-                 </ul>
-                 <Link href="/mortgages" className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest mt-6 text-blue-600 hover:gap-2 transition-all">View All <ArrowRight size={10}/></Link>
-              </div>
+                      </article>
+                  )}
 
-              {/* Column 2: Insurance & Wealth */}
-              <div>
-                 <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
-                    <TrendingUp size={20} className="text-green-600"/>
-                    <h3 className="font-black uppercase text-sm tracking-wide">Wealth & Insurance</h3>
-                 </div>
-                 <ul className="space-y-4">
-                    {insurancePosts.map(p => (
-                       <li key={p.id}>
-                          <Link href={`/blog/${p.slug}`} className="group block">
-                             <h4 className="font-bold text-gray-800 group-hover:text-green-600 transition text-sm leading-snug mb-1">{p.title}</h4>
-                             <span className="text-[10px] text-gray-400 uppercase tracking-widest">Read Article</span>
-                          </Link>
-                       </li>
-                    ))}
-                 </ul>
-                 <Link href="/investment-planning-wealth-growth" className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest mt-6 text-green-600 hover:gap-2 transition-all">View All <ArrowRight size={10}/></Link>
-              </div>
+                  {/* THE ARCHIVE LIST */}
+                  <div className="space-y-8 pt-8 border-t border-gray-100">
+                      <h3 className="text-sm font-black uppercase tracking-widest text-gray-400 mb-8">Intelligence Archive</h3>
+                      
+                      {feedPosts.map((post) => (
+                          <article key={post.id} className="group">
+                              <Link href={`/blog/${post.slug}`} className="flex flex-col md:flex-row gap-6 items-start md:items-center bg-white p-4 rounded-3xl hover:bg-gray-50 border border-transparent hover:border-gray-100 transition duration-300 -mx-4">
+                                  
+                                  {/* Thumbnail */}
+                                  <div className="w-full md:w-48 h-48 md:h-32 shrink-0 rounded-2xl overflow-hidden relative">
+                                      <img 
+                                          src={post.imageUrl} 
+                                          alt={post.title} 
+                                          className="w-full h-full object-cover transform group-hover:scale-110 transition duration-700" 
+                                      />
+                                  </div>
 
-              {/* Column 3: Legal & Closing */}
-              <div>
-                 <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
-                    <Scale size={20} className="text-gray-600"/>
-                    <h3 className="font-black uppercase text-sm tracking-wide">Legal & Closing</h3>
-                 </div>
-                 <ul className="space-y-4">
-                    {legalPosts.map(p => (
-                       <li key={p.id}>
-                          <Link href={`/blog/${p.slug}`} className="group block">
-                             <h4 className="font-bold text-gray-800 group-hover:text-black transition text-sm leading-snug mb-1">{p.title}</h4>
-                             <span className="text-[10px] text-gray-400 uppercase tracking-widest">Read Article</span>
-                          </Link>
-                       </li>
-                    ))}
-                 </ul>
-              </div>
+                                  {/* Content */}
+                                  <div className="flex-grow">
+                                      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+                                          <span className="text-blue-600">{post.category}</span>
+                                          <span>•</span>
+                                          <span>{new Date(post.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric'})}</span>
+                                      </div>
+                                      <h3 className="text-xl md:text-2xl font-black tracking-tight text-slate-900 mb-2 group-hover:text-blue-600 transition leading-tight">
+                                          {post.title}
+                                      </h3>
+                                      <p className="text-gray-500 text-sm font-medium line-clamp-2">
+                                          {post.excerpt}
+                                      </p>
+                                  </div>
 
-           </div>
-        </section>
+                                  {/* Arrow Icon */}
+                                  <div className="hidden xl:flex shrink-0 w-12 h-12 rounded-full border border-gray-200 items-center justify-center text-gray-400 group-hover:bg-black group-hover:text-white group-hover:border-black transition duration-300">
+                                      <ChevronRight size={20} />
+                                  </div>
+                              </Link>
+                          </article>
+                      ))}
+                  </div>
 
+              </main>
+
+              {/* RIGHT COLUMN: STICKY GAMIFIED CONVERSION ENGINE */}
+              <aside className="lg:col-span-5 xl:col-span-4">
+                  <div className="sticky top-32">
+                      
+                      <div className="mb-6 flex items-center gap-3">
+                          <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center text-white"><Zap size={16} className="fill-white"/></div>
+                          <div>
+                              <h3 className="font-black uppercase tracking-tight text-slate-900 leading-none">Execute Strategy</h3>
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Get an exact action plan</p>
+                          </div>
+                      </div>
+
+                      {/* INJECT GAMIFIED FORM HERE */}
+                      <div className="relative">
+                          {/* Add a subtle glow behind the form to make it pop */}
+                          <div className="absolute -inset-4 bg-gradient-to-b from-blue-500/10 to-purple-500/10 blur-xl -z-10 rounded-[3rem]"></div>
+                          <GamifiedContactForm />
+                      </div>
+
+                  </div>
+              </aside>
+
+          </div>
       </div>
     </div>
   );
