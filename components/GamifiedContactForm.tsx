@@ -31,7 +31,7 @@ export default function GamifiedContactForm() {
     email: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState(''); // NEW: Error state for validation
+  const [error, setError] = useState(''); 
 
   // --- HANDLERS ---
   const handleSelect = (field: string, value: string) => {
@@ -44,7 +44,7 @@ export default function GamifiedContactForm() {
     let value = e.target.value;
     
     // REAL-TIME PHONE FORMATTER
-    const cleaned = value.replace(/\D/g, ''); // Remove non-digits
+    const cleaned = value.replace(/\D/g, ''); 
     const match = cleaned.match(/^(\d{0,3})(\d{0,3})(\d{0,4})$/);
     
     if (match) {
@@ -53,30 +53,36 @@ export default function GamifiedContactForm() {
         : `(${match[1]}) ${match[2]}` + (match[3] ? `-${match[3]}` : '');
     }
     
-    // Prevent typing more than 14 characters formatted: (XXX) XXX-XXXX
     if (value.length > 14) return;
 
     setFormData({ ...formData, phone: value });
-    if (error) setError(''); // Clear error when they start typing again
+    if (error) setError(''); 
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // STRICT 10-DIGIT PHONE VALIDATION
+    // 1. STRICT 10-DIGIT PHONE VALIDATION
     const cleanedPhone = formData.phone.replace(/\D/g, ''); 
     if (cleanedPhone.length !== 10) {
       setError('Please enter a valid 10-digit phone number.');
       return;
     }
 
+    // 2. STRICT EMAIL VALIDATION (Regex)
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(formData.email)) {
+      setError('Please enter a valid email address (e.g., name@domain.com).');
+      return;
+    }
+
     setIsSubmitting(true);
-    setError(''); // Clear any previous errors
+    setError(''); 
     
     await LeadService.submitLead({
        name: formData.name,
        email: formData.email,
-       phone: cleanedPhone, // Send the clean 10-digit version
+       phone: cleanedPhone, 
        serviceNeeded: formData.goal,
        city: 'Gamified Form',
        message: `Timeline: ${formData.timeline}`,
@@ -184,7 +190,7 @@ export default function GamifiedContactForm() {
                  type="tel" 
                  value={formData.phone}
                  onChange={handlePhoneChange}
-                 className={`w-full bg-gray-50 text-slate-900 border rounded-xl px-4 py-3 font-bold focus:outline-none focus:ring-1 transition placeholder:text-gray-300 ${error ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-black focus:ring-black'}`}
+                 className={`w-full bg-gray-50 text-slate-900 border rounded-xl px-4 py-3 font-bold focus:outline-none focus:ring-1 transition placeholder:text-gray-300 ${error && error.includes('phone') ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-black focus:ring-black'}`}
                  placeholder="(437) 241-6392"
               />
            </div>
@@ -196,7 +202,7 @@ export default function GamifiedContactForm() {
                  type="email" 
                  value={formData.email}
                  onChange={e => setFormData({...formData, email: e.target.value})}
-                 className="w-full bg-gray-50 text-slate-900 border border-gray-200 rounded-xl px-4 py-3 font-bold focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition placeholder:text-gray-300"
+                 className={`w-full bg-gray-50 text-slate-900 border rounded-xl px-4 py-3 font-bold focus:outline-none focus:ring-1 transition placeholder:text-gray-300 ${error && error.includes('email') ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-black focus:ring-black'}`}
                  placeholder="jane@example.com"
               />
            </div>

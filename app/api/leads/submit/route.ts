@@ -45,7 +45,8 @@ export async function POST(request: Request) {
       clientPhone: phone,
       clientEmail: email || '',
       referralDate: timestamp,
-      notes: `System: Lead submitted from website form. Service requested: ${serviceNeeded}. Message: ${message || 'No message provided.'}`,
+      message: message || '', // <--- THE FIX: Explicitly save the message for the CRM UI
+      notes: `System: Lead submitted from website form. Service requested: ${serviceNeeded}.`,
       timeline: [{
         type: 'system',
         author: 'System',
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
 
     // 3. Trigger Admin Alert securely via Admin
     await adminDb.collection('mail').add({
-      to: ['mrcinvestmentsinc@gmail.com'], 
+      to: ['indibrick@gmail.com'], 
       message: {
         subject: `🚨 New Lead Alert: ${clientName} (${serviceNeeded})`,
         text: `Name: ${clientName}\nPhone: ${phone}\nEmail: ${email}\nService: ${serviceNeeded}`,

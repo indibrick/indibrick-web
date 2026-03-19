@@ -46,9 +46,16 @@ const LeadForm: React.FC<LeadFormProps> = ({
     }
 
     // 2. STRICT 10-DIGIT PHONE VALIDATION
-    const cleanedPhone = formData.phone.replace(/\D/g, ''); // Strip all non-numeric characters
+    const cleanedPhone = formData.phone.replace(/\D/g, ''); 
     if (cleanedPhone.length !== 10) {
       setError('Please enter a valid 10-digit phone number.');
+      return;
+    }
+
+    // 3. STRICT EMAIL VALIDATION (Regex)
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(formData.email)) {
+      setError('Please enter a valid email address (e.g., name@domain.com).');
       return;
     }
 
@@ -57,7 +64,7 @@ const LeadForm: React.FC<LeadFormProps> = ({
     
     const result = await LeadService.submitLead({
       ...formData,
-      phone: cleanedPhone, // Send the clean 10-digit version to the database
+      phone: cleanedPhone, 
       serviceNeeded: formData.serviceNeeded
     });
 
@@ -83,7 +90,7 @@ const LeadForm: React.FC<LeadFormProps> = ({
 
     // REAL-TIME PHONE FORMATTER
     if (name === 'phone' && typeof value === 'string') {
-      const cleaned = value.replace(/\D/g, ''); // Remove non-digits
+      const cleaned = value.replace(/\D/g, ''); 
       const match = cleaned.match(/^(\d{0,3})(\d{0,3})(\d{0,4})$/);
       
       if (match) {
@@ -92,12 +99,11 @@ const LeadForm: React.FC<LeadFormProps> = ({
           : `(${match[1]}) ${match[2]}` + (match[3] ? `-${match[3]}` : '');
       }
       
-      // Prevent typing more than 14 characters formatted: (XXX) XXX-XXXX
       if (value.length > 14) return;
     }
 
     setFormData({ ...formData, [name]: value });
-    if (error) setError(''); // Clear error when user types
+    if (error) setError(''); 
   };
 
   if (submitted) {

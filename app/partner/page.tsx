@@ -18,7 +18,6 @@ export default function EnterpriseCRM() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // NEW: Ref to prevent the tab from constantly resetting after initial load
   const hasInitializedTab = useRef(false);
 
   // --- STATE ---
@@ -67,7 +66,6 @@ export default function EnterpriseCRM() {
             loadedFullName = data.displayName || loadedFullName;
             setFirstName(loadedFullName.split(' ')[0]);
             
-            // FIX: Only set default tab once on initial login, never reset while working
             if (!hasInitializedTab.current) {
                 if (['partner_mortgage', 'admin'].includes(data.role)) {
                     setActiveTab('mine');
@@ -111,13 +109,9 @@ export default function EnterpriseCRM() {
             allVisibleDeals = [...mine, ...received, ...sent];
             allVisibleDealIds = new Set(allVisibleDeals.map(d => d.id));
         }
-        // ===========================================================================
 
         let tasks = await CRMService.fetchDailyTasks(user.uid);
 
-        // ===========================================================================
-        // 🚨 STALE LEAD SWEEPER AUTOMATION (10+ DAYS NO CONTACT)
-        // ===========================================================================
         const tenDaysInMs = 10 * 24 * 60 * 60 * 1000;
         const now = Date.now();
         let generatedNewTasks = false;
@@ -154,14 +148,12 @@ export default function EnterpriseCRM() {
             tasks = await CRMService.fetchDailyTasks(user.uid);
         }
 
-        // 🧹 ORPHANED TASK CLEANUP PROTOCOL
         const validTasks = tasks.filter(t => allVisibleDealIds.has(t.referralId));
         setDailyTasks(validTasks);
 
         const partners = await CRMService.getEcosystemPartners();
         setEcosystemPartners(partners.filter(p => p.uid !== user.uid));
 
-        // FIX: Silently update the open modal with the newest background data
         setSelectedDeal(currentSelected => {
             if (!currentSelected) return null;
             const updated = allVisibleDeals.find(d => d.id === currentSelected.id);
@@ -177,7 +169,6 @@ export default function EnterpriseCRM() {
     return ['Contacted', 'Showing', 'Offer Made', 'Firm / Conditional', 'Closed', 'Dead Deal'];
   };
 
-  // --- HANDLERS ---
   const handleStatusUpdate = async (newStatus: string) => {
     if (!selectedDeal || !user) return;
     await CRMService.updateReferralStatus(selectedDeal.id, newStatus, fullName);
@@ -309,7 +300,6 @@ export default function EnterpriseCRM() {
         timestamp: new Date().toISOString()
       };
       
-      // FIX: Optimistic UI Update. Instantly drops the note onto the screen before server responds
       setSelectedDeal(prev => prev ? {
           ...prev,
           timeline: [...(prev.timeline || []), activity]
@@ -353,7 +343,6 @@ export default function EnterpriseCRM() {
       loadProfileAndData();
   };
 
-  // ADVANCED SORTING LOGIC
   const getActiveLeads = () => {
     let list = activeTab === 'received' ? [...receivedReferrals] 
              : activeTab === 'sent' ? [...sentReferrals] 
@@ -437,7 +426,6 @@ export default function EnterpriseCRM() {
                       <p className="text-xs text-gray-500 font-bold uppercase mt-1">Date: {new Date(deal.referralDate).toLocaleDateString()}</p>
                     </div>
                     
-                    {/* Deal Category Badges */}
                     <div className="flex flex-col items-end gap-2">
                         <span className="px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-gray-100 text-gray-600">
                             {deal.status}
@@ -511,8 +499,19 @@ export default function EnterpriseCRM() {
                     <h2 className="text-3xl font-black text-slate-900">{selectedDeal.clientName}</h2>
                     <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">📞 {selectedDeal.clientPhone} • ✉️ {selectedDeal.clientEmail}</p>
                     
+                    {/* NEW: DISPLAY CLIENT'S ORIGINAL NOTE/MESSAGE */}
+                    {(selectedDeal.message || selectedDeal.notes) && (
+                        <div className="mt-5 p-5 bg-blue-50 rounded-2xl border border-blue-100 shadow-sm relative">
+                           <div className="absolute top-0 left-0 w-1 h-full bg-blue-400 rounded-l-2xl"></div>
+                           <p className="text-[10px] font-black uppercase tracking-widest text-blue-400 mb-2">Client's Initial Message</p>
+                           <p className="text-sm font-medium text-slate-800 leading-relaxed italic">
+                             "{selectedDeal.message || selectedDeal.notes}"
+                           </p>
+                        </div>
+                    )}
+                    
                     {/* Deal Category Toggles */}
-                    <div className="mt-4 flex gap-2">
+                    <div className="mt-6 flex gap-2">
                         <button 
                             onClick={() => handleCategoryUpdate('potential')} 
                             className={`py-1.5 px-3 text-[10px] font-bold uppercase tracking-widest rounded-lg border transition flex items-center gap-1 ${selectedDeal.dealCategory !== 'active' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white border-gray-200 text-gray-500 hover:border-orange-500 hover:text-orange-500'}`}
