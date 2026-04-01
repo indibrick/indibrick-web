@@ -1,55 +1,64 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAdmin } from '../../AdminContext';
 import { CRMService } from '../../services/CRMService';
 import { Referral, Task, ActivityLog } from '../../types';
 import { 
-  Plus, Send, X, Wallet, Activity, Upload, 
-  PhoneCall, Calendar, Mail, Network, Trash2,
-  Filter, Star, Zap, ExternalLink
+  Plus, Send, X, Wallet, Activity, PhoneCall, Calendar, Mail, Network, Trash2,
+  Filter, Star, Zap, BrainCircuit, ShieldCheck, Target, CheckCircle, Loader2, 
+  Briefcase, LogOut, ChevronRight, Clock, User, Search, FileText, ArrowDownLeft, Users,
+  ChevronLeft, AlertCircle
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { doc, getDoc, updateDoc, collection, addDoc, getDocs } from 'firebase/firestore'; 
+import { doc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore'; 
 import { db } from '../../firebase'; 
 
-export default function EnterpriseCRM() {
-  const { user, loading } = useAdmin();
+export default function PartnerCRM() {
+  const { user, loading, logout } = useAdmin();
   const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  const hasInitializedTab = useRef(false);
 
   // --- STATE ---
-  const [activeTab, setActiveTab] = useState<'received' | 'sent' | 'mine'>('received');
-  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'name-asc' | 'name-desc'>('newest');
+  const [activeTab, setActiveTab] = useState<'pipeline' | 'analyzer' | 'calendar'>('pipeline');
+  const [pipelineView, setPipelineView] = useState<'all' | 'mine' | 'incoming' | 'outbound'>('mine');
+  const [filterAssignee, setFilterAssignee] = useState('all');
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const [searchQuery, setSearchQuery] = useState(''); 
   
-  const [sentReferrals, setSentReferrals] = useState<Referral[]>([]);
-  const [receivedReferrals, setReceivedReferrals] = useState<Referral[]>([]);
-  const [myLeads, setMyLeads] = useState<Referral[]>([]);
-  const [dailyTasks, setDailyTasks] = useState<Task[]>([]);
+  const [allReferrals, setAllReferrals] = useState<Referral[]>([]);
+  const [allTasks, setAllTasks] = useState<Task[]>([]); 
   const [ecosystemPartners, setEcosystemPartners] = useState<any[]>([]); 
   
-  // Profile
   const [referralVolume, setReferralVolume] = useState('$0.00');
-  const [firstName, setFirstName] = useState('');
   const [fullName, setFullName] = useState(''); 
-  const [partnerRole, setPartnerRole] = useState<'partner_realtor' | 'partner_lawyer' | 'partner_mortgage' | 'admin' | 'other'>('partner_realtor');
+  const [partnerRole, setPartnerRole] = useState<'partner_realtor' | 'partner_lawyer' | 'partner_mortgage' | 'admin'>('partner_realtor');
 
-  // Modals & Inputs
   const [selectedDeal, setSelectedDeal] = useState<any | null>(null);
-  const [logType, setLogType] = useState<'note' | 'log_call' | 'log_email' | 'task' | 'route'>('note');
+  const [logType, setLogType] = useState<'note' | 'log_call' | 'log_email' | 'task' | 'route' | 'doc'>('note');
   const [logInput, setLogInput] = useState('');
   const [taskDate, setTaskDate] = useState('');
   const [targetPartnerId, setTargetPartnerId] = useState('');
+  const [docRequests, setDocRequests] = useState<string[]>(['']); 
+  
   const [showNewReferralForm, setShowNewReferralForm] = useState(false);
-  const [newClient, setNewClient] = useState({ name: '', phone: '', email: '', service: 'General Inquiry', message: '' });
+  const [newClient, setNewClient] = useState({ name: '', phone: '', email: '', service: 'General Inquiry', message: '', assignedTo: 'ADMIN_INBOX' });
 
-  // --- INIT & 10-DAY STALE SWEEPER ---
+  const [showNewTaskForm, setShowNewTaskForm] = useState(false);
+  const [newTask, setNewTask] = useState({ description: '', dueDate: '', referralId: 'general' });
+
+  const [analyzerForm, setAnalyzerForm] = useState({ income: '', downPayment: '', propertyValue: '', creditScore: '', debts: '', notes: '' });
+  const [analyzerStatus, setAnalyzerStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [analyzerResult, setAnalyzerResult] = useState<any>(null);
+
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
+
+  // --- AUTH & INIT ---
   useEffect(() => {
     if (!loading && !user) router.push('/partner/login');
-    if (user) loadProfileAndData();
-  }, [user, loading]);
+    else if (user) loadProfileAndData();
+  }, [user, loading, router]);
 
   const loadProfileAndData = async () => {
     if (!user) return;
@@ -64,112 +73,196 @@ export default function EnterpriseCRM() {
             setPartnerRole(data.role as any);
             currentRole = data.role;
             loadedFullName = data.displayName || loadedFullName;
-            setFirstName(loadedFullName.split(' ')[0]);
-            
-            if (!hasInitializedTab.current) {
-                if (['partner_mortgage', 'admin'].includes(data.role)) {
-                    setActiveTab('mine');
-                }
-                hasInitializedTab.current = true;
-            }
+            if (data.role === 'admin' && pipelineView === 'mine') setPipelineView('all');
         }
         setFullName(loadedFullName);
         
-        const profile = { uid: user.uid, role: currentRole, displayName: loadedFullName };
-        const { sent, received, mine } = await CRMService.getPartnerDashboard(profile as any);
-        
         let activePipeline: Referral[] = [];
-        let allVisibleDeals: Referral[] = [];
-        let allVisibleDealIds = new Set<string>();
-
-        // ===========================================================================
-        // 👑 ADMIN GOD-MODE OVERRIDE
-        // ===========================================================================
         if (currentRole === 'admin') {
             const snap = await getDocs(collection(db, 'referrals'));
-            const allDeals = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Referral[];
-            
-            const unassigned = allDeals.filter(d => d.assignedAgentId === 'ADMIN_INBOX');
-            const routedDeals = allDeals.filter(d => d.assignedAgentId !== 'ADMIN_INBOX' && d.assignedAgentId !== user.uid);
-            const personalDeals = allDeals.filter(d => d.assignedAgentId === user.uid);
-
-            setReceivedReferrals(unassigned);
-            setSentReferrals(routedDeals); 
-            setMyLeads(personalDeals);
-
-            activePipeline = [...unassigned, ...routedDeals, ...personalDeals];
-            allVisibleDeals = [...unassigned, ...routedDeals, ...personalDeals];
-            allVisibleDealIds = new Set(allDeals.map(d => d.id));
+            activePipeline = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Referral[];
         } else {
-            setSentReferrals(sent);
-            setReceivedReferrals(received);
-            setMyLeads(mine);
-
-            activePipeline = [...mine, ...received]; 
-            allVisibleDeals = [...mine, ...received, ...sent];
-            allVisibleDealIds = new Set(allVisibleDeals.map(d => d.id));
+            const profile = { uid: user.uid, role: currentRole, displayName: loadedFullName };
+            const { sent, received, mine } = await CRMService.getPartnerDashboard(profile as any);
+            activePipeline = [...sent, ...received, ...mine];
+            activePipeline = activePipeline.filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i);
         }
+        setAllReferrals(activePipeline);
 
-        let tasks = await CRMService.fetchDailyTasks(user.uid);
-
-        const tenDaysInMs = 10 * 24 * 60 * 60 * 1000;
-        const now = Date.now();
-        let generatedNewTasks = false;
-
-        for (const lead of activePipeline) {
-            const inactiveStatuses = ['Closed', 'Dead Deal', 'Declined', 'Funded'];
-            if (inactiveStatuses.includes(lead.status)) continue;
-
-            let latestTimestamp = new Date(lead.referralDate).getTime();
-            if (lead.timeline && lead.timeline.length > 0) {
-                const timestamps = lead.timeline.map((log: any) => new Date(log.timestamp).getTime());
-                latestTimestamp = Math.max(...timestamps);
+        // THE FIX: SECURE BACKEND FETCH (Bypasses all Firebase Rules)
+        try {
+            const tRes = await fetch(`/api/partner/tasks?userId=${user.uid}&role=${currentRole}`);
+            if(tRes.ok) {
+                const tData = await tRes.json();
+                setAllTasks(tData.tasks);
             }
-
-            if (now - latestTimestamp > tenDaysInMs) {
-                const hasPendingTask = tasks.some((t: any) => t.referralId === lead.id && t.status !== 'Completed');
-                
-                if (!hasPendingTask) {
-                    const todayStr = new Date().toISOString().split('T')[0];
-                    await CRMService.scheduleTask({
-                        referralId: lead.id,
-                        clientName: lead.clientName,
-                        assigneeId: user.uid,
-                        dueDate: todayStr,
-                        description: `🚨 STALE LEAD: No contact in 10+ days. Follow up immediately.`,
-                        status: 'Pending'
-                    });
-                    generatedNewTasks = true;
-                }
-            }
+        } catch (e) {
+            console.error("Task API Error", e);
         }
 
-        if (generatedNewTasks) {
-            tasks = await CRMService.fetchDailyTasks(user.uid);
-        }
-
-        const validTasks = tasks.filter(t => allVisibleDealIds.has(t.referralId));
-        setDailyTasks(validTasks);
-
-        const partners = await CRMService.getEcosystemPartners();
-        setEcosystemPartners(partners.filter(p => p.uid !== user.uid));
+        const usersSnap = await getDocs(collection(db, 'users'));
+        const allUsersList = usersSnap.docs.map(d => ({ uid: d.id, ...d.data() as any }));
+        if (currentRole === 'admin') setEcosystemPartners(allUsersList);
+        else setEcosystemPartners(allUsersList.filter(u => u.role === 'admin'));
 
         setSelectedDeal(currentSelected => {
             if (!currentSelected) return null;
-            const updated = allVisibleDeals.find(d => d.id === currentSelected.id);
+            const updated = activePipeline.find(d => d.id === currentSelected.id);
             return updated ? { ...updated } : currentSelected;
         });
-
     } catch (e) { console.error("Data Load Error", e); }
   };
 
-  const getStatusOptions = () => {
-    if (partnerRole === 'partner_lawyer') return ['File Open', 'Title Search', 'Signing Set', 'Funds Requested', 'Closed'];
-    if (partnerRole === 'partner_mortgage' || partnerRole === 'admin') return ['Application', 'Underwriting', 'Commitment Issued', 'Funded', 'Declined'];
-    return ['Contacted', 'Showing', 'Offer Made', 'Firm / Conditional', 'Closed', 'Dead Deal'];
+  // --- CALENDAR HELPERS ---
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
+  const calendarDays = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const calendarBlanks = Array.from({ length: firstDayOfMonth }, (_, i) => i);
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  
+  const todayDateString = new Date().toISOString().split('T')[0];
+  const todaysTasks = allTasks.filter(t => t.dueDate === todayDateString && t.status !== 'Completed');
+
+  const handlePrevMonth = () => {
+      if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear(currentYear - 1); }
+      else setCurrentMonth(currentMonth - 1);
+  };
+  const handleNextMonth = () => {
+      if (currentMonth === 11) { setCurrentMonth(0); setCurrentYear(currentYear + 1); }
+      else setCurrentMonth(currentMonth + 1);
   };
 
-  const handleStatusUpdate = async (newStatus: string) => {
+  const handleGoogleSync = async () => {
+      setIsSyncingGoogle(true);
+      try {
+          const res = await fetch('/api/partner/calendar-sync', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: user?.uid, tasks: allTasks })
+          });
+          const data = await res.json();
+          if (data.url) window.location.href = data.url; 
+          else alert(data.message || 'Calendar synced successfully!');
+      } catch (err) { alert('Failed to connect to Google Calendar.'); }
+      setIsSyncingGoogle(false);
+  };
+
+  // THE FIX: SECURE MANUAL TASK CREATION
+  const handleManualTaskSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!user) return;
+
+      let clientName = 'Personal Task';
+      if (newTask.referralId !== 'general') {
+          const deal = allReferrals.find(d => d.id === newTask.referralId);
+          if (deal) clientName = deal.clientName;
+      }
+
+      await fetch('/api/partner/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+              referralId: newTask.referralId,
+              clientName: clientName,
+              assigneeId: user.uid,
+              dueDate: newTask.dueDate,
+              description: newTask.description,
+              status: 'Pending'
+          })
+      });
+
+      setShowNewTaskForm(false);
+      setNewTask({ description: '', dueDate: '', referralId: 'general' });
+      loadProfileAndData();
+  };
+
+  // --- AI ANALYZER ---
+  const handleAnalyzeDeal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!analyzerForm.income.trim() || !analyzerForm.propertyValue.trim()) return;
+    setAnalyzerStatus('loading'); setAnalyzerResult(null);
+
+    const scenarioString = `Income: $${analyzerForm.income}. Down Payment: $${analyzerForm.downPayment}. Property Value: $${analyzerForm.propertyValue}. Credit: ${analyzerForm.creditScore}. Debts: $${analyzerForm.debts}. Notes: ${analyzerForm.notes}`;
+
+    try {
+        const res = await fetch('/api/partner/deal-analyzer', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ scenario: scenarioString, partnerName: fullName })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        setAnalyzerResult(data); setAnalyzerStatus('success');
+    } catch (err: any) { setAnalyzerStatus('error'); }
+  };
+
+  // --- CRM ACTIONS ---
+  const handleManualLeadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    let assignedAgentId = newClient.assignedTo;
+    let assignedAgentName = 'Admin Triage';
+    
+    if (assignedAgentId === user.uid) assignedAgentName = fullName;
+    else if (assignedAgentId !== 'ADMIN_INBOX') {
+        const partner = ecosystemPartners.find(p => p.uid === assignedAgentId);
+        if (partner) assignedAgentName = partner.displayName;
+    }
+
+    const payload = { ...newClient, type: 'Manual Entry', dealCategory: 'potential', assignedAgentId, assignedAgentName };
+    await CRMService.createReferral({ uid: user.uid, role: partnerRole, displayName: fullName } as any, payload as any);
+    setShowNewReferralForm(false);
+    setNewClient({ name: '', phone: '', email: '', service: 'General Inquiry', message: '', assignedTo: 'ADMIN_INBOX' });
+    loadProfileAndData();
+  };
+
+  const handleActionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDeal || !user) return;
+
+    if (logType === 'route') {
+      if (targetPartnerId === user.uid) await CRMService.routeLeadToPartner(selectedDeal.id, fullName, user.uid, fullName);
+      else if (targetPartnerId === 'ADMIN_INBOX') await CRMService.routeLeadToPartner(selectedDeal.id, fullName, 'ADMIN_INBOX', 'Admin Triage');
+      else {
+         const partner = ecosystemPartners.find(p => p.uid === targetPartnerId);
+         if (partner) await CRMService.routeLeadToPartner(selectedDeal.id, fullName, partner.uid, partner.displayName);
+      }
+      setSelectedDeal(null); setTargetPartnerId(''); loadProfileAndData();
+      
+    } else if (logType === 'task') {
+      // THE FIX: SECURE TASK CREATION WITHIN DEAL MODAL
+      await fetch('/api/partner/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+              referralId: selectedDeal.id,
+              clientName: selectedDeal.clientName,
+              assigneeId: user.uid,
+              dueDate: taskDate,
+              description: logInput,
+              status: 'Pending'
+          })
+      });
+      setLogInput(''); setTaskDate(''); loadProfileAndData();
+      
+    } else {
+      let prefix = logType === 'log_call' ? '📞 LOGGED CALL: ' : logType === 'log_email' ? '✉️ LOGGED EMAIL: ' : '';
+      const finalNoteContent = prefix + logInput;
+      const activity: ActivityLog = { type: 'note', author: fullName, content: finalNoteContent, timestamp: new Date().toISOString() };
+      
+      await CRMService.logActivity(selectedDeal.id, activity);
+      setLogInput(''); loadProfileAndData();
+
+      // AI COPILOT TASK SCHEDULER
+      fetch('/api/ai-copilot', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ referralId: selectedDeal.id, clientName: selectedDeal.clientName, assigneeId: user.uid, noteContent: finalNoteContent })
+      }).then(res => res.json()).then(data => {
+          if (data.taskScheduled) loadProfileAndData(); // Refresh if AI generated a task!
+      }).catch(err => console.error("AI Copilot Error:", err));
+    }
+  };
+
+  const handleStatusChange = async (newStatus: string) => {
     if (!selectedDeal || !user) return;
     await CRMService.updateReferralStatus(selectedDeal.id, newStatus, fullName);
     setSelectedDeal({ ...selectedDeal, status: newStatus });
@@ -178,56 +271,23 @@ export default function EnterpriseCRM() {
 
   const handleCategoryUpdate = async (newCategory: 'active' | 'potential') => {
     if (!selectedDeal || !user) return;
-    try {
-        await updateDoc(doc(db, "referrals", selectedDeal.id), { dealCategory: newCategory });
-        setSelectedDeal({ ...selectedDeal, dealCategory: newCategory });
-        loadProfileAndData();
-    } catch (error) {
-        console.error("Failed to update category", error);
-    }
-  };
-
-  const handleManualLeadSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-    await CRMService.createReferral(
-      { uid: user.uid, role: partnerRole, displayName: fullName } as any, 
-      { ...newClient, type: 'Manual Entry', dealCategory: 'potential' } as any
-    );
-    setShowNewReferralForm(false);
-    setNewClient({ name: '', phone: '', email: '', service: 'General Inquiry', message: '' });
+    await updateDoc(doc(db, "referrals", selectedDeal.id), { dealCategory: newCategory });
+    setSelectedDeal({ ...selectedDeal, dealCategory: newCategory });
     loadProfileAndData();
   };
 
-  const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
-    const reader = new FileReader();
-    
-    reader.onload = async (event) => {
-      try {
-        const text = event.target?.result as string;
-        const rows = text.split('\n').slice(1); 
-        
-        const parsedLeads = rows.map(row => {
-          const cols = row.split(','); 
-          return { name: cols[0]?.trim(), phone: cols[1]?.trim(), email: cols[2]?.trim(), notes: cols[3]?.trim(), dealCategory: 'potential' };
-        }).filter(lead => lead.name); 
-
-        if (parsedLeads.length > 0) {
-           await CRMService.batchImportLeads({ uid: user.uid, role: partnerRole, displayName: fullName }, parsedLeads);
-           alert(`Successfully imported ${parsedLeads.length} leads into the engine.`);
-           loadProfileAndData();
-        }
-      } catch (error) {
-        alert("Error parsing CSV. Ensure format is: Name, Phone, Email, Notes");
-      }
-    };
-    reader.readAsText(file);
+  const handleCompleteTask = async (taskId: string) => {
+      // THE FIX: SECURE TASK COMPLETION
+      await fetch('/api/partner/tasks', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ taskId })
+      });
+      loadProfileAndData();
   };
 
   const handleDeleteLead = async (id: string) => {
-    if (window.confirm("CRITICAL WARNING: Are you sure you want to permanently delete this lead? This action cannot be undone.")) {
+    if (window.confirm("CRITICAL WARNING: Are you sure you want to permanently delete this lead?")) {
       await CRMService.deleteReferral(id);
       setSelectedDeal(null);
       loadProfileAndData();
@@ -235,360 +295,591 @@ export default function EnterpriseCRM() {
   };
 
   const handleOpenTaskDeal = (referralId: string) => {
-    const allDeals = [...myLeads, ...receivedReferrals, ...sentReferrals];
-    const found = allDeals.find(d => d.id === referralId);
-    if (found) {
-        setSelectedDeal(found);
-    } else {
-        alert("Lead data could not be found in your active pipeline views.");
-    }
+    if (referralId === 'general') return;
+    const found = allReferrals.find(d => d.id === referralId);
+    if (found) { setSelectedDeal(found); setLogType('note'); }
   };
 
-  const handleActionSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedDeal || !user) return;
+  // --- UI HELPERS ---
+  const PIPELINE_STAGES = ['Received', 'Contacted', 'Underwriting', 'Approved', 'Firm / Conditional', 'Closed', 'Declined'];
+  const getStageProgress = (status: string) => {
+      const index = PIPELINE_STAGES.indexOf(status);
+      if (status === 'Declined') return 100; 
+      return index === -1 ? 10 : Math.max(10, (index / (PIPELINE_STAGES.length - 2)) * 100);
+  };
 
-    if (logType === 'route') {
-      const partner = ecosystemPartners.find(p => p.uid === targetPartnerId);
-      if (partner) {
-        await CRMService.routeLeadToPartner(selectedDeal.id, fullName, partner.uid, partner.displayName);
-        
-        try {
-            const recipientEmail = partner.email || 'mrcinvestmentsinc@gmail.com'; 
-            await addDoc(collection(db, "mail"), {
-                to: [recipientEmail],
-                message: {
-                    subject: `🚨 INDIBRICK ASSIGNMENT: New Lead Routed to You`,
-                    html: `
-                        <div style="font-family: sans-serif; padding: 20px; border: 1px solid #1877F2; border-radius: 10px;">
-                            <h2 style="color: #1877F2;">You have been assigned a new Deal</h2>
-                            <ul>
-                                <li><strong>Client:</strong> ${selectedDeal.clientName}</li>
-                                <li><strong>Routed By:</strong> ${fullName}</li>
-                                <li><strong>Priority:</strong> ${selectedDeal.dealCategory === 'active' ? '🔥 Active Deal' : '⭐ Potential Deal'}</li>
-                            </ul>
-                            <br/>
-                            <a href="https://indibrick.ca/partner/login" style="background-color: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Log into CRM to View Details</a>
-                        </div>
-                    `
-                }
-            });
-        } catch (error) {
-            console.error("Failed to trigger email alert", error);
-        }
-
-        alert(`Lead routed securely to ${partner.displayName}. Admin: You can still track this in your Partner Deals tab.`);
-        setSelectedDeal(null); 
+  const getFilteredDeals = () => {
+      let filtered = allReferrals;
+      if (pipelineView === 'mine') filtered = filtered.filter(r => r.assignedAgentId === user?.uid);
+      if (pipelineView === 'incoming') filtered = filtered.filter(r => r.assignedAgentId === 'ADMIN_INBOX');
+      if (pipelineView === 'outbound') filtered = filtered.filter(r => r.referrerId === 'INDIBRICK_WEB' && r.assignedAgentId !== 'ADMIN_INBOX');
+      if (partnerRole === 'admin' && filterAssignee !== 'all') filtered = filtered.filter(r => r.assignedAgentId === filterAssignee);
+      if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          filtered = filtered.filter(r => r.clientName?.toLowerCase().includes(q) || r.clientEmail?.toLowerCase().includes(q) || r.clientPhone?.includes(q));
       }
-    } else if (logType === 'task') {
-      await CRMService.scheduleTask({
-          referralId: selectedDeal.id, clientName: selectedDeal.clientName, assigneeId: user.uid,
-          dueDate: taskDate, description: logInput || `Follow up with ${selectedDeal.clientName}`, status: 'Pending'
+      return filtered.sort((a, b) => {
+          if (sortOrder === 'newest') return new Date(b.referralDate).getTime() - new Date(a.referralDate).getTime();
+          return new Date(a.referralDate).getTime() - new Date(b.referralDate).getTime();
       });
-      alert('Task Scheduled Successfully.');
-    } else {
-      let prefix = '';
-      if (logType === 'log_call') prefix = '📞 LOGGED CALL: ';
-      if (logType === 'log_email') prefix = '✉️ LOGGED EMAIL: ';
-
-      const activityText = prefix + logInput;
-
-      const activity: ActivityLog = {
-        type: 'note', 
-        author: fullName, 
-        content: activityText,
-        timestamp: new Date().toISOString()
-      };
-      
-      setSelectedDeal(prev => prev ? {
-          ...prev,
-          timeline: [...(prev.timeline || []), activity]
-      } : null);
-
-      await CRMService.logActivity(selectedDeal.id, activity);
-
-      try {
-        const aiResponse = await fetch('/api/ai-copilot', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ note: logInput, clientName: selectedDeal.clientName })
-        });
-        
-        if (aiResponse.ok) {
-            const aiData = await aiResponse.json();
-            if (aiData.requiresTask && aiData.dueDate) {
-              await CRMService.scheduleTask({
-                referralId: selectedDeal.id,
-                clientName: selectedDeal.clientName,
-                assigneeId: user.uid,
-                dueDate: aiData.dueDate,
-                description: `🤖 AI Assistant: ${aiData.description}`,
-                status: 'Pending'
-              });
-              alert(`Note saved! 🤖 Gemini also auto-scheduled a follow-up task for ${aiData.dueDate}.`);
-            }
-        }
-      } catch (error) {
-        console.error("AI Copilot failed to analyze note", error);
-      }
-    }
-
-    setLogInput('');
-    setTaskDate('');
-    loadProfileAndData();
   };
 
-  const handleCompleteTask = async (taskId: string) => {
-      await CRMService.completeTask(taskId);
-      loadProfileAndData();
-  };
-
-  const getActiveLeads = () => {
-    let list = activeTab === 'received' ? [...receivedReferrals] 
-             : activeTab === 'sent' ? [...sentReferrals] 
-             : [...myLeads];
-
-    return list.sort((a, b) => {
-        if (sortOrder === 'newest') return new Date(b.referralDate).getTime() - new Date(a.referralDate).getTime();
-        if (sortOrder === 'oldest') return new Date(a.referralDate).getTime() - new Date(b.referralDate).getTime();
-        if (sortOrder === 'name-asc') return (a.clientName || '').localeCompare(b.clientName || '');
-        if (sortOrder === 'name-desc') return (b.clientName || '').localeCompare(a.clientName || '');
-        return 0;
-    });
-  };
-
-  if (loading || !user) return <div className="min-h-screen flex items-center justify-center"><Activity className="animate-spin"/></div>;
+  if (loading || !user) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" size={40}/></div>;
 
   return (
-    <div className="min-h-screen bg-gray-50 text-slate-900 font-sans pb-20">
-      {/* HEADER */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-20 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-            <div>
-               <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">
-                 {partnerRole === 'admin' ? 'HQ Command Center' : `${partnerRole.replace('partner_', '').toUpperCase()} CRM Engine`}
-               </p>
-               <h1 className="text-2xl font-black text-slate-900 tracking-tight">System Online, {firstName}.</h1>
-            </div>
-            
-            <div className="flex gap-3">
-                <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={handleCSVUpload} />
-                <button onClick={() => fileInputRef.current?.click()} className="bg-white border border-gray-200 text-slate-900 px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest hover:border-black transition flex items-center gap-2">
-                   <Upload size={14} /> Import CSV
-                </button>
-                <button onClick={() => setShowNewReferralForm(true)} className="bg-black text-white px-5 py-2 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-gray-800 transition flex items-center gap-2 shadow-lg">
-                   <Plus size={14} /> Manual Lead
-                </button>
-            </div>
+    <div className="min-h-screen bg-[#F8FAFC] flex font-sans text-slate-900">
+      
+      {/* SIDEBAR */}
+      <aside className="w-64 bg-[#0B0F19] text-white flex flex-col fixed h-full z-20 shadow-2xl">
+        <div className="p-8">
+          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center mb-4 shadow-lg shadow-blue-500/30">
+             <Zap size={20} className="text-white"/>
+          </div>
+          <h2 className="text-xl font-black uppercase tracking-tighter">IndiBrick CRM</h2>
+          <p className="text-[10px] text-blue-400 font-bold uppercase tracking-widest mt-1">{partnerRole.replace('partner_', '')}</p>
         </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        {/* PIPELINE COL */}
-        <div className="lg:col-span-8 space-y-6">
-           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-200 mb-6 gap-4">
-              <div className="flex gap-8">
-                  {['partner_mortgage', 'admin'].includes(partnerRole) && (
-                      <button onClick={() => setActiveTab('mine')} className={`pb-4 text-sm font-bold uppercase tracking-wider transition ${activeTab === 'mine' ? 'border-b-4 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}>
-                        My Leads {myLeads.length > 0 && `(${myLeads.length})`}
-                      </button>
-                  )}
-                  <button onClick={() => setActiveTab('received')} className={`pb-4 text-sm font-bold uppercase tracking-wider transition ${activeTab === 'received' ? 'border-b-4 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}>
-                    {partnerRole === 'admin' ? 'Triage Inbox' : 'Received Leads'} {receivedReferrals.length > 0 && `(${receivedReferrals.length})`}
-                  </button>
-                  
-                  <button onClick={() => setActiveTab('sent')} className={`pb-4 text-sm font-bold uppercase tracking-wider transition ${activeTab === 'sent' ? 'border-b-4 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}>
-                    {partnerRole === 'admin' ? 'Partner Deals' : 'Sent Leads'}
-                  </button>
+        <nav className="space-y-1 px-4 flex-1">
+          <button onClick={() => setActiveTab('pipeline')} className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl text-xs font-bold uppercase tracking-widest transition ${activeTab === 'pipeline' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
+             <Briefcase size={16} /> Pipeline
+          </button>
+          <button onClick={() => setActiveTab('analyzer')} className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl text-xs font-bold uppercase tracking-widest transition ${activeTab === 'analyzer' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
+             <BrainCircuit size={16} /> Deal Analyzer
+          </button>
+          <button onClick={() => setActiveTab('calendar')} className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl text-xs font-bold uppercase tracking-widest transition ${activeTab === 'calendar' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
+             <Calendar size={16} /> Schedule
+          </button>
+        </nav>
+        
+        <div className="p-6 border-t border-slate-800">
+           <button onClick={logout} className="w-full flex items-center gap-3 text-xs font-bold uppercase text-slate-500 hover:text-red-400 transition">
+              <LogOut size={14}/> Sign Out
+           </button>
+        </div>
+      </aside>
+
+      {/* MAIN CONTENT */}
+      <main className="ml-64 flex-1 p-6 md:p-10 overflow-x-hidden">
+        
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6">
+           <div>
+             <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">
+               {activeTab === 'pipeline' ? 'Deal Pipeline' : activeTab === 'analyzer' ? 'AI Underwriter' : 'Task Calendar'}
+             </h1>
+             <p className="text-slate-500 font-medium text-sm mt-1">
+               {activeTab === 'pipeline' ? 'Track, manage, and close your active clients.' : activeTab === 'analyzer' ? 'Instant scenario qualification and structuring.' : 'Manage AI-generated follow-ups and deadlines.'}
+             </p>
+           </div>
+           
+           <div className="flex gap-3 w-full md:w-auto">
+             <button onClick={() => setShowNewReferralForm(true)} className="flex-1 md:flex-none bg-slate-900 text-white px-5 py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-blue-600 transition flex items-center justify-center gap-2 shadow-lg hover:-translate-y-0.5">
+                <Plus size={16} /> Inject Lead
+             </button>
+           </div>
+        </header>
+
+        {/* --- TAB: CALENDAR --- */}
+        {activeTab === 'calendar' && (
+           <div className="animate-fade-in-up max-w-6xl mx-auto space-y-6">
+              <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
+                 <div className="flex items-center gap-4">
+                    <button onClick={handlePrevMonth} className="p-2 hover:bg-gray-100 rounded-lg transition"><ChevronLeft size={20}/></button>
+                    <h2 className="text-xl font-black text-slate-900 w-48 text-center">{monthNames[currentMonth]} {currentYear}</h2>
+                    <button onClick={handleNextMonth} className="p-2 hover:bg-gray-100 rounded-lg transition"><ChevronRight size={20}/></button>
+                 </div>
+                 
+                 <div className="flex gap-3 w-full md:w-auto">
+                     <button onClick={() => setShowNewTaskForm(true)} className="flex-1 md:flex-none bg-slate-900 text-white px-5 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-600 transition flex items-center justify-center gap-2 shadow-sm">
+                        <Plus size={14}/> Add Task
+                     </button>
+                     <button onClick={handleGoogleSync} disabled={isSyncingGoogle} className="flex-1 md:flex-none bg-white border border-gray-200 text-slate-700 px-5 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 hover:border-blue-400 transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50">
+                        {isSyncingGoogle ? <Loader2 size={14} className="animate-spin"/> : <Calendar size={14}/>}
+                        {isSyncingGoogle ? 'Connecting...' : 'Google Sync'}
+                     </button>
+                 </div>
               </div>
 
-              {/* Sorting UI */}
-              <div className="flex items-center gap-2 pb-4">
-                  <Filter size={14} className="text-gray-400" />
-                  <select 
-                      value={sortOrder} 
-                      onChange={(e) => setSortOrder(e.target.value as any)}
-                      className="text-[11px] font-black uppercase tracking-widest text-gray-500 bg-transparent outline-none cursor-pointer hover:text-black transition"
-                  >
-                      <option value="newest">Newest First</option>
-                      <option value="oldest">Oldest First</option>
-                      <option value="name-asc">Name (A-Z)</option>
-                      <option value="name-desc">Name (Z-A)</option>
-                  </select>
+              <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
+                 <div className="grid grid-cols-7 border-b border-gray-100 bg-gray-50">
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                       <div key={day} className="py-3 text-center text-[10px] font-black uppercase tracking-widest text-gray-400">{day}</div>
+                    ))}
+                 </div>
+                 <div className="grid grid-cols-7 bg-gray-100 gap-px">
+                    {calendarBlanks.map(blank => <div key={`blank-${blank}`} className="bg-white min-h-[120px]"></div>)}
+                    {calendarDays.map(day => {
+                       const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                       const dayTasks = allTasks.filter(t => t.dueDate === dateStr);
+                       const isToday = todayDateString === dateStr;
+
+                       return (
+                          <div key={day} className="bg-white min-h-[120px] p-2 transition hover:bg-gray-50">
+                             <div className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-bold mb-2 ${isToday ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600'}`}>
+                                {day}
+                             </div>
+                             <div className="space-y-1.5">
+                                {dayTasks.map(task => (
+                                   <div key={task.id} onClick={() => { 
+                                       if(task.referralId !== 'general'){
+                                           setActiveTab('pipeline'); 
+                                           handleOpenTaskDeal(task.referralId); 
+                                       }
+                                   }} className={`p-1.5 rounded-lg transition ${task.referralId !== 'general' ? 'cursor-pointer hover:bg-blue-100 hover:shadow-sm' : ''} ${task.status === 'Completed' ? 'bg-gray-50 border border-gray-100 text-gray-400 line-through' : 'bg-blue-50 border border-blue-100 text-blue-800'}`}>
+                                      <p className="text-[9px] font-black uppercase tracking-widest truncate">{task.clientName}</p>
+                                      <p className="text-[10px] font-medium truncate leading-tight mt-0.5">{task.description}</p>
+                                   </div>
+                                ))}
+                             </div>
+                          </div>
+                       );
+                    })}
+                 </div>
               </div>
-            </div>
+           </div>
+        )}
 
-            {getActiveLeads().map((deal) => (
-                <div key={deal.id} onClick={() => setSelectedDeal(deal as any)} className="group bg-white p-5 rounded-2xl border border-gray-100 hover:border-blue-500 hover:shadow-lg transition cursor-pointer flex justify-between items-center">
-                    <div>
-                      <h3 className="text-lg font-black text-slate-900">{deal.clientName}</h3>
-                      <p className="text-xs text-gray-500 font-bold uppercase mt-1">Date: {new Date(deal.referralDate).toLocaleDateString()}</p>
+        {/* --- TAB: PIPELINE --- */}
+        {activeTab === 'pipeline' && (
+           <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+              
+              {/* LEFT: PIPELINE BOARD */}
+              <div className="xl:col-span-8 space-y-6">
+                 
+                 <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-200 flex flex-col lg:flex-row justify-between items-center gap-4">
+                     <div className="flex gap-1 p-1 bg-gray-100/80 rounded-xl w-full lg:w-auto border border-gray-200/50">
+                         {partnerRole === 'admin' && (
+                             <button onClick={() => setPipelineView('all')} className={`flex-1 lg:flex-none px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition ${pipelineView === 'all' ? 'bg-white shadow-sm text-blue-600 border border-gray-200' : 'text-gray-500 hover:text-slate-900'}`}>All</button>
+                         )}
+                         <button onClick={() => setPipelineView('mine')} className={`flex-1 lg:flex-none px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition ${pipelineView === 'mine' ? 'bg-white shadow-sm text-blue-600 border border-gray-200' : 'text-gray-500 hover:text-slate-900'}`}>Mine</button>
+                         <button onClick={() => setPipelineView('incoming')} className={`flex-1 lg:flex-none px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition ${pipelineView === 'incoming' ? 'bg-white shadow-sm text-blue-600 border border-gray-200' : 'text-gray-500 hover:text-slate-900'}`}>Inbox</button>
+                     </div>
+
+                     <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                         <div className="flex flex-1 lg:flex-none items-center gap-2 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-xl w-full sm:w-48 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-50 transition">
+                            <Search size={14} className="text-gray-400 shrink-0" />
+                            <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-transparent text-xs font-bold text-slate-700 outline-none w-full placeholder:text-gray-400" />
+                         </div>
+                         {partnerRole === 'admin' && (
+                             <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-xl w-full sm:w-auto hover:border-gray-300 transition">
+                                 <Users size={14} className="text-blue-500 shrink-0" />
+                                 <select value={filterAssignee} onChange={(e) => setFilterAssignee(e.target.value)} className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer w-full lg:w-32 truncate">
+                                     <option value="all">All Agents</option>
+                                     <option value="ADMIN_INBOX">Admin Inbox</option>
+                                     {ecosystemPartners.filter(p => p.uid !== user?.uid).map(p => <option key={p.uid} value={p.uid}>{p.displayName}</option>)}
+                                 </select>
+                             </div>
+                         )}
+                         <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-xl w-full sm:w-auto hover:border-gray-300 transition">
+                             <Filter size={14} className="text-blue-500 shrink-0" />
+                             <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value as any)} className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer w-full">
+                                 <option value="newest">Newest</option>
+                                 <option value="oldest">Oldest</option>
+                             </select>
+                         </div>
+                     </div>
+                 </div>
+
+                 {/* DEAL CARDS WITH STALE DETECTOR */}
+                 <div className="space-y-4">
+                     {getFilteredDeals().map((deal) => {
+                        const progress = getStageProgress(deal.status);
+                        const isDeclined = deal.status === 'Declined';
+                        const isWon = deal.status === 'Closed' || deal.status === 'Funded';
+                        const activeTask = allTasks.find(t => t.referralId === deal.id && t.status !== 'Completed');
+
+                        const lastActivityMs = deal.timeline && deal.timeline.length > 0 
+                            ? new Date(deal.timeline[deal.timeline.length - 1].timestamp).getTime() 
+                            : new Date(deal.referralDate || Date.now()).getTime();
+                        const daysSinceActivity = Math.floor((Date.now() - lastActivityMs) / (1000 * 60 * 60 * 24));
+                        const isStale = daysSinceActivity >= 10 && !['Closed', 'Funded', 'Declined', 'Dead Deal'].includes(deal.status);
+
+                        return (
+                         <div key={deal.id} onClick={() => { setSelectedDeal(deal); setLogType('note'); }} className="group bg-white rounded-2xl p-5 border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-400 transition-all duration-200 cursor-pointer relative overflow-hidden">
+                             {deal.dealCategory === 'active' && <div className="absolute top-0 left-0 w-1 h-full bg-green-500"></div>}
+
+                             <div className="flex flex-col md:flex-row justify-between items-start mb-4 gap-4">
+                                 <div className="flex gap-4 items-center">
+                                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-base shrink-0 ${deal.dealCategory === 'active' ? 'bg-green-50 text-green-600' : 'bg-slate-50 text-slate-600'}`}>
+                                         {deal.clientName.charAt(0)}
+                                     </div>
+                                     <div>
+                                         <h3 className="text-lg font-black text-slate-900 group-hover:text-blue-600 transition tracking-tight">{deal.clientName}</h3>
+                                         <div className="flex items-center gap-2 mt-0.5">
+                                             <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest ${deal.dealCategory === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                 {deal.dealCategory === 'active' ? '🔥 Active' : '⭐ Potential'}
+                                             </span>
+                                             <span className="text-xs text-gray-400 font-medium truncate max-w-[200px] hidden sm:block">{deal.serviceNeeded}</span>
+                                         </div>
+                                     </div>
+                                 </div>
+                                 <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end border-t md:border-0 border-gray-50 pt-3 md:pt-0">
+                                     <div className="text-left md:text-right">
+                                         <p className="text-[8px] text-gray-400 uppercase font-black tracking-widest mb-1">Assigned</p>
+                                         <div className="flex items-center gap-1.5 md:justify-end">
+                                             <div className="w-4 h-4 rounded-full bg-slate-900 text-white flex items-center justify-center text-[7px] font-bold shrink-0">
+                                                 {deal.assignedAgentName === 'Admin Triage' ? 'HQ' : deal.assignedAgentName?.charAt(0) || '?'}
+                                             </div>
+                                             <p className="text-[10px] font-bold text-slate-700 truncate max-w-[100px]">{deal.assignedAgentName === 'Admin Triage' ? 'Inbox' : deal.assignedAgentName}</p>
+                                         </div>
+                                     </div>
+                                     <div className="text-right">
+                                         <p className="text-[8px] text-gray-400 uppercase font-black tracking-widest mb-1">Status</p>
+                                         <div className="flex items-center justify-end">
+                                             {isStale && (
+                                                <span className="px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest border bg-red-50 text-red-600 border-red-200 mr-2 flex items-center gap-1">
+                                                    <AlertCircle size={10} /> Stale ({daysSinceActivity}d)
+                                                </span>
+                                             )}
+                                             <span className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest border ${deal.status === 'Closed' || deal.status === 'Funded' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                                                 {deal.status}
+                                             </span>
+                                         </div>
+                                     </div>
+                                 </div>
+                             </div>
+
+                             <div className="mb-4">
+                                 <div className="w-full bg-gray-100 rounded-full h-1 overflow-hidden">
+                                     <div className={`h-full rounded-full transition-all duration-1000 ${isDeclined ? 'bg-red-500' : isWon ? 'bg-green-500' : 'bg-blue-600'}`} style={{ width: `${progress}%` }}></div>
+                                 </div>
+                             </div>
+
+                             <div className="pt-3 border-t border-gray-50 flex justify-between items-center">
+                                 <div className="flex items-center gap-2 text-[10px] font-medium">
+                                     {activeTask ? (
+                                        <span className="text-orange-600 flex items-center gap-1 bg-orange-50 px-2 py-1 rounded-md font-bold"><Calendar size={12}/> Due: {activeTask.description}</span>
+                                     ) : (
+                                        <span className="text-gray-400 flex items-center gap-1"><Clock size={12}/> No pending tasks.</span>
+                                     )}
+                                 </div>
+                                 <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 group-hover:text-blue-600 transition flex items-center gap-1">Open <ChevronRight size={10}/></span>
+                             </div>
+                         </div>
+                        );
+                     })}
+
+                     {getFilteredDeals().length === 0 && (
+                         <div className="text-center p-12 bg-white rounded-2xl border border-dashed border-gray-200">
+                             <Target className="mx-auto text-gray-300 mb-3" size={36} />
+                             <p className="text-gray-500 font-bold text-base mb-1">Pipeline Empty</p>
+                             <p className="text-gray-400 text-xs">No deals found. Adjust your search or generate new leads.</p>
+                         </div>
+                     )}
+                 </div>
+              </div>
+
+              {/* RIGHT: STATS & TASKS */}
+              <div className="xl:col-span-4 space-y-6">
+                 <div className="bg-slate-900 text-white p-6 rounded-3xl relative overflow-hidden shadow-lg">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/20 rounded-full blur-2xl -mr-8 -mt-8"></div>
+                    <div className="relative z-10">
+                       <div className="flex items-center gap-2 mb-2 text-green-400"><Wallet size={14} /><span className="text-[9px] font-black uppercase tracking-widest">Funded YTD</span></div>
+                       <h3 className="text-3xl font-black tracking-tighter">{referralVolume}</h3>
                     </div>
-                    
-                    <div className="flex flex-col items-end gap-2">
-                        <span className="px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-gray-100 text-gray-600">
-                            {deal.status}
-                        </span>
-                        <span className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 ${deal.dealCategory === 'active' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                            {deal.dealCategory === 'active' ? <Zap size={10} /> : <Star size={10} />}
-                            {deal.dealCategory === 'active' ? 'Active Deal' : 'Potential Deal'}
-                        </span>
+                 </div>
+
+                 <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+                     <h3 className="font-black uppercase tracking-tight text-sm mb-4 flex items-center gap-2 text-slate-900"><CheckCircle size={16} className="text-blue-600"/> Today's Action Items</h3>
+                     {todaysTasks.length === 0 ? (
+                         <p className="text-xs text-gray-400 font-medium bg-gray-50 p-3 rounded-xl text-center">Inbox zero achieved.</p>
+                     ) : (
+                         <div className="space-y-2">
+                             {todaysTasks.map(task => (
+                                 <div key={task.id} onClick={() => { if(task.referralId !== 'general') { setActiveTab('pipeline'); handleOpenTaskDeal(task.referralId); } }} className={`group p-3 bg-white border border-gray-100 shadow-sm rounded-xl flex justify-between items-start transition ${task.referralId !== 'general' ? 'cursor-pointer hover:border-blue-400' : ''}`}>
+                                     <div>
+                                         <p className="text-[10px] font-black text-slate-900 mb-0.5 group-hover:text-blue-600 transition">{task.clientName}</p>
+                                         <p className="text-[10px] text-gray-500 font-medium line-clamp-2">{task.description}</p>
+                                     </div>
+                                     <button onClick={(e) => { e.stopPropagation(); handleCompleteTask(task.id); }} className="w-5 h-5 rounded-full border-2 border-gray-200 flex items-center justify-center hover:bg-green-500 hover:border-green-500 text-transparent hover:text-white transition shrink-0 z-10">
+                                         <CheckCircle size={10} />
+                                     </button>
+                                 </div>
+                             ))}
+                         </div>
+                     )}
+                 </div>
+              </div>
+           </div>
+        )}
+
+        {/* --- TAB: AI DEAL ANALYZER --- */}
+        {activeTab === 'analyzer' && (
+           <div className="animate-fade-in-up max-w-5xl mx-auto">
+              <div className="bg-slate-900 text-white rounded-[2rem] p-8 relative overflow-hidden shadow-2xl">
+                 <div className="absolute top-0 right-0 w-80 h-80 bg-blue-600/30 rounded-full blur-3xl -mr-20 -mt-20"></div>
+                 
+                 <div className="relative z-10 flex flex-col lg:flex-row gap-10 items-start">
+                    <div className="w-full lg:w-1/2">
+                        <h2 className="text-2xl font-black uppercase tracking-tight mb-2 flex items-center gap-3">
+                           <BrainCircuit className="text-blue-400" size={28} /> Deal Analyzer
+                        </h2>
+                        <p className="text-gray-400 text-xs mb-6 leading-relaxed">
+                           Instantly verify if your client qualifies before writing an offer. AI references our live brokerage guidelines and B-20 rules.
+                        </p>
+                        
+                        <form onSubmit={handleAnalyzeDeal} className="space-y-4">
+                           <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                  <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1 block">Income ($)</label>
+                                  <input required type="number" placeholder="120000" value={analyzerForm.income} onChange={e=>setAnalyzerForm({...analyzerForm, income: e.target.value})} className="w-full bg-white/10 border border-white/10 p-3 rounded-xl text-white font-bold text-sm outline-none focus:border-blue-500 transition" />
+                              </div>
+                              <div>
+                                  <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1 block">Down Pmt ($)</label>
+                                  <input required type="number" placeholder="50000" value={analyzerForm.downPayment} onChange={e=>setAnalyzerForm({...analyzerForm, downPayment: e.target.value})} className="w-full bg-white/10 border border-white/10 p-3 rounded-xl text-white font-bold text-sm outline-none focus:border-blue-500 transition" />
+                              </div>
+                              <div>
+                                  <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1 block">Property Value ($)</label>
+                                  <input required type="number" placeholder="600000" value={analyzerForm.propertyValue} onChange={e=>setAnalyzerForm({...analyzerForm, propertyValue: e.target.value})} className="w-full bg-white/10 border border-white/10 p-3 rounded-xl text-white font-bold text-sm outline-none focus:border-blue-500 transition" />
+                              </div>
+                              <div>
+                                  <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1 block">Credit Score</label>
+                                  <input required type="number" placeholder="680" value={analyzerForm.creditScore} onChange={e=>setAnalyzerForm({...analyzerForm, creditScore: e.target.value})} className="w-full bg-white/10 border border-white/10 p-3 rounded-xl text-white font-bold text-sm outline-none focus:border-blue-500 transition" />
+                              </div>
+                           </div>
+                           <div>
+                              <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1 block">Monthly Debts ($)</label>
+                              <input type="number" placeholder="450" value={analyzerForm.debts} onChange={e=>setAnalyzerForm({...analyzerForm, debts: e.target.value})} className="w-full bg-white/10 border border-white/10 p-3 rounded-xl text-white font-bold text-sm outline-none focus:border-blue-500 transition" />
+                           </div>
+                           <div>
+                              <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1 block">Context (Optional)</label>
+                              <textarea rows={2} placeholder="Self-employed, open to B-Lenders." value={analyzerForm.notes} onChange={e=>setAnalyzerForm({...analyzerForm, notes: e.target.value})} className="w-full bg-white/10 border border-white/10 p-3 rounded-xl text-white font-bold text-sm outline-none focus:border-blue-500 transition resize-none" />
+                           </div>
+
+                           <button disabled={analyzerStatus === 'loading'} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-black uppercase tracking-widest text-xs transition disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg mt-2">
+                              {analyzerStatus === 'loading' ? <Loader2 size={16} className="animate-spin" /> : <Activity size={16} />}
+                              {analyzerStatus === 'loading' ? 'Underwriting File...' : 'Run Scenario'}
+                           </button>
+                        </form>
                     </div>
-                </div>
-            ))}
-            
-            {getActiveLeads().length === 0 && (
-                <div className="text-center p-12 bg-white rounded-3xl border border-dashed border-gray-300">
-                    <p className="text-gray-400 font-bold uppercase text-sm tracking-widest">No leads in this section.</p>
-                </div>
-            )}
-        </div>
 
-        {/* TASKS COL */}
-        <div className="lg:col-span-4 space-y-6">
-            <div className="bg-slate-900 text-white p-8 rounded-3xl relative overflow-hidden shadow-2xl">
-               <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/20 rounded-full blur-3xl -mr-10 -mt-10"></div>
-               <div className="relative z-10">
-                  <div className="flex items-center gap-2 mb-2 text-green-400"><Wallet size={16} /><span className="text-[10px] font-black uppercase tracking-widest">Funded YTD</span></div>
-                  <h3 className="text-4xl font-black tracking-tighter">{referralVolume}</h3>
-               </div>
-            </div>
+                    {/* The Results Panel */}
+                    <div className="w-full lg:w-1/2 h-full flex flex-col">
+                       {analyzerStatus === 'idle' && (
+                          <div className="flex-1 border-2 border-dashed border-white/10 rounded-[2rem] flex flex-col items-center justify-center text-center p-8 opacity-50 min-h-[300px]">
+                             <Target size={40} className="mb-3 text-blue-400"/>
+                             <p className="font-bold text-base">Awaiting Scenario</p>
+                             <p className="text-xs">Enter client details to generate ratios.</p>
+                          </div>
+                       )}
 
-            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-                <h3 className="font-black uppercase tracking-tight mb-4 flex items-center gap-2"><Calendar size={18}/> Today's Tasks</h3>
-                {dailyTasks.length === 0 ? (
-                    <p className="text-sm text-gray-400 font-medium">No tasks scheduled for today. Inbox zero achieved.</p>
-                ) : (
-                    <div className="space-y-3">
-                        {dailyTasks.map(task => (
-                            <div 
-                                key={task.id} 
-                                onClick={() => handleOpenTaskDeal(task.referralId)}
-                                className="group p-3 bg-gray-50 border border-gray-100 rounded-xl flex justify-between items-start cursor-pointer hover:border-blue-400 hover:shadow-md transition"
-                            >
-                                <div>
-                                    <p className="text-xs font-black text-blue-600 flex items-center gap-1 group-hover:underline">
-                                        {task.clientName} <ExternalLink size={10} className="opacity-0 group-hover:opacity-100 transition"/>
-                                    </p>
-                                    <p className="text-xs text-gray-600 mt-1">{task.description}</p>
-                                </div>
-                                <button 
-                                    onClick={(e) => { 
-                                        e.stopPropagation(); 
-                                        handleCompleteTask(task.id); 
-                                    }} 
-                                    className="text-[10px] font-bold uppercase bg-white border border-gray-200 px-2 py-1 rounded hover:bg-green-500 hover:text-white transition"
-                                >
-                                    Done
-                                </button>
-                            </div>
-                        ))}
+                       {analyzerResult && (
+                          <div className="flex-1 bg-white text-slate-900 rounded-[2rem] p-6 shadow-xl animate-fade-in flex flex-col">
+                              <div className="grid grid-cols-2 gap-3 mb-5">
+                                 <div className="bg-gray-50 rounded-xl p-3 flex flex-col justify-center items-center text-center border border-gray-100">
+                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">GDS Ratio</p>
+                                    <p className="text-xl font-black text-slate-900">{analyzerResult.gds}</p>
+                                 </div>
+                                 <div className="bg-gray-50 rounded-xl p-3 flex flex-col justify-center items-center text-center border border-gray-100">
+                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">TDS Ratio</p>
+                                    <p className="text-xl font-black text-slate-900">{analyzerResult.tds}</p>
+                                 </div>
+                              </div>
+
+                              <div className="mb-5 flex-1">
+                                 <h3 className="font-black uppercase tracking-tight text-[10px] text-gray-400 mb-2 flex items-center gap-2"><ShieldCheck size={12}/> Underwriter Analysis</h3>
+                                 <p className="text-slate-700 text-xs leading-relaxed font-medium">
+                                    {analyzerResult.analysis}
+                                 </p>
+                              </div>
+
+                              <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                                 <h3 className="font-black uppercase tracking-tight text-[10px] text-blue-800 mb-2 flex items-center gap-2"><CheckCircle size={12}/> Action Plan</h3>
+                                 <ul className="space-y-1.5">
+                                    {analyzerResult.actionPlan.map((step: string, i: number) => (
+                                       <li key={i} className="flex items-start gap-2 text-[10px] text-blue-900 font-medium">
+                                          <span className="font-black">{i+1}.</span> {step}
+                                       </li>
+                                    ))}
+                                 </ul>
+                              </div>
+                          </div>
+                       )}
                     </div>
-                )}
-            </div>
-        </div>
-      </div>
+                 </div>
+              </div>
+           </div>
+        )}
+      </main>
 
-      {/* ENTERPRISE DEAL MODAL */}
+      {/* DEAL EDITOR MODAL */}
       {selectedDeal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex justify-end">
-          <div className="w-full max-w-2xl bg-white h-full p-8 overflow-y-auto shadow-2xl flex flex-col">
-            <div className="flex justify-between items-start mb-6">
-                <div>
-                    <h2 className="text-3xl font-black text-slate-900">{selectedDeal.clientName}</h2>
-                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">📞 {selectedDeal.clientPhone} • ✉️ {selectedDeal.clientEmail}</p>
-                    
-                    {/* NEW: DISPLAY CLIENT'S ORIGINAL NOTE/MESSAGE */}
-                    {(selectedDeal.message || selectedDeal.notes) && (
-                        <div className="mt-5 p-5 bg-blue-50 rounded-2xl border border-blue-100 shadow-sm relative">
-                           <div className="absolute top-0 left-0 w-1 h-full bg-blue-400 rounded-l-2xl"></div>
-                           <p className="text-[10px] font-black uppercase tracking-widest text-blue-400 mb-2">Client's Initial Message</p>
-                           <p className="text-sm font-medium text-slate-800 leading-relaxed italic">
-                             "{selectedDeal.message || selectedDeal.notes}"
-                           </p>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex justify-end">
+          <div className="w-full max-w-xl bg-white h-full shadow-2xl animate-in slide-in-from-right duration-200 flex flex-col">
+            
+            {/* Modal Header */}
+            <div className="bg-slate-900 text-white p-6 pb-8 relative overflow-hidden shrink-0">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/20 rounded-full blur-2xl -mr-10 -mt-10"></div>
+                <div className="relative z-10 flex justify-between items-start">
+                    <div>
+                        <div className="flex items-center gap-2 mb-1.5">
+                            <h2 className="text-2xl font-black tracking-tight">{selectedDeal.clientName}</h2>
+                            <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${selectedDeal.dealCategory === 'active' ? 'bg-green-500 text-white' : 'bg-orange-500 text-white'}`}>
+                                {selectedDeal.dealCategory === 'active' ? 'Active' : 'Potential'}
+                            </span>
                         </div>
-                    )}
-                    
-                    {/* Deal Category Toggles */}
-                    <div className="mt-6 flex gap-2">
-                        <button 
-                            onClick={() => handleCategoryUpdate('potential')} 
-                            className={`py-1.5 px-3 text-[10px] font-bold uppercase tracking-widest rounded-lg border transition flex items-center gap-1 ${selectedDeal.dealCategory !== 'active' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white border-gray-200 text-gray-500 hover:border-orange-500 hover:text-orange-500'}`}
-                        >
-                            <Star size={12} /> Potential
-                        </button>
-                        <button 
-                            onClick={() => handleCategoryUpdate('active')} 
-                            className={`py-1.5 px-3 text-[10px] font-bold uppercase tracking-widest rounded-lg border transition flex items-center gap-1 ${selectedDeal.dealCategory === 'active' ? 'bg-green-500 text-white border-green-500' : 'bg-white border-gray-200 text-gray-500 hover:border-green-500 hover:text-green-500'}`}
-                        >
-                            <Zap size={12} /> Active
-                        </button>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">📞 {selectedDeal.clientPhone} • ✉️ {selectedDeal.clientEmail}</p>
                     </div>
-
+                    <div className="flex gap-1.5">
+                        <button onClick={() => handleCategoryUpdate(selectedDeal.dealCategory === 'active' ? 'potential' : 'active')} className="bg-white/10 hover:bg-white/20 p-2 rounded-lg transition"><Star size={14}/></button>
+                        <button onClick={() => handleDeleteLead(selectedDeal.id)} className="bg-red-500/20 text-red-400 hover:bg-red-50 hover:text-white p-2 rounded-lg transition"><Trash2 size={14}/></button>
+                        <button onClick={() => setSelectedDeal(null)} className="bg-white/10 hover:bg-white text-white hover:text-black p-2 rounded-lg transition"><X size={14}/></button>
+                    </div>
                 </div>
-                <div className="flex gap-2">
-                    <button onClick={() => handleDeleteLead(selectedDeal.id)} className="p-2 text-red-400 bg-red-50 rounded-full hover:bg-red-500 hover:text-white transition" title="Delete Lead"><Trash2 size={16}/></button>
-                    <button onClick={() => setSelectedDeal(null)} className="p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition"><X size={16}/></button>
-                </div>
-            </div>
 
-            {/* Status Pipeline */}
-            <div className="mb-8 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                <p className="text-[10px] font-bold uppercase text-gray-400 mb-2">Advance Pipeline Stage</p>
-                <div className="flex flex-wrap gap-2">
-                  {getStatusOptions().map(status => (
-                    <button key={status} onClick={() => handleStatusUpdate(status)} className={`py-2 px-4 text-[10px] font-bold uppercase rounded-lg border transition ${selectedDeal.status === status ? 'bg-black text-white border-black' : 'bg-white border-gray-200 text-gray-600 hover:border-black'}`}>
+                <div className="relative z-10 mt-6 bg-white/10 p-1 rounded-xl flex gap-1 overflow-x-auto custom-scrollbar">
+                  {PIPELINE_STAGES.map(status => (
+                    <button key={status} onClick={() => handleStatusChange(status)} className={`flex-1 min-w-max py-1.5 px-3 text-[9px] font-black uppercase tracking-widest rounded-lg transition ${selectedDeal.status === status ? 'bg-white text-slate-900 shadow-md' : 'text-gray-400 hover:text-white'}`}>
                       {status}
                     </button>
                   ))}
                 </div>
             </div>
 
-            {/* Offline Omnichannel Controls */}
-            <div className="flex-1 flex flex-col">
-              <div className="flex flex-wrap gap-4 mb-4 border-b border-gray-100 pb-2">
-                  <button onClick={() => setLogType('note')} className={`text-[11px] font-black uppercase tracking-widest ${logType === 'note' ? 'text-black' : 'text-gray-400'}`}>Note</button>
-                  <button onClick={() => setLogType('log_call')} className={`text-[11px] font-black uppercase tracking-widest ${logType === 'log_call' ? 'text-blue-600' : 'text-gray-400'}`}><PhoneCall size={12} className="inline mr-1"/> Log Call</button>
-                  <button onClick={() => setLogType('log_email')} className={`text-[11px] font-black uppercase tracking-widest ${logType === 'log_email' ? 'text-green-600' : 'text-gray-400'}`}><Mail size={12} className="inline mr-1"/> Log Email</button>
-                  <button onClick={() => setLogType('task')} className={`text-[11px] font-black uppercase tracking-widest ${logType === 'task' ? 'text-orange-600' : 'text-gray-400'}`}><Calendar size={12} className="inline mr-1"/> Task</button>
-                  <button onClick={() => setLogType('route')} className={`text-[11px] font-black uppercase tracking-widest ${logType === 'route' ? 'text-purple-600' : 'text-gray-400'}`}><Network size={12} className="inline mr-1"/> Route</button>
+            {/* Modal Body */}
+            <div className="flex-1 flex flex-col p-6 bg-gray-50 overflow-y-auto">
+              
+              {/* THE VAULT VIEWER */}
+              {selectedDeal.vault && selectedDeal.vault.length > 0 && (
+                 <div className="mb-6">
+                    <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2 flex items-center gap-1.5">
+                       <FileText size={12}/> Document Vault ({selectedDeal.vault.length})
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                       {selectedDeal.vault.map((doc: any, i: number) => (
+                          <div key={i} className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between group hover:border-blue-400 transition">
+                             <div className="flex items-center gap-2 overflow-hidden">
+                                <div className="bg-blue-50 text-blue-600 p-1.5 rounded-lg shrink-0">
+                                   <FileText size={14} />
+                                </div>
+                                <div className="truncate">
+                                   <p className="text-[10px] font-bold text-slate-900 truncate">{doc.documentType || 'Document'}</p>
+                                   <p className="text-[8px] text-gray-400 uppercase tracking-widest truncate">{doc.fileName}</p>
+                                </div>
+                             </div>
+                             <a 
+                               href={doc.downloadUrl} target="_blank" rel="noopener noreferrer"
+                               className="bg-gray-100 hover:bg-slate-900 hover:text-white p-1.5 rounded-lg transition text-slate-600 shrink-0"
+                               title="Download File"
+                             >
+                                <ArrowDownLeft size={12} className="rotate-180" />
+                             </a>
+                          </div>
+                       ))}
+                    </div>
+                 </div>
+              )}
+
+              {/* Interaction Controls */}
+              <div className="flex flex-wrap gap-1.5 mb-5 border-b border-gray-200 pb-4">
+                  <button onClick={() => setLogType('note')} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition ${logType === 'note' ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-gray-500 border border-gray-200 hover:border-black'}`}>Note</button>
+                  <button onClick={() => setLogType('log_call')} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition ${logType === 'log_call' ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-gray-500 border border-gray-200 hover:border-blue-600'}`}><PhoneCall size={10} className="inline mr-1"/> Call</button>
+                  <button onClick={() => setLogType('log_email')} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition ${logType === 'log_email' ? 'bg-green-600 text-white shadow-sm' : 'bg-white text-gray-500 border border-gray-200 hover:border-green-600'}`}><Mail size={10} className="inline mr-1"/> Email</button>
+                  <button onClick={() => setLogType('task')} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition ${logType === 'task' ? 'bg-orange-500 text-white shadow-sm' : 'bg-white text-gray-500 border border-gray-200 hover:border-orange-500'}`}><Calendar size={10} className="inline mr-1"/> Task</button>
+                  <button onClick={() => setLogType('doc')} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition ${logType === 'doc' ? 'bg-yellow-500 text-white shadow-sm' : 'bg-white text-gray-500 border border-gray-200 hover:border-yellow-500'}`}><FileText size={10} className="inline mr-1"/> Req Doc</button>
+                  <button onClick={() => setLogType('route')} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition ${logType === 'route' ? 'bg-purple-600 text-white shadow-sm' : 'bg-white text-gray-500 border border-gray-200 hover:border-purple-600'}`}><Network size={10} className="inline mr-1"/> Assign</button>
               </div>
 
-              {/* Dynamic Action Area */}
-              <div className="mb-4">
+              {/* Action Input Area */}
+              <div className="mb-5">
                   {logType === 'route' ? (
-                      <div className="bg-purple-50 p-6 rounded-2xl border border-purple-100">
-                           <select className="w-full p-3 rounded-xl border border-purple-200 outline-none mb-4" value={targetPartnerId} onChange={e => setTargetPartnerId(e.target.value)}>
-                              <option value="">Select Partner...</option>
-                              {ecosystemPartners.map(p => (
-                                  <option key={p.uid} value={p.uid}>{p.displayName} ({p.role.replace('partner_', '')})</option>
-                              ))}
+                      <div className="bg-purple-50 p-5 rounded-2xl border border-purple-100">
+                           <select className="w-full p-3 rounded-xl border border-purple-200 outline-none mb-3 font-bold text-xs bg-white" value={targetPartnerId} onChange={e => setTargetPartnerId(e.target.value)}>
+                              <option value="">Select Assignee...</option>
+                              <option value={user?.uid}>🙋‍♂️ Assign to Me ({fullName})</option>
+                              <option value="ADMIN_INBOX">📥 Admin Inbox (HQ)</option>
+                              {ecosystemPartners.filter(p => p.uid !== user?.uid).map(p => <option key={p.uid} value={p.uid}>{p.displayName} ({p.role.replace('partner_', '')})</option>)}
                           </select>
-                          <button onClick={handleActionSubmit} disabled={!targetPartnerId} className="w-full bg-purple-600 text-white py-3 rounded-xl font-black uppercase text-xs hover:bg-purple-700 transition">Execute Routing Protocol</button>
+                          <button onClick={handleActionSubmit} disabled={!targetPartnerId} className="w-full bg-purple-600 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-purple-700 transition shadow-md disabled:opacity-50">Transfer Deal</button>
                       </div>
                   ) : logType === 'task' ? (
-                      <div className="bg-orange-50 p-6 rounded-2xl border border-orange-100">
-                           <input type="date" className="w-full mb-3 p-3 rounded-xl border border-orange-200 outline-none" value={taskDate} onChange={e => setTaskDate(e.target.value)} required />
-                           <textarea className="w-full bg-white border border-orange-200 p-3 rounded-xl focus:border-orange-500 outline-none mb-3 resize-none" rows={2} placeholder="Task description..." value={logInput} onChange={e => setLogInput(e.target.value)} />
-                           <button onClick={handleActionSubmit} disabled={!taskDate} className="w-full bg-orange-600 text-white py-3 rounded-xl font-black uppercase text-xs hover:bg-orange-700 transition">Schedule Task</button>
+                      <div className="bg-orange-50 p-5 rounded-2xl border border-orange-100">
+                           <input type="date" className="w-full mb-3 p-3 rounded-xl border border-orange-200 outline-none font-bold text-xs bg-white text-slate-700" value={taskDate} onChange={e => setTaskDate(e.target.value)} required />
+                           <textarea className="w-full bg-white border border-orange-200 p-3 rounded-xl focus:border-orange-500 outline-none mb-3 resize-none font-medium text-xs" rows={2} placeholder="What needs to be done?" value={logInput} onChange={e => setLogInput(e.target.value)} />
+                           <button onClick={handleActionSubmit} disabled={!taskDate} className="w-full bg-orange-500 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-orange-600 transition shadow-md disabled:opacity-50">Set Reminder</button>
+                      </div>
+                  ) : logType === 'doc' ? (
+                      <div className="bg-yellow-50 p-5 rounded-2xl border border-yellow-100">
+                           <div className="flex justify-between items-center mb-3">
+                              <h4 className="text-[9px] font-black uppercase tracking-widest text-yellow-800">Add Requirements</h4>
+                           </div>
+                           
+                           {docRequests.map((req, index) => (
+                              <div key={index} className="flex gap-2 mb-2">
+                                 <input 
+                                    type="text" 
+                                    className="flex-1 p-3 rounded-xl border border-yellow-200 outline-none font-bold text-xs bg-white" 
+                                    placeholder="e.g. 2024 T4" 
+                                    value={req} 
+                                    onChange={e => {
+                                       const newReqs = [...docRequests];
+                                       newReqs[index] = e.target.value;
+                                       setDocRequests(newReqs);
+                                    }} 
+                                    required 
+                                 />
+                                 {docRequests.length > 1 && (
+                                    <button type="button" onClick={() => {
+                                       const newReqs = docRequests.filter((_, i) => i !== index);
+                                       setDocRequests(newReqs);
+                                    }} className="bg-white border border-yellow-200 text-red-500 hover:bg-red-50 hover:border-red-200 p-3 rounded-xl transition">
+                                       <X size={14}/>
+                                    </button>
+                                 )}
+                              </div>
+                           ))}
+
+                           <button type="button" onClick={() => setDocRequests([...docRequests, ''])} className="mb-4 text-[9px] font-black uppercase tracking-widest text-yellow-600 hover:text-yellow-800 flex items-center gap-1 transition">
+                              <Plus size={10}/> Add Another Document
+                           </button>
+
+                           <button onClick={async (e) => {
+                               e.preventDefault();
+                               const validDocs = docRequests.filter(d => d.trim() !== '');
+                               if(validDocs.length === 0) return;
+                               
+                               const btn = e.currentTarget;
+                               btn.disabled = true;
+                               btn.innerHTML = 'Sending...';
+
+                               await fetch('/api/partner/request-document', {
+                                   method: 'POST', headers: {'Content-Type': 'application/json'},
+                                   body: JSON.stringify({ leadId: selectedDeal.id, documentNames: validDocs, clientEmail: selectedDeal.clientEmail, clientName: selectedDeal.clientName, agentName: fullName })
+                               });
+                               
+                               alert('Documents requested and secure email sent to client!');
+                               setDocRequests(['']);
+                               btn.disabled = false;
+                               btn.innerHTML = 'Request & Email Client';
+                               loadProfileAndData();
+                           }} className="w-full bg-yellow-500 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-yellow-600 transition shadow-md">
+                               Request & Email Client
+                           </button>
                       </div>
                   ) : (
-                      <form onSubmit={handleActionSubmit} className="space-y-3">
-                        <textarea className="w-full bg-gray-50 border-2 border-gray-200 p-4 rounded-xl font-medium focus:border-black outline-none transition resize-none" rows={3} placeholder={logType === 'log_call' ? "Notes from your call..." : logType === 'log_email' ? "Notes on the email you sent offline..." : "Add a general note..."} value={logInput} onChange={e => setLogInput(e.target.value)} required />
-                        <button className="w-full bg-black text-white py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-gray-800 transition">
-                            {logType === 'log_call' ? 'Save Call Log' : logType === 'log_email' ? 'Save Email Log' : 'Save Note'}
+                      <form onSubmit={handleActionSubmit} className="relative">
+                        <textarea className="w-full bg-white border border-gray-200 p-4 pr-12 rounded-2xl font-medium focus:border-blue-500 outline-none transition resize-none text-xs shadow-sm" rows={2} placeholder={logType === 'log_call' ? "Notes from call..." : logType === 'log_email' ? "Notes from email..." : "Log an update..."} value={logInput} onChange={e => setLogInput(e.target.value)} required />
+                        <button className={`absolute right-2 bottom-3 p-2 rounded-xl text-white transition shadow-sm ${logType === 'log_call' ? 'bg-blue-600 hover:bg-blue-700' : logType === 'log_email' ? 'bg-green-600 hover:bg-green-700' : 'bg-slate-900 hover:bg-black'}`}>
+                            <Send size={14} />
                         </button>
                       </form>
                   )}
               </div>
 
-              {/* Timeline History */}
-              <div className="bg-gray-50 rounded-2xl p-4 flex-1 overflow-y-auto space-y-4 border border-gray-100 min-h-[250px]">
+              {/* Timeline */}
+              <div className="flex-1 space-y-3">
+                {(selectedDeal.message || selectedDeal.notes) && (
+                    <div className="p-4 bg-white rounded-2xl border border-gray-200 shadow-sm relative overflow-hidden">
+                       <div className="absolute top-0 left-0 w-1 h-full bg-slate-300"></div>
+                       <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Original Inquiry</p>
+                       <p className="text-xs font-medium text-slate-800 leading-relaxed italic">"{selectedDeal.message || selectedDeal.notes}"</p>
+                    </div>
+                )}
                 {selectedDeal.timeline?.slice().reverse().map((log: any, i: number) => (
-                  <div key={i} className={`p-3 rounded-xl text-sm border ${log.isSystemMessage ? 'bg-gray-100 border-transparent text-center' : 'bg-white border-gray-200 shadow-sm'}`}>
-                    {!log.isSystemMessage && <div className="flex justify-between items-center mb-1"><span className="text-[10px] font-bold text-gray-500 uppercase">{log.author}</span><span className="text-[9px] text-gray-400">{new Date(log.timestamp).toLocaleString()}</span></div>}
-                    <p className={`text-slate-800 ${log.isSystemMessage ? 'text-[10px] font-bold uppercase tracking-widest text-gray-500' : ''}`}>{log.content}</p>
+                  <div key={i} className={`p-4 rounded-2xl text-xs border shadow-sm ${log.isSystemMessage ? 'bg-gray-100 border-gray-200 text-center' : 'bg-white border-gray-200'}`}>
+                    {!log.isSystemMessage && <div className="flex justify-between items-center mb-1.5"><span className="text-[9px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-1.5"><User size={10}/> {log.author}</span><span className="text-[8px] font-bold text-gray-400">{new Date(log.timestamp).toLocaleString()}</span></div>}
+                    <div className={`text-slate-800 font-medium whitespace-pre-wrap ${log.isSystemMessage ? 'text-[9px] font-bold uppercase tracking-widest text-gray-500' : ''}`}>
+                        {log.content}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -597,44 +888,88 @@ export default function EnterpriseCRM() {
         </div>
       )}
       
-      {/* MANUAL LEAD MODAL */}
-      {showNewReferralForm && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+      {/* MANUAL TASK MODAL (NEW) */}
+      {showNewTaskForm && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-[2rem] p-8 max-w-sm w-full shadow-2xl animate-in fade-in zoom-in-95 duration-200">
                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-black text-slate-900 tracking-tight">Ingest Lead</h2>
-                    <button onClick={() => setShowNewReferralForm(false)} className="text-gray-400 hover:text-black"><X size={20}/></button>
+                    <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2"><Calendar size={20} className="text-blue-600"/> Add Task</h2>
+                    <button onClick={() => setShowNewTaskForm(false)} className="text-gray-400 hover:text-black bg-gray-100 p-1.5 rounded-full"><X size={14}/></button>
+                </div>
+                <form onSubmit={handleManualTaskSubmit} className="space-y-4">
+                    <div>
+                        <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-1.5">Description</label>
+                        <input type="text" required value={newTask.description} onChange={e=>setNewTask({...newTask, description: e.target.value})} placeholder="What needs to be done?" className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500 transition font-bold text-sm" />
+                    </div>
+                    <div>
+                        <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-1.5">Due Date</label>
+                        <input type="date" required value={newTask.dueDate} onChange={e=>setNewTask({...newTask, dueDate: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500 transition font-bold text-sm" />
+                    </div>
+                    <div>
+                        <label className="text-[9px] font-black uppercase tracking-widest text-blue-600 block mb-1.5">Link to Client (Optional)</label>
+                        <select value={newTask.referralId} onChange={e=>setNewTask({...newTask, referralId: e.target.value})} className="w-full bg-blue-50 border border-blue-200 p-3 rounded-xl outline-none focus:border-blue-500 transition font-bold text-sm text-blue-900 appearance-none cursor-pointer">
+                            <option value="general">No Client (Personal Task)</option>
+                            {allReferrals.map(deal => <option key={deal.id} value={deal.id}>{deal.clientName}</option>)}
+                        </select>
+                    </div>
+
+                    <button type="submit" className="w-full bg-slate-900 text-white py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-blue-600 transition shadow-lg mt-2">
+                        Schedule Task
+                    </button>
+                </form>
+            </div>
+        </div>
+      )}
+
+      {/* INJECT LEAD MODAL */}
+      {showNewReferralForm && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-[2rem] p-8 max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2"><Plus size={20} className="text-blue-600"/> Inject Lead</h2>
+                    <button onClick={() => setShowNewReferralForm(false)} className="text-gray-400 hover:text-black bg-gray-100 p-1.5 rounded-full"><X size={14}/></button>
                 </div>
                 <form onSubmit={handleManualLeadSubmit} className="space-y-4">
                     <div>
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Client Name</label>
-                        <input type="text" required value={newClient.name} onChange={e=>setNewClient({...newClient, name: e.target.value})} className="w-full mt-1 bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-black" />
+                        <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-1.5">Client Name</label>
+                        <input type="text" required value={newClient.name} onChange={e=>setNewClient({...newClient, name: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500 transition font-bold text-sm" />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Phone</label>
-                            <input type="tel" required value={newClient.phone} onChange={e=>setNewClient({...newClient, phone: e.target.value})} className="w-full mt-1 bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-black" />
+                            <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-1.5">Phone</label>
+                            <input type="tel" required value={newClient.phone} onChange={e=>setNewClient({...newClient, phone: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500 transition font-bold text-sm" />
                         </div>
                         <div>
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Email</label>
-                            <input type="email" value={newClient.email} onChange={e=>setNewClient({...newClient, email: e.target.value})} className="w-full mt-1 bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-black" />
+                            <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-1.5">Email</label>
+                            <input type="email" value={newClient.email} onChange={e=>setNewClient({...newClient, email: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500 transition font-bold text-sm" />
                         </div>
                     </div>
                     <div>
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Service Required</label>
-                        <select value={newClient.service} onChange={e=>setNewClient({...newClient, service: e.target.value})} className="w-full mt-1 bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-black appearance-none">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-1.5">Service Required</label>
+                        <select value={newClient.service} onChange={e=>setNewClient({...newClient, service: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500 transition font-bold text-sm appearance-none cursor-pointer">
                             <option>Mortgage Pre-Approval</option>
                             <option>Property Search</option>
                             <option>Legal Closing</option>
                             <option>General Inquiry</option>
                         </select>
                     </div>
+                    
+                    {/* DIRECT ASSIGNMENT */}
                     <div>
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Internal Notes</label>
-                        <textarea value={newClient.message} onChange={e=>setNewClient({...newClient, message: e.target.value})} className="w-full mt-1 bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-black resize-none" rows={3}></textarea>
+                        <label className="text-[9px] font-black uppercase tracking-widest text-blue-600 block mb-1.5">Initial Assignment</label>
+                        <select value={newClient.assignedTo} onChange={e=>setNewClient({...newClient, assignedTo: e.target.value})} className="w-full bg-blue-50 border border-blue-200 p-3 rounded-xl outline-none focus:border-blue-500 transition font-bold text-sm text-blue-900 appearance-none cursor-pointer">
+                            <option value={user?.uid}>🙋‍♂️ Assign to Me ({fullName})</option>
+                            <option value="ADMIN_INBOX">📥 Admin Inbox (HQ)</option>
+                            {ecosystemPartners.filter(p => p.uid !== user?.uid).map(p => <option key={p.uid} value={p.uid}>{p.displayName} ({p.role ? p.role.replace('partner_', '') : 'Admin'})</option>)}
+                        </select>
                     </div>
-                    <button type="submit" className="w-full bg-black text-white py-4 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-gray-800 transition shadow-lg mt-2">
-                        Inject to Pipeline
+
+                    <div>
+                        <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-1.5">Context / Notes</label>
+                        <textarea value={newClient.message} onChange={e=>setNewClient({...newClient, message: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:border-blue-500 transition resize-none font-medium text-xs" rows={2}></textarea>
+                    </div>
+                    <button type="submit" className="w-full bg-slate-900 text-white py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-blue-600 transition shadow-lg mt-1">
+                        Add to Pipeline
                     </button>
                 </form>
             </div>

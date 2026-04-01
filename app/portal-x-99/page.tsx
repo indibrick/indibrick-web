@@ -9,7 +9,7 @@ import { Referral, Property, Lead } from '../../types';
 import { 
   Lock, LogOut, Users, FileText, Settings, Plus, Trash2, RefreshCw, 
   Briefcase, ArrowRightCircle, ArrowUpRight, ArrowDownLeft, 
-  Home, Edit2, X, MessageSquare, Send, UserPlus 
+  Home, Edit2, X, MessageSquare, Send, UserPlus, BrainCircuit, Database, UploadCloud 
 } from 'lucide-react';
 
 export default function AdminPage() {
@@ -34,7 +34,6 @@ export default function AdminPage() {
   // --- DATA ---
   const [incomingReferrals, setIncomingReferrals] = useState<Referral[]>([]); 
   const [outgoingReferrals, setOutgoingReferrals] = useState<Referral[]>([]); 
-  
   const [externalPartners, setExternalPartners] = useState<any[]>([]);
   const [listings, setListings] = useState<Property[]>([]);
 
@@ -42,7 +41,6 @@ export default function AdminPage() {
   const [showListingModal, setShowListingModal] = useState(false);
   const [currentListing, setCurrentListing] = useState<Partial<Property>>({});
   
-  // Partner Modal (NEW)
   const [showPartnerModal, setShowPartnerModal] = useState(false);
   const [currentPartner, setCurrentPartner] = useState<any>({});
 
@@ -52,6 +50,15 @@ export default function AdminPage() {
   const [newPost, setNewPost] = useState({
     title: '', slug: '', category: 'Mortgage', imageUrl: '', excerpt: '', content: ''
   });
+
+  // --- AI TRAINER STATES (NEW) ---
+  const [uploadMode, setUploadMode] = useState<'text' | 'pdf'>('pdf');
+  const [knowledgeSource, setKnowledgeSource] = useState('');
+  const [knowledgeText, setKnowledgeText] = useState('');
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [adminKey, setAdminKey] = useState('');
+  const [trainingStatus, setTrainingStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [trainingMessage, setTrainingMessage] = useState('');
 
   // --- INIT ---
   useEffect(() => { 
@@ -93,7 +100,6 @@ export default function AdminPage() {
     if (partner) {
       setCurrentPartner(partner);
     } else {
-      // New Partner Template
       setCurrentPartner({
         uid: '',
         displayName: '',
@@ -119,7 +125,7 @@ export default function AdminPage() {
   };
 
   const deletePartner = async (uid: string) => {
-    if (confirm("Delete this partner profile? (This removes them from the database, but does not delete their login credentials in Firebase Auth)")) {
+    if (confirm("Delete this partner profile?")) {
       await CRMService.deletePartnerProfile(uid);
       loadAllData();
     }
@@ -181,20 +187,13 @@ export default function AdminPage() {
     }
   };
 
-  const handleSeedDatabase = async () => {
-    if(confirm("Import default listings?")) {
-      await PropertyService.seedDatabase();
-      loadAllData();
-    }
-  };
-
   const openListingModal = (listing?: Property) => {
     if (listing) setCurrentListing(listing);
     else setCurrentListing({
       title: '', price: 0, address: '', city: 'Toronto', 
       bedrooms: 3, bathrooms: 2, type: 'Detached', 
       purpose: 'Sale', imageUrl: '', isFeatured: false, status: 'Active',
-      landingPageUrl: '' // <-- NEW FIELD FOR CUSTOM VIP FUNNELS
+      landingPageUrl: ''
     });
     setShowListingModal(true);
   };
@@ -220,6 +219,59 @@ export default function AdminPage() {
     await publishBlogPost({ ...newPost, author: 'Admin', date: new Date().toISOString(), status: 'published' });
     setNewPost({ title: '', slug: '', category: 'Mortgage', imageUrl: '', excerpt: '', content: '' });
     alert('Article Published!');
+  };
+
+  // --- AI TRAINER HANDLERS ---
+  const handlePdfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setPdfFile(e.target.files[0]);
+    }
+  };
+
+  const handleTrainAI = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTrainingStatus('loading');
+    setTrainingMessage('');
+
+    try {
+      let endpoint = '/api/admin/train-ai';
+      let bodyPayload: any = { sourceTitle: knowledgeSource, adminKey };
+
+      if (uploadMode === 'pdf') {
+        if (!pdfFile) throw new Error("Please select a PDF file.");
+        
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(pdfFile);
+          reader.onload = () => resolve((reader.result as string).split(',')[1]);
+          reader.onerror = error => reject(error);
+        });
+
+        endpoint = '/api/admin/train-pdf';
+        bodyPayload.pdfBase64 = base64;
+      } else {
+        bodyPayload.text = knowledgeText;
+      }
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyPayload)
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to train AI');
+      
+      setTrainingStatus('success');
+      setTrainingMessage(`Success: ${data.message}`);
+      setKnowledgeSource('');
+      setKnowledgeText('');
+      setPdfFile(null);
+      
+    } catch (err: any) {
+      setTrainingStatus('error');
+      setTrainingMessage(err.message);
+    }
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -266,7 +318,7 @@ export default function AdminPage() {
             { id: 'referrals', icon: Briefcase, label: 'Partner Deals' },
             { id: 'partners', icon: Users, label: 'Partner Network' }, 
             { id: 'content', icon: FileText, label: 'Content' },
-            { id: 'settings', icon: Settings, label: 'Config' }
+            { id: 'settings', icon: Settings, label: 'Config / AI' } 
           ].map(item => (
             <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition ${activeTab === item.id ? 'bg-white text-black' : 'text-gray-400 hover:bg-white/10'}`}>
               <item.icon size={16} /> {item.label}
@@ -285,6 +337,7 @@ export default function AdminPage() {
                {activeTab === 'referrals' && 'Partner Matrix'}
                {activeTab === 'partners' && 'Network Manager'}
                {activeTab === 'content' && 'Content Manager'}
+               {activeTab === 'settings' && 'AI Brain Configuration'}
              </h1>
              <p className="text-gray-500 font-bold text-sm mt-1">
                {activeTab === 'partners' ? 'Manage access and performance for Realtors & Lawyers.' : 'System Operations.'}
@@ -432,7 +485,6 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* --- TAB: PARTNERS (FULL MANAGER) --- */}
         {activeTab === 'partners' && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
              <table className="w-full text-left text-sm">
@@ -488,6 +540,90 @@ export default function AdminPage() {
                  ))}
               </div>
            </div>
+        )}
+
+        {/* --- TAB: SETTINGS / AI TRAINER --- */}
+        {activeTab === 'settings' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+             <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+                <h3 className="font-black text-xl mb-2 flex items-center gap-2"><BrainCircuit size={20} className="text-blue-600"/> Train AI Model</h3>
+                <p className="text-gray-500 text-sm mb-6">Upload underwriting guidelines, lender matrices, or company policies to the vector database.</p>
+                
+                {/* TOGGLE: PDF vs TEXT */}
+                <div className="flex bg-gray-100 p-1 rounded-xl mb-6">
+                   <button 
+                     type="button"
+                     onClick={() => setUploadMode('pdf')} 
+                     className={`flex-1 py-2 text-xs font-bold uppercase tracking-widest rounded-lg transition ${uploadMode === 'pdf' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-black'}`}
+                   >
+                     <UploadCloud size={14} className="inline mr-1"/> Upload PDF
+                   </button>
+                   <button 
+                     type="button"
+                     onClick={() => setUploadMode('text')} 
+                     className={`flex-1 py-2 text-xs font-bold uppercase tracking-widest rounded-lg transition ${uploadMode === 'text' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-black'}`}
+                   >
+                     <FileText size={14} className="inline mr-1"/> Paste Text
+                   </button>
+                </div>
+
+                <form onSubmit={handleTrainAI} className="space-y-4">
+                   <input 
+                     required type="text" placeholder="Source / Title (e.g., Scotiabank B-20 Rules)" 
+                     value={knowledgeSource} onChange={e => setKnowledgeSource(e.target.value)} 
+                     className="w-full p-4 bg-gray-50 rounded-xl border border-gray-200 outline-none font-bold text-sm" 
+                   />
+                   
+                   {uploadMode === 'pdf' ? (
+                     <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center bg-gray-50 hover:bg-gray-100 transition cursor-pointer relative">
+                        <input 
+                          type="file" accept="application/pdf" required onChange={handlePdfChange}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                        <UploadCloud size={32} className="mx-auto text-blue-500 mb-3" />
+                        <p className="text-sm font-bold text-slate-700">{pdfFile ? pdfFile.name : 'Click or Drag PDF to Upload'}</p>
+                        <p className="text-xs text-gray-500 mt-1">Our AI will automatically read, chunk, and learn from this document.</p>
+                     </div>
+                   ) : (
+                     <textarea 
+                       required placeholder="Paste the exact text or guidelines here..." rows={6} 
+                       value={knowledgeText} onChange={e => setKnowledgeText(e.target.value)} 
+                       className="w-full p-4 bg-gray-50 rounded-xl border border-gray-200 outline-none text-sm resize-none"
+                     ></textarea>
+                   )}
+
+                   <input 
+                     required type="password" placeholder="Admin Secret Key" 
+                     value={adminKey} onChange={e => setAdminKey(e.target.value)} 
+                     className="w-full p-4 bg-gray-50 rounded-xl border border-gray-200 outline-none font-bold text-sm" 
+                   />
+                   
+                   {trainingMessage && (
+                      <div className={`p-4 rounded-xl text-sm font-bold ${trainingStatus === 'error' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+                        {trainingMessage}
+                      </div>
+                   )}
+
+                   <button 
+                     disabled={trainingStatus === 'loading'} 
+                     className="w-full bg-black text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-gray-800 disabled:opacity-50 flex items-center justify-center gap-2 transition shadow-lg"
+                   >
+                      {trainingStatus === 'loading' ? <RefreshCw className="animate-spin" size={16} /> : <Database size={16} />}
+                      {trainingStatus === 'loading' ? 'Vectorizing Knowledge...' : 'Upload to Brain'}
+                   </button>
+                </form>
+             </div>
+             
+             <div className="bg-gray-50 p-8 rounded-2xl border border-gray-100 h-fit">
+                <h3 className="font-black text-lg mb-4 uppercase tracking-tight">How the PDF Engine Works</h3>
+                <ul className="space-y-4 text-sm text-gray-600">
+                  <li><strong>1. File Upload:</strong> Select any bank guideline or lender matrix PDF.</li>
+                  <li><strong>2. Vision AI:</strong> Instead of buggy text-extractors, we securely send the document to Gemini 2.5 Flash's Vision Engine. It reads the PDF exactly like a human, ensuring tables and matrices are understood.</li>
+                  <li><strong>3. Auto-Chunking:</strong> Large PDFs crash vector databases. Our server automatically slices your 50-page PDF into optimal 1,500-character chunks.</li>
+                  <li><strong>4. Vectorization:</strong> Each chunk is converted into math coordinates and saved to Firebase. Your Homepage AI Intake Form instantly has access to this new rule!</li>
+                </ul>
+             </div>
+          </div>
         )}
 
       </main>
@@ -585,20 +721,6 @@ export default function AdminPage() {
                 <label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Image URL</label>
                 <input className="w-full bg-gray-50 p-3 rounded-lg font-bold outline-none text-xs" value={currentListing.imageUrl} onChange={e => setCurrentListing({...currentListing, imageUrl: e.target.value})} />
               </div>
-              
-              {/* --- NEW FIELD: CUSTOM VIP FUNNEL ROUTING --- */}
-              <div className="md:col-span-2">
-                <label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Custom Funnel URL (Optional)</label>
-                <input 
-                  placeholder="/vip-access/1515-pickering-pkwy" 
-                  className="w-full bg-blue-50 border border-blue-100 p-3 rounded-lg font-bold outline-none text-xs text-blue-700 focus:border-blue-300 transition" 
-                  value={currentListing.landingPageUrl || ''} 
-                  onChange={e => setCurrentListing({...currentListing, landingPageUrl: e.target.value})} 
-                />
-                <p className="text-[10px] text-gray-400 mt-1">If filled, users will bypass the modal and go straight to this high-converting landing page.</p>
-              </div>
-              {/* ------------------------------------------- */}
-
               <div className="md:col-span-2 pt-4 flex gap-4">
                 <button type="button" onClick={() => setShowListingModal(false)} className="flex-1 py-4 font-bold text-gray-500 hover:bg-gray-50 rounded-xl transition">Cancel</button>
                 <button className="flex-1 bg-black text-white py-4 rounded-xl font-black uppercase tracking-widest hover:bg-gray-800 transition shadow-lg">Save Changes</button>
@@ -608,7 +730,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* --- MODAL 3: PARTNER EDITOR (NEW) --- */}
+      {/* --- MODAL 3: PARTNER EDITOR --- */}
       {showPartnerModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">

@@ -54,11 +54,12 @@ export const metaLeadReceiver = onRequest(
                   continue;
                 }
 
-                // B. Parse Meta's array format into a clean object
+                // B. Parse Meta's array format into a clean object (FIXED FOR INSTAGRAM CRASH)
                 const formattedLead: any = {};
                 if (leadData.field_data) {
                   leadData.field_data.forEach((field: any) => {
-                    formattedLead[field.name] = field.values[0];
+                    // Safely check if values array exists and has at least one item before grabbing index [0]
+                    formattedLead[field.name] = (field.values && field.values.length > 0) ? field.values[0] : '';
                   });
                 }
 
@@ -86,7 +87,8 @@ export const metaLeadReceiver = onRequest(
 
                 // D. TRIGGER SPEED-TO-LEAD EMAIL NOTIFICATION
                 await db.collection("mail").add({
-                  to: ["mrcinvestmentsinc@gmail.com"],
+                  // REMINDER: Change this to your new admin email address!
+                  to: ["indibrick@gmail.com"],
                   message: {
                     subject: `🚨 INSTANT META LEAD: ${clientName}`,
                     html: `
@@ -94,8 +96,8 @@ export const metaLeadReceiver = onRequest(
                         <h2 style="color: #1877F2;">New Lead Captured from Facebook/Instagram</h2>
                         <ul>
                           <li><strong>Name:</strong> ${clientName}</li>
-                          <li><strong>Phone:</strong> ${clientPhone}</li>
-                          <li><strong>Email:</strong> ${clientEmail}</li>
+                          <li><strong>Phone:</strong> ${clientPhone || 'Not Provided'}</li>
+                          <li><strong>Email:</strong> ${clientEmail || 'Not Provided'}</li>
                         </ul>
                         <br/>
                         <a href="https://indibrick.ca/partner/login" style="background-color: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Log into CRM to Route Lead</a>
