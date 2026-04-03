@@ -1,20 +1,20 @@
 import React from 'react';
 import { Metadata } from 'next';
 import MortgageCalculator from '../../components/MortgageCalculator';
-import LeadForm from '../../components/LeadForm';
+import GamifiedContactForm from '../../components/GamifiedContactForm';
+import AIIntakeForm from '../../components/AIIntakeForm';
 import JsonLd from '../../components/JsonLd';
 import { 
-  Calculator, CheckCircle, AlertTriangle, HelpCircle, 
-  TrendingUp, Shield, ChevronDown, Unlock 
+  Calculator, CheckCircle, AlertTriangle, TrendingUp, Shield, ChevronDown 
 } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Ontario Mortgage Payment Calculator (2026) | True Stress Test Analysis',
-  description: 'Most accurate Mortgage Calculator in Canada. Calculates GDS/TDS ratios (39%/44%), CMHC premiums, and Land Transfer Tax. See if you qualify at 3.39%* rates.',
-  keywords: ['mortgage calculator ontario', 'mortgage payment calculator toronto', 'stress test calculator 2026', 'cmhc insurance calculator', 'gds tds calculator'],
+  title: 'Canada Mortgage Payment Calculator 2026 | Land Transfer Tax & Stress Test',
+  description: 'The most robust mortgage calculator in Canada. Instantly calculate monthly payments, CMHC insurance, Ontario Land Transfer Tax, and exact income required to pass the 2026 Stress Test.',
+  keywords: ['canada mortgage calculator 2026', 'ontario land transfer tax calculator', 'realtor mortgage payment', 'stress test calculator', 'cmhc premium calculator', 'cash to close calculator'],
   openGraph: {
-    title: 'Ontario Mortgage Payment Calculator | Bank-Grade Accuracy',
-    description: 'Don\'t guess. Run the official 2026 Stress Test numbers with IndiBrick.',
+    title: 'Canada Mortgage Payment Calculator | Bank-Grade Accuracy',
+    description: 'Don\'t guess. Run the official 2026 Stress Test numbers, LTT, and CMHC premiums with IndiBrick.',
     type: 'website',
   },
 };
@@ -23,12 +23,12 @@ export default function MortgagePaymentPage() {
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
-    name: 'IndiBrick Mortgage & Stress Test Calculator',
+    name: 'IndiBrick Advanced Mortgage Calculator',
     description: 'Calculates monthly mortgage payments, CMHC insurance, and Land Transfer Tax for Ontario properties. Includes 2026 Stress Test qualification logic.',
     applicationCategory: 'FinanceApplication',
     operatingSystem: 'Any',
     offers: { "@type": "Offer", "price": "0", "priceCurrency": "CAD" },
-    featureList: "Mortgage Payment, CMHC Premium, Land Transfer Tax, GDS/TDS Ratios",
+    featureList: "Mortgage Payment, CMHC Premium, Land Transfer Tax, GDS/TDS Ratios, Stress Test Qualifier",
     author: { "@type": "Organization", "name": "IndiBrick Financial" }
   };
 
@@ -41,15 +41,15 @@ export default function MortgagePaymentPage() {
         name: 'What is the Mortgage Stress Test rate for 2026?',
         acceptedAnswer: {
           '@type': 'Answer',
-          text: 'As of 2026, the Mortgage Stress Test requires you to qualify at the higher of 5.25% or your contract rate plus 2.00%. For example, if you get a rate of 3.39%, you must prove you can afford payments at 5.39%.'
+          text: 'As of 2026, the Mortgage Stress Test requires you to qualify at the higher of 5.25% or your contract rate plus 2.00%. For example, if you get a rate of 4.29%, you must prove you can afford payments at 6.29%.'
         }
       },
       {
         '@type': 'Question',
-        name: 'What income is required for a $500k mortgage in Ontario?',
+        name: 'How are closing costs calculated in Ontario?',
         acceptedAnswer: {
           '@type': 'Answer',
-          text: 'Based on 2026 rates (~3.39%) and a 25-year amortization, you typically need a household income of approximately $105,000 to $115,000 to pass the GDS (Gross Debt Service) ratio of 39%, assuming minimal other debts.'
+          text: 'Closing costs typically require 1.5% to 4% of the purchase price. This includes your Down Payment, Provincial Land Transfer Tax, Municipal Land Transfer Tax (if in Toronto), Legal Fees (~$1500), and 8% PST on any CMHC insurance premium.'
         }
       }
     ]
@@ -62,96 +62,95 @@ export default function MortgagePaymentPage() {
       
       {/* --- 1. HERO SECTION --- */}
       <section className="bg-slate-900 text-white py-24 relative overflow-hidden">
-        {/* Background Mesh */}
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/4"></div>
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/4 pointer-events-none"></div>
         
         <div className="container mx-auto px-6 text-center relative z-10">
           <div className="inline-flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 text-blue-300 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.3em] mb-8">
-             <Calculator size={14} /> Official 2026 Methodology
+             <Calculator size={14} /> Official 2026 Underwriting Rules
           </div>
           <h1 className="text-5xl md:text-7xl font-black uppercase tracking-tighter mb-6 leading-[0.9]">
-            The Truth About <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">Your Affordability.</span>
+            The Most Accurate <br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">Calculator in Canada.</span>
           </h1>
           <p className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
-            Most online calculators are wrong. They don't factor in the <strong>Stress Test (5.25%+)</strong> or the <strong>39% GDS Limit</strong>. 
-            We do. See exactly what the bank sees.
+            Most online calculators leave you blind. Calculate your exact payments, CMHC premiums, Land Transfer Tax, and the <strong>exact income required</strong> to pass the Stress Test.
           </p>
         </div>
       </section>
 
-      {/* --- 2. THE CALCULATOR (USP) --- */}
-      <section className="py-20 bg-gray-50 border-y border-gray-200" id="calculator">
-        <div className="container mx-auto px-6 max-w-7xl">
+      {/* --- 2. THE CALCULATOR --- */}
+      <section className="py-16 md:py-24 bg-gray-50 border-y border-gray-200" id="calculator">
+        <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
            <MortgageCalculator />
         </div>
       </section>
 
-      {/* --- 3. MARKETING PSYCHOLOGY: THE "DON'T QUALIFY?" BLOCK --- */}
-      <section className="py-20 px-6 bg-white">
-         <div className="container mx-auto max-w-5xl">
-            <div className="bg-red-50 border border-red-100 rounded-[2.5rem] p-8 md:p-12">
-               <div className="flex flex-col md:flex-row gap-8 items-start md:items-center justify-between">
-                  <div className="max-w-2xl">
-                     <div className="flex items-center gap-3 mb-4">
-                        <div className="bg-red-100 p-3 rounded-xl text-red-600"><AlertTriangle size={24}/></div>
-                        <h2 className="text-2xl font-black uppercase tracking-tight text-slate-900">
-                           Did the Calculator say "Declined"?
-                        </h2>
-                     </div>
-                     <p className="text-gray-600 leading-relaxed mb-6">
-                        <strong>Don't panic.</strong> The calculator above uses strict "A-Lender" (Big Bank) rules—specifically the 39% GDS and 44% TDS ratios. 
-                        If you are Self-Employed, have bruised credit, or high income deductions, you may not fit this box.
-                     </p>
-                     <ul className="space-y-3">
-                        <li className="flex items-center gap-3 text-sm font-bold text-slate-900">
-                           <CheckCircle size={16} className="text-green-500"/> We have lenders with <span className="underline decoration-green-500 decoration-2">50% GDS / 50% TDS</span> limits.
-                        </li>
-                        <li className="flex items-center gap-3 text-sm font-bold text-slate-900">
-                           <CheckCircle size={16} className="text-green-500"/> We have "Stated Income" programs for Business Owners.
-                        </li>
-                     </ul>
+      {/* --- 3. GAMIFIED FUNNEL: "DON'T QUALIFY?" --- */}
+      <section className="py-24 px-6 bg-white relative overflow-hidden">
+         <div className="container mx-auto max-w-6xl">
+            <div className="grid lg:grid-cols-2 gap-16 items-center">
+               <div>
+                  <div className="flex items-center gap-3 mb-6">
+                     <div className="bg-amber-100 p-3 rounded-xl text-amber-600"><AlertTriangle size={24}/></div>
+                     <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tight text-slate-900 leading-tight">
+                        Income Too Low <br/>For The Bank?
+                     </h2>
                   </div>
-                  <div className="w-full md:w-auto">
-                     <a href="/rates" className="block w-full md:w-auto text-center bg-slate-900 hover:bg-black text-white px-8 py-4 rounded-xl font-bold uppercase tracking-widest transition shadow-xl hover:-translate-y-1">
-                        View B-Lender Options
-                     </a>
-                  </div>
+                  <p className="text-gray-600 leading-relaxed mb-8 text-lg">
+                     The calculator above uses strict Big Bank rules (39% GDS limit). 
+                     If you are Self-Employed, have bruised credit, or write off a lot of income, <strong>you will fail the stress test</strong>.
+                     <br/><br/>
+                     We have access to Alternative "B-Lenders" that allow up to <strong>50% debt ratios</strong> and stated income programs.
+                  </p>
+                  <ul className="space-y-4 mb-8">
+                     <li className="flex items-center gap-3 font-bold text-slate-900">
+                        <CheckCircle size={20} className="text-green-500"/> Escape the 5.25% Stress Test
+                     </li>
+                     <li className="flex items-center gap-3 font-bold text-slate-900">
+                        <CheckCircle size={20} className="text-green-500"/> Use Bank Statements for Income
+                     </li>
+                  </ul>
+               </div>
+               
+               {/* Replaced old LeadForm with the Gamified Form */}
+               <div className="relative">
+                  <div className="absolute inset-0 bg-amber-500/10 rounded-[3rem] transform rotate-3 scale-105"></div>
+                  <GamifiedContactForm />
                </div>
             </div>
          </div>
       </section>
 
       {/* --- 4. AEO CONTENT (VOICE SEARCH OPTIMIZATION) --- */}
-      <section className="py-20 px-6 bg-slate-900 text-white">
+      <section className="py-24 px-6 bg-slate-900 text-white">
          <div className="container mx-auto max-w-4xl">
             <div className="text-center mb-16">
-               <h2 className="text-3xl font-black uppercase tracking-tight mb-4">Methodology Breakdown</h2>
-               <p className="text-gray-400">How banks actually calculate your approval amount in 2026.</p>
+               <h2 className="text-3xl font-black uppercase tracking-tight mb-4">Underwriting 101</h2>
+               <p className="text-gray-400">How banks actually calculate your "Cash to Close" in 2026.</p>
             </div>
 
             <div className="grid md:grid-cols-2 gap-12">
                <div className="space-y-8">
                   <div>
                      <h3 className="flex items-center gap-3 text-lg font-bold mb-3">
-                        <TrendingUp size={20} className="text-blue-400"/> The "Stress Test"
+                        <TrendingUp size={20} className="text-blue-400"/> The Hidden PST on CMHC
                      </h3>
                      <p className="text-sm text-gray-400 leading-relaxed">
-                        Even if your rate is <strong>3.39%</strong>, the bank must calculate your affordability as if your rate was <strong>5.39%</strong> (Contract + 2%). This safety buffer ensures you can afford the home if rates rise.
+                        If you put down less than 20%, your CMHC insurance premium is added to your mortgage. <strong>However</strong>, in Ontario, the 8% PST on that premium must be paid in physical cash on closing day.
                      </p>
                   </div>
                   <div>
                      <h3 className="flex items-center gap-3 text-lg font-bold mb-3">
-                        <Shield size={20} className="text-green-400"/> CMHC Premiums
+                        <Shield size={20} className="text-green-400"/> Double Land Transfer Tax
                      </h3>
                      <p className="text-sm text-gray-400 leading-relaxed">
-                        If you put down less than 20%, you must pay Default Insurance. On a $500k home with 5% down ($25k), the insurance is roughly <strong>$19,000</strong> (4%), which is added to your mortgage amount.
+                        Buying in Toronto (416)? You pay both Provincial and Municipal Land Transfer Taxes. First-Time Buyers receive a rebate of up to $8,475 to help offset this.
                      </p>
                   </div>
                </div>
 
                <div className="space-y-4">
-                  <details className="group bg-white/5 border border-white/10 p-6 rounded-2xl cursor-pointer">
+                  <details className="group bg-white/5 border border-white/10 p-6 rounded-2xl cursor-pointer transition hover:bg-white/10">
                      <summary className="flex justify-between items-center font-bold text-sm uppercase tracking-wide list-none">
                         What is GDS vs TDS?
                         <span className="transition group-open:rotate-180"><ChevronDown size={16}/></span>
@@ -161,15 +160,15 @@ export default function MortgagePaymentPage() {
                         <strong>TDS (Total Debt Service):</strong> Housing Costs + Other Debts (Car Loans, Credit Cards) divided by Income. Max allowed is 44%.
                      </p>
                   </details>
-                  <details className="group bg-white/5 border border-white/10 p-6 rounded-2xl cursor-pointer">
+                  <details className="group bg-white/5 border border-white/10 p-6 rounded-2xl cursor-pointer transition hover:bg-white/10">
                      <summary className="flex justify-between items-center font-bold text-sm uppercase tracking-wide list-none">
-                        How can I lower my monthly payment?
+                        How can I increase my approval?
                         <span className="transition group-open:rotate-180"><ChevronDown size={16}/></span>
                      </summary>
                      <p className="text-gray-400 text-xs mt-4 leading-relaxed">
-                        1. <strong>Increase Down Payment:</strong> Putting 20% down avoids CMHC fees and allows for a 30-year amortization (lowering payments).<br/>
-                        2. <strong>Shop Wholesale Rates:</strong> A 0.50% lower rate can save ~$200/month.<br/>
-                        3. <strong>Clear Debts:</strong> Paying off a $400/month car loan increases your mortgage affordability by ~$100,000.
+                        1. <strong>Clear Debts:</strong> Paying off a $400/month car loan increases your mortgage affordability by over $80,000.<br/>
+                        2. <strong>Add a Co-Signer:</strong> Blending incomes instantly lowers your GDS/TDS ratios.<br/>
+                        3. <strong>Shop Wholesale Rates:</strong> Lower rates mean lower stress-test benchmarks.
                      </p>
                   </details>
                </div>
@@ -177,22 +176,24 @@ export default function MortgagePaymentPage() {
          </div>
       </section>
 
-      {/* --- 5. CTA SECTION --- */}
+      {/* --- 5. CTA SECTION (AI INTAKE) --- */}
       <section className="py-24 px-6 bg-gray-50 border-t border-gray-200">
-         <div className="container mx-auto max-w-4xl text-center">
-            <span className="text-blue-600 font-bold uppercase tracking-widest text-xs mb-4 block">Ready to proceed?</span>
+         <div className="container mx-auto max-w-3xl text-center">
+            <span className="text-blue-600 font-bold uppercase tracking-widest text-xs mb-4 block">Ready to execute?</span>
             <h2 className="text-4xl font-black uppercase tracking-tighter mb-8 text-slate-900">
-               Get a Rate Hold.
+               Get Your Official Pre-Approval.
             </h2>
             <p className="text-gray-500 mb-12 max-w-xl mx-auto">
-               Secure today's lowest rate (3.39%*) for 120 days while you shop. No commitment required.
+               Chat with our secure AI Copilot to generate your custom document checklist and secure today's lowest wholesale rates.
             </p>
-            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-gray-100 max-w-lg mx-auto">
-               <LeadForm type="Rate Hold" title="Lock My Rate" subtitle="Protect your buying power." />
+            
+            {/* Replaced old LeadForm with the premium AI Intake */}
+            <div className="text-left">
+               <AIIntakeForm />
             </div>
          </div>
       </section>
 
     </div>
   );
-} 
+}
