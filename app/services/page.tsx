@@ -5,7 +5,8 @@ import LeadForm from '../../components/LeadForm';
 import JsonLd from '../../components/JsonLd';
 import { 
   TrendingUp, Map, Shield, Hammer, BarChart3, Scale, 
-  ArrowRight, Layers, CheckCircle, BrainCircuit, XCircle, Sun, Factory, Users 
+  ArrowRight, Layers, CheckCircle, BrainCircuit, XCircle, 
+  Sun, Factory, Users, Ruler 
 } from 'lucide-react';
 
 export const metadata: Metadata = {
@@ -85,7 +86,7 @@ export default function ServicesPage() {
                  </div>
               </Link>
 
-              {/* 3. PARTNER (REALTOR NETWORK) - NEW */}
+              {/* 3. PARTNER (REALTOR NETWORK) */}
               <Link href="/realtor-network" className="group bg-white border border-gray-200 rounded-[2.5rem] p-8 hover:shadow-2xl hover:border-black transition duration-500 relative overflow-hidden">
                  <div className="relative z-10">
                     <div className="w-12 h-12 bg-black text-white rounded-xl flex items-center justify-center mb-6 shadow-lg shadow-gray-400">
@@ -104,7 +105,6 @@ export default function ServicesPage() {
 
               {/* 4. ENTERPRISE (COMMERCIAL) */}
               <Link href="/commercial-lending" className="group bg-white border border-gray-200 rounded-[2.5rem] p-8 hover:shadow-2xl hover:border-indigo-200 transition duration-500 relative overflow-hidden">
-                 <div className="absolute top-4 right-4 bg-indigo-100 text-indigo-700 px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest">New</div>
                  <div className="relative z-10">
                     <div className="w-12 h-12 bg-indigo-600 text-white rounded-xl flex items-center justify-center mb-6 shadow-lg shadow-indigo-200">
                        <Factory size={24} />
@@ -120,7 +120,25 @@ export default function ServicesPage() {
                  </div>
               </Link>
 
-              {/* 5. PROTECT */}
+              {/* 5. DESIGN (ARCHITECTURE) - NEW */}
+              <Link href="/architecture" className="group bg-white border border-gray-200 rounded-[2.5rem] p-8 hover:shadow-2xl hover:border-emerald-300 transition duration-500 relative overflow-hidden">
+                 <div className="absolute top-4 right-4 bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest">New</div>
+                 <div className="relative z-10">
+                    <div className="w-12 h-12 bg-emerald-600 text-white rounded-xl flex items-center justify-center mb-6 shadow-lg shadow-emerald-200">
+                       <Ruler size={24} />
+                    </div>
+                    <h3 className="text-xl font-black uppercase tracking-tight mb-2">Design</h3>
+                    <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-4">Architecture & Permits</p>
+                    <p className="text-gray-500 text-xs leading-relaxed mb-6">
+                       OAA Licensed Architect for Legal Basements, Custom Homes, & Commercial Layouts.
+                    </p>
+                    <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-900 border-b border-transparent group-hover:border-emerald-600 transition-all">
+                       Book Consult <ArrowRight size={12}/>
+                    </span>
+                 </div> 
+              </Link>
+
+              {/* 6. PROTECT */}
               <Link href="/commercial-auto-home-insurance" className="group bg-white border border-gray-200 rounded-[2.5rem] p-8 hover:shadow-2xl hover:border-cyan-200 transition duration-500 relative overflow-hidden">
                  <div className="relative z-10">
                     <div className="w-12 h-12 bg-cyan-600 text-white rounded-xl flex items-center justify-center mb-6 shadow-lg shadow-cyan-200">
@@ -137,7 +155,7 @@ export default function ServicesPage() {
                  </div>
               </Link>
 
-              {/* 6. RETIRE (REVERSE) */}
+              {/* 7. RETIRE (REVERSE) */}
               <Link href="/reverse-mortgages" className="group bg-white border border-gray-200 rounded-[2.5rem] p-8 hover:shadow-2xl hover:border-orange-200 transition duration-500 relative overflow-hidden">
                  <div className="relative z-10">
                     <div className="w-12 h-12 bg-orange-500 text-white rounded-xl flex items-center justify-center mb-6 shadow-lg shadow-orange-200">
@@ -154,7 +172,7 @@ export default function ServicesPage() {
                  </div>
               </Link>
 
-              {/* 7. IMPROVE */}
+              {/* 8. IMPROVE */}
               <Link href="/renovation-contractors" className="group bg-white border border-gray-200 rounded-[2.5rem] p-8 hover:shadow-2xl hover:border-yellow-200 transition duration-500 relative overflow-hidden">
                  <div className="relative z-10">
                     <div className="w-12 h-12 bg-yellow-500 text-white rounded-xl flex items-center justify-center mb-6 shadow-lg shadow-yellow-200">
@@ -171,7 +189,7 @@ export default function ServicesPage() {
                  </div>
               </Link>
 
-              {/* 8. GROW */}
+              {/* 9. GROW */}
               <Link href="/investment-planning-wealth-growth" className="group bg-white border border-gray-200 rounded-[2.5rem] p-8 hover:shadow-2xl hover:border-purple-200 transition duration-500 relative overflow-hidden">
                  <div className="relative z-10">
                     <div className="w-12 h-12 bg-purple-600 text-white rounded-xl flex items-center justify-center mb-6 shadow-lg shadow-purple-200">
@@ -188,7 +206,7 @@ export default function ServicesPage() {
                  </div>
               </Link>
 
-              {/* 9. CLOSE */}
+              {/* 10. CLOSE */}
               <Link href="/trusted-real-estate-lawyers" className="group bg-white border border-gray-200 rounded-[2.5rem] p-8 hover:shadow-2xl hover:border-red-200 transition duration-500 relative overflow-hidden">
                  <div className="relative z-10">
                     <div className="w-12 h-12 bg-red-600 text-white rounded-xl flex items-center justify-center mb-6 shadow-lg shadow-red-200">

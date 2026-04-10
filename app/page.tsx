@@ -5,8 +5,8 @@ import LeadForm from '../components/LeadForm';
 import AIIntakeForm from '../components/AIIntakeForm'; // <-- NEW AI FORM IMPORT
 import JsonLd from '../components/JsonLd';
 import { 
-  TrendingUp, Map, Shield, Hammer, BarChart3, Scale, 
-  ArrowRight, Layers, CheckCircle, HelpCircle, ChevronDown, Factory, Users, Sun, Percent, Activity, Zap
+  TrendingUp, Hammer, BarChart3, Scale, 
+  ArrowRight, Layers, CheckCircle, HelpCircle, ChevronDown, Factory, Users, Sun, Percent, Activity, Zap, Ruler
 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/firebase';
@@ -15,7 +15,7 @@ export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: 'IndiBrick | The All-in-One Real Estate Ecosystem (Mortgage, Realty, Insurance)',
-  description: 'Stop juggling professionals. IndiBrick consolidates Real Estate, Mortgages (3.39%*), Insurance, and Renovations into one intelligent platform. The operating system for your wealth.',
+  description: 'Stop juggling professionals. IndiBrick consolidates Real Estate, Mortgages (3.39%*), Insurance, and Legal into one intelligent platform. The operating system for your wealth.',
   keywords: ['One Stop Shop Real Estate Ontario', 'Mortgage and Real Estate Bundle', 'Home Auto Insurance Ontario', 'Renovation Contractors Toronto', 'Real Estate Investing Strategy'],
 };
 
@@ -50,7 +50,7 @@ export default async function HomePage() {
     "@context": "https://schema.org",
     "@type": "Organization",
     "name": "IndiBrick",
-    "description": "Integrated Real Estate, Mortgage, Insurance, and Wealth Management Firm.",
+    "description": "Integrated Real Estate, Mortgage, Legal, and Wealth Management Firm.",
     "url": "https://indibrick.ca",
   };
 
@@ -59,14 +59,13 @@ export default async function HomePage() {
       <JsonLd data={homeSchema} />
 
       {/* --- 1. HERO: FIXED MOBILE SPACING & DESKTOP HIERARCHY --- */}
-      {/* AUDIT FIX: Reduced pt-32 to pt-24 on mobile to pull headline above the fold */}
       <section className="relative pt-24 md:pt-32 pb-16 md:pb-20 px-6 border-b border-gray-100 overflow-hidden">
         <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-blue-50/60 rounded-full blur-[120px] -z-10 translate-x-1/4 -translate-y-1/4"></div>
         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-indigo-50/60 rounded-full blur-[100px] -z-10 -translate-x-1/4 translate-y-1/4"></div>
 
         <div className="container mx-auto max-w-7xl text-center">
           <div className="inline-flex items-center gap-2 bg-slate-900 text-white px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] mb-6 md:mb-8 animate-fade-in-up shadow-lg">
-            <Layers size={12} className="text-blue-400" /> Real Estate • Mortgage • Insurance • Wealth
+            <Layers size={12} className="text-blue-400" /> Real Estate • Mortgage • Legal • Wealth
           </div>
           
           <h1 className="text-5xl md:text-8xl font-black text-slate-900 tracking-tighter mb-6 leading-[1.0] md:leading-[0.9]">
@@ -74,9 +73,8 @@ export default async function HomePage() {
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">You Need.</span>
           </h1>
           
-          {/* AUDIT FIX: Increased text size to 18px (text-lg) / 20px (text-xl) and darkened text-slate-600 for clear hierarchy */}
           <p className="text-lg md:text-xl text-slate-600 max-w-4xl mx-auto font-medium leading-relaxed mb-10 md:mb-12">
-            Stop coordinating between a Realtor, a Mortgage Broker, an Insurance Agent, and a Contractor. 
+            Stop coordinating between a Realtor, a Mortgage Broker, a Lawyer, and a Contractor. 
             We consolidated the entire property lifecycle into <span className="text-slate-900 font-bold">one intelligent platform</span>.
           </p>
 
@@ -95,7 +93,7 @@ export default async function HomePage() {
       <div className="bg-slate-900 text-white overflow-hidden py-3 border-y border-slate-800">
         <div className="flex gap-12 animate-marquee whitespace-nowrap text-[10px] font-black uppercase tracking-widest opacity-80">
            <span className="flex items-center gap-2"><span className="text-green-400">●</span> Mortgage: {rates.insured_variable_5yr}%* (Low)</span>
-           <span className="flex items-center gap-2"><span className="text-blue-400">●</span> Insurance: Bundled Savings</span>
+           <span className="flex items-center gap-2"><span className="text-blue-400">●</span> Legal: Tech-Enabled Closings</span>
            <span className="flex items-center gap-2"><span className="text-green-400">●</span> Toronto Detached: $1.4M (-2.1%)</span>
            <span className="flex items-center gap-2"><span className="text-yellow-400">●</span> Renovations: Licensed Pros</span>
            <span className="flex items-center gap-2"><span className="text-purple-400">●</span> Wealth: Tax Strategy</span>
@@ -108,15 +106,12 @@ export default async function HomePage() {
         <div className="container mx-auto max-w-7xl">
            <div className="text-center mb-16">
               <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tight text-slate-900 mb-4">Complete Vertical Integration</h2>
-              {/* AUDIT FIX: Darkened text to slate-700 and bumped size to text-lg so it doesn't disappear */}
               <p className="text-slate-700 text-lg font-medium max-w-2xl mx-auto leading-relaxed">
                  We don't hand you off to third parties. We handle every stage of asset ownership in-house or through our exclusive verified partners.
               </p>
            </div>
 
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              
-              {/* AUDIT FIX: Standardized icon colors to a strict 3-color palette (Blue, Indigo, Slate) */}
               
               {/* PILLAR 1: LENDING (BLUE) */}
               <Link href="/rates" className="bg-gray-50 rounded-[2rem] p-8 border border-gray-100 hover:shadow-xl hover:border-blue-200 transition duration-300 group">
@@ -130,15 +125,15 @@ export default async function HomePage() {
                  </p>
               </Link>
 
-              {/* PILLAR 2: REAL ESTATE (SLATE) */}
-              <Link href="/city-data" className="bg-gray-50 rounded-[2rem] p-8 border border-gray-100 hover:shadow-xl hover:border-slate-400 transition duration-300 group">
+              {/* PILLAR 2: DESIGN / ARCHITECTURE (SLATE) - REPLACED ACQUIRE */}
+              <Link href="/architecture" className="bg-gray-50 rounded-[2rem] p-8 border border-gray-100 hover:shadow-xl hover:border-slate-400 transition duration-300 group">
                  <div className="w-14 h-14 bg-slate-200 rounded-2xl flex items-center justify-center mb-6 text-slate-800 group-hover:scale-110 transition">
-                    <Map size={28} />
+                    <Ruler size={28} />
                  </div>
-                 <h3 className="text-2xl font-black uppercase tracking-tight mb-2">Acquire</h3>
-                 <p className="text-xs font-bold text-slate-800 uppercase tracking-widest mb-4">Market Intelligence</p>
+                 <h3 className="text-2xl font-black uppercase tracking-tight mb-2">Design</h3>
+                 <p className="text-xs font-bold text-slate-800 uppercase tracking-widest mb-4">Architecture & Permits</p>
                  <p className="text-gray-500 text-sm leading-relaxed mb-6">
-                    Don't guess. Use our AI-driven reports to find undervalued cities, distress deals, and assignments.
+                    Fast-track building permits, legal basements, and commercial layouts via our OAA Licensed Architect partners.
                  </p>
               </Link>
 
@@ -166,15 +161,15 @@ export default async function HomePage() {
                  </p>
               </Link>
 
-              {/* PILLAR 5: PROTECT (INDIGO) */}
-              <Link href="/commercial-auto-home-insurance" className="bg-gray-50 rounded-[2rem] p-8 border border-gray-100 hover:shadow-xl hover:border-indigo-200 transition duration-300 group">
+              {/* PILLAR 5: CLOSE / LEGAL (INDIGO) - REPLACED PROTECT */}
+              <Link href="/trusted-real-estate-lawyers" className="bg-gray-50 rounded-[2rem] p-8 border border-gray-100 hover:shadow-xl hover:border-indigo-200 transition duration-300 group">
                  <div className="w-14 h-14 bg-indigo-100 rounded-2xl flex items-center justify-center mb-6 text-indigo-600 group-hover:scale-110 transition">
-                    <Shield size={28} />
+                    <Scale size={28} />
                  </div>
-                 <h3 className="text-2xl font-black uppercase tracking-tight mb-2">Protect</h3>
-                 <p className="text-xs font-bold text-indigo-600 uppercase tracking-widest mb-4">Insurance Bundles</p>
+                 <h3 className="text-2xl font-black uppercase tracking-tight mb-2">Close</h3>
+                 <p className="text-xs font-bold text-indigo-600 uppercase tracking-widest mb-4">Legal Services</p>
                  <p className="text-gray-500 text-sm leading-relaxed mb-6">
-                    Protect your asset. We bundle your Home, Auto, and Commercial insurance to unlock deep discounts.
+                    Tech-enabled real estate lawyers providing fixed-fee closings, title transfers, and digital signing portals.
                  </p>
               </Link>
 
@@ -224,7 +219,7 @@ export default async function HomePage() {
          </div>
       </section>
 
-      {/* --- 5. STANDALONE FAQ SECTION (AUDIT FIX) --- */}
+      {/* --- 5. STANDALONE FAQ SECTION --- */}
       <section className="py-20 px-6 bg-gray-50 border-b border-gray-200">
          <div className="container mx-auto max-w-3xl">
             <div className="text-center mb-12">
@@ -239,17 +234,17 @@ export default async function HomePage() {
                      <span className="text-gray-400 transition group-open:rotate-180"><ChevronDown size={20}/></span>
                   </summary>
                   <p className="text-gray-500 mt-4 leading-relaxed">
-                     Absolutely. Start with our <strong>{rates.insured_variable_5yr}% Mortgage Rate</strong> or a <strong>Home Insurance Quote</strong>. Most clients naturally expand to other services once they see the value and efficiency we provide.
+                     Absolutely. Start with our <strong>{rates.insured_variable_5yr}% Mortgage Rate</strong> or an <strong>Architecture Consult</strong>. Most clients naturally expand to other services once they see the value and efficiency we provide.
                   </p>
                </details>
                
                <details className="group bg-white p-6 rounded-2xl border border-gray-200 cursor-pointer shadow-sm hover:border-black transition">
                   <summary className="font-bold text-slate-900 text-lg list-none flex justify-between items-center">
-                     Are your contractors licensed?
+                     Are your contractors and architects licensed?
                      <span className="text-gray-400 transition group-open:rotate-180"><ChevronDown size={20}/></span>
                   </summary>
                   <p className="text-gray-500 mt-4 leading-relaxed">
-                     Yes. Every partner in our Renovation network is vetted, insured, and licensed. We protect your asset by ensuring all work is up to code and adds tangible market value.
+                     Yes. Every partner in our network is fully vetted. Our architectural partners are OAA Licensed, and our contractors are fully insured with WSIB. We protect your asset by ensuring all work is up to code.
                   </p>
                </details>
                
@@ -266,8 +261,7 @@ export default async function HomePage() {
          </div>
       </section>
 
-      {/* --- 6. FINAL CTA: DUAL ONBOARDING OPTIONS (AUDIT FIX) --- */}
-      {/* AUDIT FIX: Changed from plain white to a strong Slate-900 block with a blue accent border */}
+      {/* --- 6. FINAL CTA: DUAL ONBOARDING OPTIONS --- */}
       <section id="onboarding" className="py-24 px-6 bg-slate-900 text-white border-t-4 border-blue-500 relative overflow-hidden">
          <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
          <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl -ml-32 -mb-32"></div>
@@ -296,7 +290,6 @@ export default async function HomePage() {
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">I want someone to call me to discuss</p>
                      </div>
                   </div>
-                  {/* Pass a custom class to make the LeadForm look good on dark backgrounds if needed, or it will just look like a white card */}
                   <div className="text-slate-900">
                      <LeadForm 
                         type="Strategy Session" 
@@ -331,7 +324,7 @@ export default async function HomePage() {
          <div className="container mx-auto px-6 text-center">
             <p className="text-[9px] text-gray-400 uppercase tracking-widest leading-loose">
                *Rates are subject to change. OAC. Services provided by IndiBrick Financial and licensed partners. 
-               Mortgages via Pineapple Financial. Insurance via licensed brokerage partners. 
+               Mortgages via Pineapple Financial (Lic #12830). Insurance via licensed brokerage partners. 
                Investments via Segregated Funds/Insurance products.
             </p>
          </div>

@@ -61,8 +61,8 @@ export default function PartnerLoginPage() {
         footer, [class*="fixed"][class*="bottom-"] { display: none !important; }
       `}} />
 
-      {/* Left Side: Long-Form Enterprise Partner Pitch */}
-      <div className="w-full lg:w-[55%] xl:w-3/5 p-6 md:p-12 lg:p-20 flex flex-col gap-20">
+      {/* Left Side: Long-Form Enterprise Partner Pitch (Pushed to bottom on mobile, left on desktop) */}
+      <div className="w-full lg:w-[55%] xl:w-3/5 p-6 md:p-12 lg:p-20 flex flex-col gap-20 order-2 lg:order-1">
         
         {/* Section 1: Hero */}
         <div>
@@ -207,8 +207,8 @@ export default function PartnerLoginPage() {
 
       </div>
 
-      {/* Right Side: Sticky Login Form */}
-      <div className="w-full lg:w-[45%] xl:w-2/5 p-6 md:p-12 lg:p-16 lg:sticky lg:top-24 h-max flex flex-col justify-start border-t lg:border-t-0 lg:border-l border-gray-200 bg-white lg:bg-transparent">
+      {/* Right Side: Sticky Login Form (Pulled to top on mobile) */}
+      <div className="w-full lg:w-[45%] xl:w-2/5 p-6 md:p-12 lg:p-16 lg:sticky lg:top-24 h-max flex flex-col justify-start border-b lg:border-b-0 lg:border-l border-gray-200 bg-white lg:bg-transparent order-1 lg:order-2">
         <div className="w-full max-w-lg mx-auto bg-white p-10 md:p-14 rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.08)] border border-gray-100">
           
           <div className="mb-12 text-center lg:text-left">

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAdmin } from '../../../AdminContext'; 
-import { Lock, Shield, Search, Network, CheckCircle, Loader2, BarChart3, Building, Landmark, ArrowRight, ListChecks, FileCheck, LockKeyhole, Banknote } from 'lucide-react';
+import { Lock, Shield, Search, Network, CheckCircle, Loader2, BarChart3, Building, Landmark, ArrowRight, ListChecks, FileCheck, LockKeyhole, Banknote, AlertTriangle } from 'lucide-react';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 
@@ -61,8 +61,8 @@ export default function LenderLoginPage() {
         footer, [class*="fixed"][class*="bottom-"] { display: none !important; }
       `}} />
 
-      {/* Left Side: Long-Form Enterprise Sales Pitch */}
-      <div className="w-full lg:w-[55%] xl:w-3/5 p-6 md:p-12 lg:p-20 flex flex-col gap-20">
+      {/* Left Side: Long-Form Enterprise Sales Pitch (Pushed to bottom on mobile, left on desktop) */}
+      <div className="w-full lg:w-[55%] xl:w-3/5 p-6 md:p-12 lg:p-20 flex flex-col gap-20 order-2 lg:order-1">
         
         {/* Section 1: Hero */}
         <div>
@@ -172,7 +172,7 @@ export default function LenderLoginPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                      <label className="text-xs font-black uppercase tracking-widest text-slate-400 block mb-3">Primary Contact</label>
-                     <input required type="text" placeholder="John Doe" value={inquiry.name} onChange={e=>setInquiry({...inquiry, name: e.target.value})} className="w-full py-4 px-5 bg-black/40 border border-slate-700 rounded-xl focus:border-amber-500 outline-none transition text-lg text-white font-medium" />
+                     <input required type="text" placeholder="Full Name" value={inquiry.name} onChange={e=>setInquiry({...inquiry, name: e.target.value})} className="w-full py-4 px-5 bg-black/40 border border-slate-700 rounded-xl focus:border-amber-500 outline-none transition text-lg text-white font-medium" />
                   </div>
                   <div>
                      <label className="text-xs font-black uppercase tracking-widest text-slate-400 block mb-3">Corporate Email</label>
@@ -202,8 +202,8 @@ export default function LenderLoginPage() {
 
       </div>
 
-      {/* Right Side: Sticky Login Form */}
-      <div className="w-full lg:w-[45%] xl:w-2/5 p-6 md:p-12 lg:p-16 lg:sticky lg:top-24 h-max flex flex-col justify-start border-t lg:border-t-0 lg:border-l border-gray-200 bg-white lg:bg-transparent">
+      {/* Right Side: Sticky Login Form (Pulled to top on mobile) */}
+      <div className="w-full lg:w-[45%] xl:w-2/5 p-6 md:p-12 lg:p-16 lg:sticky lg:top-24 h-max flex flex-col justify-start border-b lg:border-b-0 lg:border-l border-gray-200 bg-white lg:bg-transparent order-1 lg:order-2">
         <div className="w-full max-w-lg mx-auto bg-white p-10 md:p-14 rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.08)] border border-gray-100">
           
           <div className="mb-12 text-center lg:text-left">
@@ -214,7 +214,6 @@ export default function LenderLoginPage() {
              <p className="text-slate-500 font-medium text-lg mt-3">Access your secure capital deployment dashboard.</p>
           </div>
 
-          {/* UPGRADED INPUT SIZES */}
           <form onSubmit={handleLogin} className="space-y-8">
             <div>
               <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">Corporate Email</label>

@@ -8,8 +8,18 @@ import { ChevronRight, Home } from 'lucide-react';
 export default function Breadcrumbs() {
   const pathname = usePathname();
 
-  // Hide on homepage
-  if (!pathname || pathname === '/') return null;
+  // 🔒 CTO FIX: Hide breadcrumbs on the homepage AND all secure/login portals
+  if (
+    !pathname || 
+    pathname === '/' || 
+    pathname.includes('/login') ||
+    pathname === '/partner' ||
+    pathname === '/lender' ||
+    pathname.includes('/portal-x-99') ||
+    pathname.includes('/secure-portal')
+  ) {
+    return null;
+  }
 
   // Generate path segments
   const segments = pathname.split('/').filter(item => item !== '');
