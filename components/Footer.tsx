@@ -106,7 +106,7 @@ export default function Footer() {
                   <strong>IndiBrick.ca</strong> is a marketing platform partnered exclusively with <strong>Dream Home + Life</strong> for mortgage and Life Insurance/Investment advisory services. 
                   <br className="mb-2 block"/>
                   All other services (Real Estate Acquisition, Legal, Renovations) are provided through vetted third-party partners. 
-                  Mortgages are processed through Pineapple Financial.
+                  Mortgages are processed through Pineapple Financial (LIC #12830).
                </p>
             </div>
             <div className="flex items-center gap-6 shrink-0">

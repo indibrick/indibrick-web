@@ -6,13 +6,13 @@ import { usePathname } from 'next/navigation';
 import { 
   Menu, X, Building, Home, Hammer, Calculator, Zap, ChevronDown, Info,
   DollarSign, Wallet, Lock, Shield, Percent, RefreshCw, TrendingUp, PieChart, TrendingDown,
-  AlertTriangle, Phone, Sun
+  AlertTriangle, Phone, Sun, Briefcase
 } from 'lucide-react';
-import { CITIES } from '../data/cityData';
 
 const Header: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isToolsOpen, setIsToolsOpen] = useState(false);
+  const [isPartnerOpen, setIsPartnerOpen] = useState(false);
   
   const currentPath = usePathname() || '';
   const clickCount = useRef(0);
@@ -59,19 +59,6 @@ const Header: React.FC = () => {
     return currentPath.startsWith(path);
   };
 
-  const handleSecretClick = () => {
-    const now = Date.now();
-    if (now - lastClickTime.current > 1000) {
-      clickCount.current = 1;
-    } else {
-      clickCount.current += 1;
-    }
-    lastClickTime.current = now;
-    if (clickCount.current === 5) {
-      window.location.href = '/portal-x-99';
-    }
-  };
-
   return (
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-100">
       <div className="container mx-auto px-4">
@@ -102,6 +89,58 @@ const Header: React.FC = () => {
                 {link.name}
               </Link>
             ))}
+
+            {/* PARTNER DROPDOWN */}
+            <div 
+              className="relative group"
+              onMouseEnter={() => setIsPartnerOpen(true)}
+              onMouseLeave={() => setIsPartnerOpen(false)}
+            >
+              {/* THE FIX: Changed from <button> to <Link> routing to /partners */}
+              <Link
+                href="/partners"
+                className={`text-[10px] font-black uppercase tracking-[0.2em] transition-colors hover:text-black flex items-center gap-1 focus:outline-none ${
+                  currentPath.includes('/partner') || currentPath.includes('/lender') ? 'text-black border-b-2 border-black pb-1' : 'text-gray-400'
+                }`}
+              >
+                Partner <ChevronDown size={14} />
+              </Link>
+              {isPartnerOpen && (
+                <div className="absolute top-full -left-6 pt-4 animate-fade-in w-[260px]">
+                  <div className="bg-white border border-gray-100 shadow-2xl rounded-2xl overflow-hidden p-2">
+                    
+                    <Link
+                      href="/partner/login"
+                      onClick={() => setIsPartnerOpen(false)}
+                      className="flex items-start gap-4 px-4 py-4 hover:bg-slate-50 rounded-xl transition group/item"
+                    >
+                       <div className="bg-blue-100 text-blue-600 p-2 rounded-lg shrink-0 group-hover/item:scale-110 transition">
+                         <Briefcase size={16} />
+                       </div>
+                       <div>
+                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-900 mb-0.5">Partner Portal</p>
+                         <p className="text-[10px] font-medium text-gray-500 leading-tight">Realtors, Lawyers & Agents</p>
+                       </div>
+                    </Link>
+
+                    <Link
+                      href="/lender/login"
+                      onClick={() => setIsPartnerOpen(false)}
+                      className="flex items-start gap-4 px-4 py-4 hover:bg-slate-50 rounded-xl transition group/item"
+                    >
+                       <div className="bg-amber-100 text-amber-600 p-2 rounded-lg shrink-0 group-hover/item:scale-110 transition">
+                         <Shield size={16} />
+                       </div>
+                       <div>
+                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-900 mb-0.5">Lender Exchange</p>
+                         <p className="text-[10px] font-medium text-gray-500 leading-tight">Institutional & Private Funds</p>
+                       </div>
+                    </Link>
+
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* TOOLS DROPDOWN */}
             <div 
@@ -149,11 +188,11 @@ const Header: React.FC = () => {
             </div>
           </nav>
 
-          {/* CTA BUTTONS (UPDATED) */}
+          {/* CTA BUTTONS */}
           <div className="flex items-center gap-3">
              {/* Secondary Button: Contact */}
              <Link href="/contact" className="hidden sm:flex items-center gap-2 bg-white text-black border-2 border-black px-5 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-50 transition">
-              <Phone size={14} /> Talk to Advisor
+              <Phone size={14} /> Contact
             </Link>
 
             {/* Primary Button: Pre-Approval */}
@@ -178,6 +217,23 @@ const Header: React.FC = () => {
               </Link>
             ))}
             
+            {/* MOBILE PARTNERS SECTION */}
+            <div className="space-y-4 pt-4 border-t border-gray-100">
+               {/* THE FIX: Made the parent clickable to /partners */}
+               <Link href="/partners" onClick={() => setIsOpen(false)} className="text-xl font-black uppercase tracking-tighter flex items-center gap-4 text-black">
+                  <Briefcase size={24} /> Partner Network
+               </Link>
+               <div className="space-y-3 pl-4 border-l-2 border-gray-100 ml-2">
+                  <Link href="/partner/login" onClick={() => setIsOpen(false)} className="flex items-center gap-3 text-sm font-bold text-gray-600 uppercase tracking-wide py-1">
+                     <Briefcase size={16} className="text-blue-500" /> Partner CRM Login
+                  </Link>
+                  <Link href="/lender/login" onClick={() => setIsOpen(false)} className="flex items-center gap-3 text-sm font-bold text-gray-600 uppercase tracking-wide py-1">
+                     <Shield size={16} className="text-amber-500" /> Lender Exchange
+                  </Link>
+               </div>
+            </div>
+
+            {/* MOBILE TOOLS SECTION */}
             <div className="space-y-4 pt-4 border-t border-gray-100">
                <Link href="/tools" onClick={() => setIsOpen(false)} className="text-xl font-black uppercase tracking-tighter flex items-center gap-4 text-black">
                   <Calculator size={24} /> Tools
