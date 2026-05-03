@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
+import { getStorage } from 'firebase-admin/storage';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,12 +22,29 @@ export async function GET(req: Request) {
     }
 
     if (!docRef) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-
     const data = docRef.data();
+
+    // THE FIX: Generate fresh 2-hour Signed URLs on the fly
+    const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || process.env.FIREBASE_STORAGE_BUCKET;
+    const bucket = getStorage().bucket(bucketName);
+
+    const freshVault = await Promise.all((data.vault || []).map(async (vItem: any) => {
+        if (vItem.storagePath) {
+            try {
+                const [freshUrl] = await bucket.file(vItem.storagePath).getSignedUrl({
+                    action: 'read',
+                    expires: Date.now() + 2 * 60 * 60 * 1000 // Expires in 2 hours securely
+                });
+                return { ...vItem, downloadUrl: freshUrl };
+            } catch (e) { return vItem; }
+        }
+        return vItem;
+    }));
+
     return NextResponse.json({
         clientName: data.clientName,
-        requiredDocuments: data.requiredDocuments || [], // The checklist
-        vault: data.vault || [] // What they have already uploaded
+        requiredDocuments: data.requiredDocuments || [], 
+        vault: freshVault 
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

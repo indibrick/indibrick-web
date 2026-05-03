@@ -8,7 +8,7 @@ import {
   Plus, Send, X, Wallet, Activity, PhoneCall, Calendar, Mail, Network, Trash2,
   Filter, Star, Zap, BrainCircuit, ShieldCheck, Target, CheckCircle, Loader2, 
   Briefcase, LogOut, ChevronRight, Clock, User, Search, FileText, ArrowDownLeft, Users,
-  ChevronLeft, AlertCircle, Shield, Landmark, ArrowUpRight, Lock
+  ChevronLeft, AlertCircle, Shield, Landmark, ArrowUpRight, Lock, Tag
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { doc, getDoc, updateDoc, collection, getDocs, query, where, addDoc } from 'firebase/firestore'; 
@@ -22,6 +22,7 @@ export default function PartnerCRM() {
   const [activeTab, setActiveTab] = useState<'pipeline' | 'analyzer' | 'calendar'>('pipeline');
   const [pipelineView, setPipelineView] = useState<'all' | 'mine' | 'incoming' | 'outbound'>('mine');
   const [filterAssignee, setFilterAssignee] = useState('all');
+  const [filterTag, setFilterTag] = useState('all'); 
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
   const [searchQuery, setSearchQuery] = useState(''); 
   
@@ -62,6 +63,8 @@ export default function PartnerCRM() {
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
 
+  const [dataLoading, setDataLoading] = useState(true);
+
   // --- UNIQUE ROLE PIPELINE STAGES ---
   const getPipelineStages = (role: string) => {
       switch(role) {
@@ -79,11 +82,13 @@ export default function PartnerCRM() {
 
   // --- AUTH & INIT ---
   useEffect(() => {
-    if (!loading && !user) router.push('/partner/login');
-    else if (user) loadProfileAndData();
+    if (!loading && !user) {
+        router.push('/partner/login');
+        return;
+    }
+    if (user) loadProfileAndData();
   }, [user, loading, router]);
 
-  // Load BorrowDirect Status when a deal is clicked
   useEffect(() => {
     const fetchBorrowDirectData = async () => {
        if (selectedDeal?.id) {
@@ -154,16 +159,20 @@ export default function PartnerCRM() {
         const usersSnap = await getDocs(collection(db, 'users'));
         const allUsersList = usersSnap.docs.map(d => ({ uid: d.id, ...d.data() as any }));
         
-        // VITAL: Non-admins ONLY get admins returned in this list for routing.
         if (currentRole === 'admin') setEcosystemPartners(allUsersList);
         else setEcosystemPartners(allUsersList.filter(u => u.role === 'admin'));
 
         setSelectedDeal(currentSelected => {
             if (!currentSelected) return null;
             const updated = activePipeline.find(d => d.id === currentSelected.id);
-            return updated ? { ...updated } : currentSelected;
+            return updated ? { ...updated, vault: currentSelected?.vault || updated.vault } : currentSelected;
         });
-    } catch (e) { console.error("Data Load Error", e); }
+        
+        setDataLoading(false);
+    } catch (e) { 
+        console.error("Data Load Error", e); 
+        setDataLoading(false);
+    }
   };
 
   // --- CALENDAR HELPERS ---
@@ -172,9 +181,7 @@ export default function PartnerCRM() {
   const calendarDays = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const calendarBlanks = Array.from({ length: firstDayOfMonth }, (_, i) => i);
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-  
   const todayDateString = new Date().toISOString().split('T')[0];
-  const todaysTasks = allTasks.filter(t => t.dueDate === todayDateString && t.status !== 'Completed');
 
   const handlePrevMonth = () => { currentMonth === 0 ? (setCurrentMonth(11), setCurrentYear(currentYear - 1)) : setCurrentMonth(currentMonth - 1); };
   const handleNextMonth = () => { currentMonth === 11 ? (setCurrentMonth(0), setCurrentYear(currentYear + 1)) : setCurrentMonth(currentMonth + 1); };
@@ -252,8 +259,6 @@ export default function PartnerCRM() {
         const partner = ecosystemPartners.find(p => p.uid === assignedAgentId);
         if (partner) {
             assignedAgentName = partner.displayName;
-            
-            // FIREBASE EMAIL TRIGGER FOR NEW LEAD ASSIGNMENT
             if (partner.email) {
                 try {
                     await addDoc(collection(db, "mail"), {
@@ -281,7 +286,6 @@ export default function PartnerCRM() {
     loadProfileAndData();
   };
 
-  // --- BORROW DIRECT LOGIC ---
   const generateAISummary = () => {
      setIsGeneratingSummary(true);
      setTimeout(() => {
@@ -324,43 +328,6 @@ export default function PartnerCRM() {
      }
   };
 
-  const awardBid = async (bid: any) => {
-     try {
-        await updateDoc(doc(db, "borrow_direct_bids", bid.id), { status: 'Accepted' });
-        await updateDoc(doc(db, "borrow_direct_deals", bdDeal.id), { status: 'Awarded', awardedToLenderId: bid.lenderId });
-        setBdDeal({...bdDeal, status: 'Awarded', awardedToLenderId: bid.lenderId});
-        
-        await CRMService.logActivity(selectedDeal.id, {
-            type: 'note', author: 'System Admin', 
-            content: `🏆 BorrowDirect Deal Awarded to ${bid.lenderName}! Client details and Vault unlocked for lender.`, 
-            timestamp: new Date().toISOString()
-        });
-
-        try {
-            const lenderDoc = await getDoc(doc(db, "users", bid.lenderId));
-            if (lenderDoc.exists() && lenderDoc.data().email) {
-                await addDoc(collection(db, "mail"), {
-                    to: lenderDoc.data().email,
-                    message: {
-                        subject: `🏆 Deal Awarded: $${bdDeal.loanAmount.toLocaleString()} Mortgage`,
-                        html: `<div style="font-family: sans-serif; padding: 20px;">
-                                <h2 style="color: #0f172a;">Congratulations ${bid.lenderName}!</h2>
-                                <p style="color: #475569; font-size: 16px;">Your term sheet for the <strong>$${bdDeal.loanAmount.toLocaleString()}</strong> mortgage has been <strong>ACCEPTED</strong>.</p>
-                                <p style="color: #16a34a; font-weight: bold;">✓ The client file and document vault are now unlocked.</p>
-                              </div>`
-                    }
-                });
-            }
-        } catch(e) { console.warn("Email dispatch error", e); }
-
-        loadProfileAndData();
-        alert("Deal Awarded! Lender notified and client file unlocked.");
-     } catch (e) {
-        alert("Error awarding deal.");
-     }
-  };
-
-  // --- CRM ACTIONS ---
   const handleActionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDeal || !user) return;
@@ -377,7 +344,6 @@ export default function PartnerCRM() {
          if (partner) {
              routedName = partner.displayName;
              await CRMService.routeLeadToPartner(selectedDeal.id, fullName, partner.uid, partner.displayName);
-             
              if (partner.email) {
                  try {
                      await addDoc(collection(db, "mail"), {
@@ -435,9 +401,43 @@ export default function PartnerCRM() {
     loadProfileAndData();
   };
 
+  const handleTagUpdate = async (newTag: string) => {
+    if (!selectedDeal || !user) return;
+    await updateDoc(doc(db, "referrals", selectedDeal.id), { leadTag: newTag });
+    setSelectedDeal({ ...selectedDeal, leadTag: newTag });
+    loadProfileAndData();
+  };
+
   const handleCategoryUpdate = async (newCategory: 'active' | 'potential') => {
     if (!selectedDeal || !user) return;
     await updateDoc(doc(db, "referrals", selectedDeal.id), { dealCategory: newCategory });
+
+    if (newCategory === 'active' && selectedDeal.clientEmail) {
+       if (window.confirm("Deal marked as Active! Would you like to automatically generate a Client Portal account and email them their secure login credentials?")) {
+           try {
+               const res = await fetch('/api/partner/onboard-client', {
+                   method: 'POST',
+                   headers: {'Content-Type': 'application/json'},
+                   body: JSON.stringify({
+                       leadId: selectedDeal.id,
+                       clientEmail: selectedDeal.clientEmail,
+                       clientName: selectedDeal.clientName,
+                       agentName: fullName,
+                       notes: selectedDeal.notes,
+                       requiredDocs: selectedDeal.requiredDocuments || []
+                   })
+               });
+               if (res.ok) alert("✅ Client account created and welcome email sent!");
+               else alert("❌ Failed to send welcome email.");
+           } catch (e) {
+               console.error(e);
+               alert("Network error. Could not reach server.");
+           }
+       }
+    } else if (newCategory === 'active' && !selectedDeal.clientEmail) {
+       alert("Deal marked as Active. Cannot auto-generate client portal because no email address is on file.");
+    }
+
     setSelectedDeal({ ...selectedDeal, dealCategory: newCategory });
     loadProfileAndData();
   };
@@ -455,10 +455,25 @@ export default function PartnerCRM() {
     }
   };
 
+  const handleOpenDealModal = async (deal: any) => {
+      setSelectedDeal(deal);
+      setLogType('note');
+      
+      try {
+          const res = await fetch(`/api/client/portal-data?leadId=${deal.leadId || deal.id}`);
+          if (res.ok) {
+              const freshData = await res.json();
+              setSelectedDeal(prev => prev?.id === deal.id ? { ...prev, vault: freshData.vault } : prev);
+          }
+      } catch(e) {
+          console.error("Failed to fetch fresh vault", e);
+      }
+  };
+
   const handleOpenTaskDeal = (referralId: string) => {
     if (referralId === 'general') return;
     const found = allReferrals.find(d => d.id === referralId);
-    if (found) { setSelectedDeal(found); setLogType('note'); }
+    if (found) { handleOpenDealModal(found); }
   };
 
   // --- UI HELPERS ---
@@ -474,6 +489,9 @@ export default function PartnerCRM() {
       if (pipelineView === 'incoming') filtered = filtered.filter(r => r.assignedAgentId === 'ADMIN_INBOX');
       if (pipelineView === 'outbound') filtered = filtered.filter(r => r.referrerId === 'INDIBRICK_WEB' && r.assignedAgentId !== 'ADMIN_INBOX');
       if (partnerRole === 'admin' && filterAssignee !== 'all') filtered = filtered.filter(r => r.assignedAgentId === filterAssignee);
+      
+      if (filterTag !== 'all') filtered = filtered.filter(r => r.leadTag === filterTag);
+
       if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
           filtered = filtered.filter(r => r.clientName?.toLowerCase().includes(q) || r.clientEmail?.toLowerCase().includes(q) || r.clientPhone?.includes(q));
@@ -484,17 +502,19 @@ export default function PartnerCRM() {
       });
   };
 
-  if (loading || !user) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" size={40}/></div>;
+  if (loading || dataLoading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" size={40}/></div>;
+
+  const todaysTasks = allTasks.filter(t => t.dueDate === todayDateString && t.status !== 'Completed');
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex font-sans text-slate-900 pb-20 md:pb-0">
+    <div className="min-h-screen bg-[#F8FAFC] flex font-sans text-slate-900 pb-20 md:pb-0 pt-24">
       
       <style dangerouslySetInnerHTML={{__html: `
-        [class*="fixed"][class*="bottom-"]:not(nav) { display: none !important; }
+         footer, [class*="fixed"][class*="bottom-"]:not(.portal-nav) { display: none !important; }
       `}} />
 
       {/* DESKTOP SIDEBAR */}
-      <aside className="hidden md:flex w-64 bg-[#0B0F19] text-white flex-col fixed h-full z-20 shadow-2xl">
+      <aside className="hidden md:flex w-64 bg-[#0B0F19] text-white flex-col fixed h-[calc(100vh-6rem)] top-24 z-20 shadow-2xl">
         <div className="p-8">
           <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center mb-4 shadow-lg shadow-blue-500/30">
              <Zap size={20} className="text-white"/>
@@ -503,7 +523,7 @@ export default function PartnerCRM() {
           <p className="text-[10px] text-blue-400 font-bold uppercase tracking-widest mt-1">{partnerRole.replace('partner_', '')}</p>
         </div>
         
-        <nav className="space-y-1 px-4 flex-1">
+        <nav className="portal-nav space-y-1 px-4 flex-1">
           <button onClick={() => setActiveTab('pipeline')} className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl text-xs font-bold uppercase tracking-widest transition ${activeTab === 'pipeline' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}>
              <Briefcase size={16} /> Pipeline
           </button>
@@ -524,8 +544,8 @@ export default function PartnerCRM() {
         </div>
       </aside>
 
-      {/* MOBILE APP-STYLE BOTTOM NAVIGATION */}
-      <nav className="md:hidden fixed bottom-0 left-0 w-full bg-[#0B0F19] text-slate-400 z-40 flex justify-between items-center px-6 py-3 pb-safe border-t border-slate-800 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.3)]">
+      {/* MOBILE BOTTOM NAVIGATION */}
+      <nav className="portal-nav md:hidden fixed bottom-0 left-0 w-full bg-[#0B0F19] text-slate-400 z-40 flex justify-between items-center px-6 py-3 pb-safe border-t border-slate-800 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.3)]">
          <button onClick={() => setActiveTab('pipeline')} className={`flex flex-col items-center gap-1.5 transition ${activeTab === 'pipeline' ? 'text-blue-500 scale-110' : 'hover:text-white'}`}>
             <Briefcase size={20} />
             <span className="text-[9px] font-black uppercase tracking-widest">Deals</span>
@@ -549,7 +569,7 @@ export default function PartnerCRM() {
       {/* MAIN CONTENT AREA */}
       <main className="md:ml-64 flex-1 p-4 md:p-10 overflow-x-hidden">
         
-        <header className="flex flex-row justify-between items-center mb-6 md:mb-8 gap-4">
+        <header className="portal-header flex flex-row justify-between items-center mb-6 md:mb-8 gap-4">
            <div>
              <h1 className="text-2xl md:text-3xl font-black text-slate-900 uppercase tracking-tight">
                {activeTab === 'pipeline' ? 'Pipeline' : activeTab === 'analyzer' ? 'AI Underwriter' : 'Calendar'}
@@ -631,38 +651,60 @@ export default function PartnerCRM() {
               {/* LEFT: PIPELINE BOARD */}
               <div className="xl:col-span-8 space-y-4 md:space-y-6">
                  
-                 <div className="bg-white p-2.5 md:p-3 rounded-2xl shadow-sm border border-gray-200 flex flex-col lg:flex-row justify-between items-center gap-3 md:gap-4 overflow-hidden">
+                 {/* TWO ISLAND CONTROLS */}
+                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                      
-                     <div className="w-full flex gap-1 p-1 bg-gray-100/80 rounded-xl lg:w-auto border border-gray-200/50 overflow-x-auto no-scrollbar">
+                     {/* ISLAND 1: VIEWS */}
+                     <div className="bg-white p-1.5 rounded-2xl shadow-sm border border-gray-200 flex gap-1 w-full lg:w-auto overflow-x-auto no-scrollbar shrink-0">
                          {partnerRole === 'admin' ? (
                              <>
-                                 <button onClick={() => setPipelineView('all')} className={`flex-1 min-w-[70px] lg:flex-none px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition ${pipelineView === 'all' ? 'bg-white shadow-sm text-blue-600 border border-gray-200' : 'text-gray-500 hover:text-slate-900'}`}>All</button>
-                                 <button onClick={() => setPipelineView('mine')} className={`flex-1 min-w-[70px] lg:flex-none px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition ${pipelineView === 'mine' ? 'bg-white shadow-sm text-blue-600 border border-gray-200' : 'text-gray-500 hover:text-slate-900'}`}>Mine</button>
-                                 <button onClick={() => setPipelineView('incoming')} className={`flex-1 min-w-[70px] lg:flex-none px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition ${pipelineView === 'incoming' ? 'bg-white shadow-sm text-blue-600 border border-gray-200' : 'text-gray-500 hover:text-slate-900'}`}>Inbox</button>
+                                 <button onClick={() => setPipelineView('all')} className={`flex-1 min-w-[70px] lg:flex-none px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition ${pipelineView === 'all' ? 'bg-slate-900 shadow-sm text-white' : 'text-gray-500 hover:text-slate-900 hover:bg-gray-50'}`}>All</button>
+                                 <button onClick={() => setPipelineView('mine')} className={`flex-1 min-w-[70px] lg:flex-none px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition ${pipelineView === 'mine' ? 'bg-slate-900 shadow-sm text-white' : 'text-gray-500 hover:text-slate-900 hover:bg-gray-50'}`}>Mine</button>
+                                 <button onClick={() => setPipelineView('incoming')} className={`flex-1 min-w-[70px] lg:flex-none px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition ${pipelineView === 'incoming' ? 'bg-slate-900 shadow-sm text-white' : 'text-gray-500 hover:text-slate-900 hover:bg-gray-50'}`}>Inbox</button>
                              </>
                          ) : (
-                             <div className="flex-1 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-slate-700 text-center">My Active Pipeline</div>
+                             <div className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-700 text-center">My Active Pipeline</div>
                          )}
                      </div>
 
-                     <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
-                         <div className="flex flex-1 lg:flex-none items-center gap-2 bg-gray-50 border border-gray-200 px-3 py-2 rounded-xl w-full sm:w-48 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-50 transition">
+                     {/* ISLAND 2: FILTERS & SEARCH */}
+                     <div className="bg-white p-1.5 rounded-2xl shadow-sm border border-gray-200 flex items-center gap-1.5 w-full lg:w-auto overflow-x-auto no-scrollbar">
+                         
+                         {/* Search */}
+                         <div className="flex flex-1 min-w-[140px] items-center gap-2 bg-gray-50 border border-gray-100 px-3 py-2.5 rounded-xl focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-50 transition shrink-0">
                             <Search size={14} className="text-gray-400 shrink-0" />
                             <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-transparent text-xs font-bold text-slate-700 outline-none w-full placeholder:text-gray-400" />
                          </div>
+
+                         {/* Assignee Filter */}
                          {partnerRole === 'admin' && (
-                             <div className="hidden sm:flex items-center gap-2 bg-gray-50 border border-gray-200 px-3 py-2 rounded-xl hover:border-gray-300 transition">
+                             <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 px-3 py-2.5 rounded-xl hover:border-gray-300 transition shrink-0">
                                  <Users size={14} className="text-blue-500 shrink-0" />
-                                 <select value={filterAssignee} onChange={(e) => setFilterAssignee(e.target.value)} className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer max-w-[100px] truncate">
+                                 <select value={filterAssignee} onChange={(e) => setFilterAssignee(e.target.value)} className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer max-w-[120px] truncate pr-2">
                                      <option value="all">All Agents</option>
                                      <option value="ADMIN_INBOX">Admin Inbox</option>
                                      {ecosystemPartners.filter(p => p.uid !== user?.uid).map(p => <option key={p.uid} value={p.uid}>{p.displayName}</option>)}
                                  </select>
                              </div>
                          )}
-                         <div className="hidden sm:flex items-center gap-2 bg-gray-50 border border-gray-200 px-3 py-2 rounded-xl hover:border-gray-300 transition">
+
+                         {/* Tag Filter */}
+                         <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 px-3 py-2.5 rounded-xl hover:border-gray-300 transition shrink-0">
+                             <Tag size={14} className="text-purple-500 shrink-0" />
+                             <select value={filterTag} onChange={(e) => setFilterTag(e.target.value)} className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer max-w-[130px] truncate pr-2">
+                                 <option value="all">All Types</option>
+                                 <option value="First Time Buyer">First Time Buyer</option>
+                                 <option value="Renewal">Renewal</option>
+                                 <option value="Refinance">Refinance</option>
+                                 <option value="Reverse Mortgage">Reverse Mortgage</option>
+                                 <option value="Realtor Lead">Realtor Lead</option>
+                             </select>
+                         </div>
+
+                         {/* Sort Filter */}
+                         <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 px-3 py-2.5 rounded-xl hover:border-gray-300 transition shrink-0">
                              <Filter size={14} className="text-blue-500 shrink-0" />
-                             <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value as any)} className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer max-w-[100px]">
+                             <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value as any)} className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer pr-2">
                                  <option value="newest">Newest</option>
                                  <option value="oldest">Oldest</option>
                              </select>
@@ -670,7 +712,7 @@ export default function PartnerCRM() {
                      </div>
                  </div>
 
-                 {/* DEAL CARDS WITH STALE DETECTOR */}
+                 {/* DEAL CARDS */}
                  <div className="space-y-3 md:space-y-4">
                      {getFilteredDeals().map((deal) => {
                         const progress = getStageProgress(deal.status);
@@ -685,7 +727,7 @@ export default function PartnerCRM() {
                         const isStale = daysSinceActivity >= 10 && !['Closed', 'Funded', 'Declined', 'Dead Deal', 'Lost', 'Cancelled'].includes(deal.status);
 
                         return (
-                         <div key={deal.id} onClick={() => { setSelectedDeal(deal); setLogType('note'); }} className="group bg-white rounded-2xl p-4 md:p-5 border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-400 transition-all duration-200 cursor-pointer relative overflow-hidden">
+                         <div key={deal.id} onClick={() => handleOpenDealModal(deal)} className="group bg-white rounded-2xl p-4 md:p-5 border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-400 transition-all duration-200 cursor-pointer relative overflow-hidden">
                              {deal.dealCategory === 'active' && <div className="absolute top-0 left-0 w-1 h-full bg-green-500"></div>}
 
                              <div className="flex flex-col sm:flex-row justify-between items-start mb-4 gap-3 md:gap-4">
@@ -695,10 +737,15 @@ export default function PartnerCRM() {
                                      </div>
                                      <div>
                                          <h3 className="text-base md:text-lg font-black text-slate-900 group-hover:text-blue-600 transition tracking-tight">{deal.clientName}</h3>
-                                         <div className="flex items-center gap-2 mt-0.5">
+                                         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                              <span className={`px-2 py-0.5 rounded text-[8px] md:text-[9px] font-black uppercase tracking-widest ${deal.dealCategory === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                                                  {deal.dealCategory === 'active' ? '🔥 Active' : '⭐ Potential'}
                                              </span>
+                                             {deal.leadTag && (
+                                                 <span className="px-2 py-0.5 rounded text-[8px] md:text-[9px] font-black uppercase tracking-widest bg-purple-100 text-purple-700 border border-purple-200">
+                                                     {deal.leadTag}
+                                                 </span>
+                                             )}
                                              <span className="text-[10px] md:text-xs text-gray-400 font-medium truncate max-w-[150px]">{deal.serviceNeeded}</span>
                                          </div>
                                      </div>
@@ -738,7 +785,7 @@ export default function PartnerCRM() {
                              <div className="pt-2 md:pt-3 border-t border-gray-50 flex justify-between items-center">
                                  <div className="flex items-center gap-2 text-[10px] font-medium w-full">
                                      {activeTask ? (
-                                        <span className="text-orange-600 flex items-center gap-1 bg-orange-50 px-2 py-1 rounded-md font-bold truncate max-w-xs"><Calendar size={12}/> Due: {activeTask.description}</span>
+                                        <span className="text-orange-600 flex items-center gap-1 bg-orange-50 px-2 py-1 rounded-md font-bold truncate max-w-xs border border-orange-100"><Calendar size={12}/> Due: {activeTask.description}</span>
                                      ) : (
                                         <span className="text-gray-400 flex items-center gap-1"><Clock size={12}/> No pending tasks.</span>
                                      )}
@@ -771,7 +818,7 @@ export default function PartnerCRM() {
                  <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
                      <h3 className="font-black uppercase tracking-tight text-sm mb-4 flex items-center gap-2 text-slate-900"><CheckCircle size={16} className="text-blue-600"/> Today's Action Items</h3>
                      {todaysTasks.length === 0 ? (
-                         <p className="text-xs text-gray-400 font-medium bg-gray-50 p-3 rounded-xl text-center">Inbox zero achieved.</p>
+                         <p className="text-xs text-gray-400 font-medium bg-gray-50 p-3 rounded-xl text-center border border-gray-100">Inbox zero achieved.</p>
                      ) : (
                          <div className="space-y-2">
                              {todaysTasks.map(task => (
@@ -891,7 +938,7 @@ export default function PartnerCRM() {
         )}
       </main>
 
-      {/* 📱 DEAL EDITOR MODAL (WITH BORROW DIRECT INTEGRATION) 📱 */}
+      {/* 📱 DEAL EDITOR MODAL 📱 */}
       {selectedDeal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end md:items-center md:justify-end p-0 md:p-4">
           <div className="w-full md:max-w-xl bg-white h-[90vh] md:h-full shadow-[0_-20px_50px_rgba(0,0,0,0.5)] md:shadow-2xl animate-in fade-in slide-in-from-bottom-8 md:slide-in-from-right-8 duration-200 flex flex-col rounded-t-[2rem] md:rounded-[2rem] overflow-hidden">
@@ -923,6 +970,23 @@ export default function PartnerCRM() {
                     </button>
                   ))}
                 </div>
+
+                {/* LEAD TAG EDITOR */}
+                <div className="relative z-10 mt-4 border-t border-white/10 pt-4 flex items-center gap-3">
+                    <Tag size={14} className="text-gray-400 shrink-0" />
+                    <select 
+                        value={selectedDeal.leadTag || ''} 
+                        onChange={(e) => handleTagUpdate(e.target.value)}
+                        className="bg-transparent border-none text-[10px] font-black uppercase tracking-widest text-white outline-none cursor-pointer"
+                    >
+                        <option value="" className="text-black">No Tag Assigned</option>
+                        <option value="First Time Buyer" className="text-black">First Time Buyer</option>
+                        <option value="Renewal" className="text-black">Renewal</option>
+                        <option value="Refinance" className="text-black">Refinance</option>
+                        <option value="Reverse Mortgage" className="text-black">Reverse Mortgage</option>
+                        <option value="Realtor Lead" className="text-black">Realtor Lead</option>
+                    </select>
+                </div>
             </div>
 
             {/* Modal Body */}
@@ -947,7 +1011,10 @@ export default function PartnerCRM() {
                                 </div>
                              </div>
                              <a 
-                               href={doc.downloadUrl} target="_blank" rel="noopener noreferrer"
+                               href={doc.downloadUrl || '#'} 
+                               target={doc.downloadUrl ? "_blank" : "_self"} 
+                               rel="noopener noreferrer"
+                               onClick={(e) => { if (!doc.downloadUrl) { e.preventDefault(); alert("Secure link is generating, please try again in a moment."); } }}
                                className="bg-gray-100 hover:bg-slate-900 hover:text-white p-1.5 rounded-lg transition text-slate-600 shrink-0"
                                title="Download File"
                              >
@@ -959,7 +1026,7 @@ export default function PartnerCRM() {
                  </div>
               )}
 
-              {/* --- BORROW DIRECT TRACKER (Visible to Partners & Admins) --- */}
+              {/* --- BORROW DIRECT TRACKER --- */}
               {bdDeal && (
                  <div className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl p-5 shadow-sm">
                     <div className="flex justify-between items-start mb-3">
@@ -975,16 +1042,10 @@ export default function PartnerCRM() {
                           <p className="text-2xl font-black text-amber-600 tracking-tighter">{bdBids.length}</p>
                        </div>
                     </div>
-                    {bdDeal.status === 'Funded' && (
-                       <div className="mt-3 pt-3 border-t border-amber-200 flex justify-between items-center">
-                          <span className="text-[10px] font-black uppercase text-green-700 flex items-center gap-1.5"><CheckCircle size={14}/> Referral Bonus Earned</span>
-                          <span className="text-xs font-black text-green-800 bg-green-100 px-3 py-1 rounded-md">Processing</span>
-                       </div>
-                    )}
                  </div>
               )}
 
-              {/* Interaction Controls - UI SQUISH FIX */}
+              {/* Interaction Controls */}
               <div className="flex overflow-x-auto whitespace-nowrap flex-nowrap no-scrollbar gap-2 mb-5 border-b border-gray-200 pb-4 w-full shrink-0">
                   <button onClick={() => setLogType('note')} className={`shrink-0 min-w-max px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition ${logType === 'note' ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-gray-500 border border-gray-200 hover:border-black'}`}>Note</button>
                   <button onClick={() => setLogType('log_call')} className={`shrink-0 min-w-max px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition ${logType === 'log_call' ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-gray-500 border border-gray-200 hover:border-blue-600'}`}><PhoneCall size={12} className="inline mr-1"/> Call</button>
@@ -992,7 +1053,6 @@ export default function PartnerCRM() {
                   <button onClick={() => setLogType('task')} className={`shrink-0 min-w-max px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition ${logType === 'task' ? 'bg-orange-500 text-white shadow-sm' : 'bg-white text-gray-500 border border-gray-200 hover:border-orange-500'}`}><Calendar size={12} className="inline mr-1"/> Task</button>
                   <button onClick={() => setLogType('doc')} className={`shrink-0 min-w-max px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition ${logType === 'doc' ? 'bg-yellow-500 text-white shadow-sm' : 'bg-white text-gray-500 border border-gray-200 hover:border-yellow-500'}`}><FileText size={12} className="inline mr-1"/> Req Doc</button>
                   
-                  {/* ROUTING VISIBLE TO ALL - STRICT DROPDOWN LOGIC */}
                   <button onClick={() => setLogType('route')} className={`shrink-0 min-w-max px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition ${logType === 'route' ? 'bg-purple-600 text-white shadow-sm' : 'bg-white text-gray-500 border border-gray-200 hover:border-purple-600'}`}><Network size={12} className="inline mr-1"/> Assign</button>
                   
                   {partnerRole === 'admin' && (
@@ -1002,7 +1062,7 @@ export default function PartnerCRM() {
                   )}
               </div>
 
-              {/* Action Input Area - UI SQUISH FIX */}
+              {/* Action Input Area */}
               <div className="mb-5 shrink-0">
                   {logType === 'borrow_direct' ? (
                       <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm animate-fade-in">
@@ -1020,13 +1080,7 @@ export default function PartnerCRM() {
                                                    <p className="text-[10px] font-black uppercase text-gray-500 mb-1">{bid.lenderName}</p>
                                                    <p className="text-sm font-bold text-slate-900">Rate: {bid.proposedRate}% | Fee: {bid.lenderFee}%</p>
                                                 </div>
-                                                {bid.status === 'Pending' ? (
-                                                   <button onClick={() => awardBid(bid)} className="bg-green-500 hover:bg-green-600 text-white px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition shadow-sm">Award</button>
-                                                ) : (
-                                                   <span className="text-[10px] font-black uppercase tracking-widest text-green-600 bg-green-100 px-3 py-1.5 rounded-lg">Awarded</span>
-                                                )}
                                             </div>
-                                            {/* RENDER THE CONDITIONS SUBMITTED BY THE LENDER */}
                                             {bid.conditions && (
                                                 <div className="bg-white p-3 rounded-lg border border-gray-200 mt-1 text-xs font-medium text-slate-700">
                                                    <span className="text-[9px] font-black uppercase text-gray-400 block mb-1 flex items-center gap-1"><AlertCircle size={10}/> Lender Conditions:</span>
@@ -1078,15 +1132,10 @@ export default function PartnerCRM() {
                       <div className="bg-purple-50 p-4 md:p-5 rounded-2xl border border-purple-100">
                            <select className="w-full p-3 rounded-xl border border-purple-200 outline-none mb-3 font-bold text-xs bg-white" value={targetPartnerId} onChange={e => setTargetPartnerId(e.target.value)}>
                               <option value="">Select Assignee...</option>
-                              
-                              {/* STRICT DROPDOWN LOGIC */}
                               {partnerRole === 'admin' && (
                                   <option value={user?.uid}>🙋‍♂️ Assign to Me ({fullName})</option>
                               )}
-                              
                               <option value="ADMIN_INBOX">📥 Admin Inbox (HQ)</option>
-                              
-                              {/* ecosystemPartners is pre-filtered. Admins see everyone, non-admins see only Admins */}
                               {ecosystemPartners.filter(p => p.uid !== user?.uid).map(p => (
                                   <option key={p.uid} value={p.uid}>{p.displayName} ({p.role ? p.role.replace('partner_', '') : 'Admin'})</option>
                               ))}
@@ -1104,7 +1153,6 @@ export default function PartnerCRM() {
                            <div className="flex justify-between items-center mb-3">
                               <h4 className="text-[9px] font-black uppercase tracking-widest text-yellow-800">Add Requirements</h4>
                            </div>
-                           
                            {docRequests.map((req, index) => (
                               <div key={index} className="flex gap-2 mb-2">
                                  <input 
@@ -1138,7 +1186,6 @@ export default function PartnerCRM() {
                                e.preventDefault();
                                const validDocs = docRequests.filter(d => d.trim() !== '');
                                if(validDocs.length === 0) return;
-                               
                                const btn = e.currentTarget;
                                btn.disabled = true;
                                btn.innerHTML = 'Sending...';
@@ -1187,104 +1234,6 @@ export default function PartnerCRM() {
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* 📱 MOBILE-OPTIMIZED MANUAL TASK MODAL 📱 */}
-      {showNewTaskForm && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-0 md:p-4">
-            <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] p-6 md:p-8 max-w-sm w-full shadow-[0_-20px_50px_rgba(0,0,0,0.5)] md:shadow-2xl animate-in fade-in slide-in-from-bottom-8 md:zoom-in-95 duration-200 mb-0 md:mb-auto pb-10 md:pb-8">
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2"><Calendar size={20} className="text-blue-600"/> Add Task</h2>
-                    <button onClick={() => setShowNewTaskForm(false)} className="text-gray-400 hover:text-black bg-gray-100 p-1.5 rounded-full"><X size={14}/></button>
-                </div>
-                <form onSubmit={handleManualTaskSubmit} className="space-y-4">
-                    <div>
-                        <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-1.5">Description</label>
-                        <input type="text" required value={newTask.description} onChange={e=>setNewTask({...newTask, description: e.target.value})} placeholder="What needs to be done?" className="w-full bg-gray-50 border border-gray-200 p-4 md:p-3 rounded-xl outline-none focus:border-blue-500 transition font-bold text-[14px] md:text-sm" />
-                    </div>
-                    <div>
-                        <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-1.5">Due Date</label>
-                        <input type="date" required value={newTask.dueDate} onChange={e=>setNewTask({...newTask, dueDate: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-4 md:p-3 rounded-xl outline-none focus:border-blue-500 transition font-bold text-[14px] md:text-sm" />
-                    </div>
-                    <div>
-                        <label className="text-[9px] font-black uppercase tracking-widest text-blue-600 block mb-1.5">Link to Client (Optional)</label>
-                        <select value={newTask.referralId} onChange={e=>setNewTask({...newTask, referralId: e.target.value})} className="w-full bg-blue-50 border border-blue-200 p-4 md:p-3 rounded-xl outline-none focus:border-blue-500 transition font-bold text-[14px] md:text-sm text-blue-900 appearance-none cursor-pointer">
-                            <option value="general">No Client (Personal Task)</option>
-                            {allReferrals.map(deal => <option key={deal.id} value={deal.id}>{deal.clientName}</option>)}
-                        </select>
-                    </div>
-
-                    <button type="submit" className="w-full bg-slate-900 text-white py-4 md:py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-blue-600 transition shadow-lg mt-2">
-                        Schedule Task
-                    </button>
-                </form>
-            </div>
-        </div>
-      )}
-
-      {/* 📱 MOBILE-OPTIMIZED INJECT LEAD MODAL 📱 */}
-      {showNewReferralForm && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-0 md:p-4">
-            <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] p-6 md:p-8 max-w-md w-full shadow-[0_-20px_50px_rgba(0,0,0,0.5)] md:shadow-2xl animate-in fade-in slide-in-from-bottom-8 md:zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto custom-scrollbar pb-24 md:pb-8">
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2"><Plus size={20} className="text-blue-600"/> Inject Lead</h2>
-                    <button onClick={() => setShowNewReferralForm(false)} className="text-gray-400 hover:text-black bg-gray-100 p-1.5 rounded-full"><X size={14}/></button>
-                </div>
-                <form onSubmit={handleManualLeadSubmit} className="space-y-4">
-                    <div>
-                        <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-1.5">Client Name</label>
-                        <input type="text" required value={newClient.name} onChange={e=>setNewClient({...newClient, name: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-4 md:p-3 rounded-xl outline-none focus:border-blue-500 transition font-bold text-[14px] md:text-sm" />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div>
-                            <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-1.5">Phone</label>
-                            <input type="tel" required value={newClient.phone} onChange={e=>setNewClient({...newClient, phone: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-4 md:p-3 rounded-xl outline-none focus:border-blue-500 transition font-bold text-[14px] md:text-sm" />
-                        </div>
-                        <div>
-                            <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-1.5">Email</label>
-                            <input type="email" value={newClient.email} onChange={e=>setNewClient({...newClient, email: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-4 md:p-3 rounded-xl outline-none focus:border-blue-500 transition font-bold text-[14px] md:text-sm" />
-                        </div>
-                    </div>
-                    <div>
-                        <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-1.5">Service Required</label>
-                        <select value={newClient.service} onChange={e=>setNewClient({...newClient, service: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-4 md:p-3 rounded-xl outline-none focus:border-blue-500 transition font-bold text-[14px] md:text-sm appearance-none cursor-pointer">
-                            <option>Mortgage Pre-Approval</option>
-                            <option>Property Search</option>
-                            <option>Legal Closing</option>
-                            <option>General Inquiry</option>
-                        </select>
-                    </div>
-                    
-                    <div>
-                        <label className="text-[9px] font-black uppercase tracking-widest text-blue-600 block mb-1.5">Initial Assignment</label>
-                        <select value={newClient.assignedTo} onChange={e=>setNewClient({...newClient, assignedTo: e.target.value})} className="w-full bg-blue-50 border border-blue-200 p-4 md:p-3 rounded-xl outline-none focus:border-blue-500 transition font-bold text-[14px] md:text-sm text-blue-900 appearance-none cursor-pointer">
-                            {partnerRole === 'admin' ? (
-                                <>
-                                  <option value={user?.uid}>🙋‍♂️ Assign to Me ({fullName})</option>
-                                  <option value="ADMIN_INBOX">📥 Admin Inbox (HQ)</option>
-                                  {ecosystemPartners.filter(p => p.uid !== user?.uid).map(p => <option key={p.uid} value={p.uid}>{p.displayName} ({p.role ? p.role.replace('partner_', '') : 'Admin'})</option>)}
-                                </>
-                            ) : (
-                                <>
-                                  <option value="ADMIN_INBOX">📥 Send to IndiBrick HQ</option>
-                                  <option value={user?.uid}>🙋‍♂️ Keep in My Pipeline</option>
-                                  {/* Non-admins can also assign directly to HQ Admins if needed */}
-                                  {ecosystemPartners.map(p => <option key={p.uid} value={p.uid}>{p.displayName} (Admin)</option>)}
-                                </>
-                            )}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-1.5">Context / Notes</label>
-                        <textarea value={newClient.message} onChange={e=>setNewClient({...newClient, message: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-4 md:p-3 rounded-xl outline-none focus:border-blue-500 transition resize-none font-medium text-[14px] md:text-xs" rows={2}></textarea>
-                    </div>
-                    <button type="submit" className="w-full bg-slate-900 text-white py-4 md:py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-blue-600 transition shadow-lg mt-1">
-                        Add to Pipeline
-                    </button>
-                </form>
-            </div>
         </div>
       )}
     </div>

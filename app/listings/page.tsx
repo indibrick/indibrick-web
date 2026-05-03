@@ -12,7 +12,29 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function ListingsPage() {
-  const listings = await PropertyService.fetchProperties();
+  // Fetch dynamic listings from Firebase
+  const fetchedListings = await PropertyService.fetchProperties();
+
+  // Manually injected VIP Funnel Listing
+  const royalTuscanListing = {
+    id: 'royal-tuscan-vip-manual',
+    title: 'Royal Tuscan Residences',
+    price: 390000,
+    city: 'St. Catharines',
+    address: '1024 Vansickle Rd N',
+    bedrooms: 1,
+    bathrooms: 1,
+    type: 'Condo',
+    purpose: 'Pre-Construction',
+    imageUrl: '/rt-_0004_8-sunset-view-new-sky.jpg', // Using the beautiful sunset render
+    landingPageUrl: '/royal-tuscan', // Routes directly to our new funnel!
+    description: 'A boutique collection of 97 luxury condos and penthouses featuring Tuscan Revival architecture and ultra-quiet steel-and-concrete construction.',
+    isFeatured: true,
+    status: 'Active'
+  };
+
+  // Combine them, putting the Royal Tuscan funnel front and center
+  const listings = [royalTuscanListing, ...fetchedListings];
 
   return (
     <div className="bg-white min-h-screen">
@@ -34,7 +56,7 @@ export default async function ListingsPage() {
       </section>
 
       {/* Client Component (Grid + Modal) */}
-      <ListingsClient initialListings={listings} />
+      <ListingsClient initialListings={listings as any} />
     </div>
   );
 }

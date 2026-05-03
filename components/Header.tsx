@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { 
   Menu, X, Building, Home, Hammer, Calculator, Zap, ChevronDown, Info,
   DollarSign, Wallet, Lock, Shield, Percent, RefreshCw, TrendingUp, PieChart, TrendingDown,
-  AlertTriangle, Phone, Sun, Briefcase
+  AlertTriangle, Phone, Sun, Briefcase, User, Building2, Ruer, Scale
 } from 'lucide-react';
 
 const Header: React.FC = () => {
@@ -42,6 +42,7 @@ const Header: React.FC = () => {
         { name: 'Renewal Estimator', path: '/mortgage-renewal-calculator', icon: RefreshCw },
         { name: 'Refinance / Equity', path: '/refinance-calculator', icon: TrendingUp },
         { name: 'Trigger Rate', path: '/trigger-rate-calculator', icon: Percent },
+        { name: 'HST Rebate (New Builds)', path: '/hst-rebate-calculator', icon: Building2 },
       ]
     },
     {
@@ -96,7 +97,6 @@ const Header: React.FC = () => {
               onMouseEnter={() => setIsPartnerOpen(true)}
               onMouseLeave={() => setIsPartnerOpen(false)}
             >
-              {/* THE FIX: Changed from <button> to <Link> routing to /partners */}
               <Link
                 href="/partners"
                 className={`text-[10px] font-black uppercase tracking-[0.2em] transition-colors hover:text-black flex items-center gap-1 focus:outline-none ${
@@ -188,19 +188,31 @@ const Header: React.FC = () => {
             </div>
           </nav>
 
-          {/* CTA BUTTONS */}
+          {/* CTA BUTTONS (Restructured for better balance) */}
           <div className="flex items-center gap-3">
-             {/* Secondary Button: Contact */}
-             <Link href="/contact" className="hidden sm:flex items-center gap-2 bg-white text-black border-2 border-black px-5 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-50 transition">
+             
+             {/* 1. Subtle Contact Button */}
+             <Link href="/contact" className="hidden sm:flex items-center gap-1.5 text-slate-500 hover:text-black font-bold text-[10px] uppercase tracking-widest px-2 transition">
               <Phone size={14} /> Contact
             </Link>
 
-            {/* Primary Button: Pre-Approval */}
-            <a href="https://gopineapple.ca/muditchhura/preapproval" target="_blank" rel="noopener noreferrer" className="hidden sm:flex items-center gap-2 bg-black text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-800 transition shadow-xl">
-              <Zap size={14} /> Pre-Approval
+            {/* 2. High Priority Pre-Approval */}
+            <a 
+              href="https://gopineapple.ca/muditchhura/preapproval" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hidden lg:flex items-center gap-1.5 bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 px-4 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition shadow-sm"
+            >
+              <Zap size={14} className="fill-current" /> Pre-Approval
             </a>
 
-            <button onClick={() => setIsOpen(!isOpen)} className="xl:hidden text-black focus:outline-none">
+            {/* 3. Primary Client Portal */}
+            <Link href="/client/login" className="hidden sm:flex items-center gap-1.5 bg-slate-900 text-white px-5 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-black transition shadow-md">
+              <User size={14} /> Client Login
+            </Link>
+
+            {/* Mobile Menu Toggle */}
+            <button onClick={() => setIsOpen(!isOpen)} className="xl:hidden text-black focus:outline-none ml-2">
               {isOpen ? <X size={28} /> : <Menu size={28} />}
             </button>
           </div>
@@ -219,7 +231,6 @@ const Header: React.FC = () => {
             
             {/* MOBILE PARTNERS SECTION */}
             <div className="space-y-4 pt-4 border-t border-gray-100">
-               {/* THE FIX: Made the parent clickable to /partners */}
                <Link href="/partners" onClick={() => setIsOpen(false)} className="text-xl font-black uppercase tracking-tighter flex items-center gap-4 text-black">
                   <Briefcase size={24} /> Partner Network
                </Link>
@@ -251,13 +262,18 @@ const Header: React.FC = () => {
             </div>
 
             {/* MOBILE CTA GRID */}
-            <div className="grid grid-cols-2 gap-4">
-              <Link href="/contact" onClick={() => setIsOpen(false)} className="bg-white border-2 border-black text-black text-center py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2">
-                <Phone size={16} /> Contact
-              </Link>
-              <a href="https://gopineapple.ca/muditchhura/preapproval" target="_blank" rel="noopener noreferrer" className="bg-black text-white text-center py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2">
-                 <Zap size={16} /> Apply Now
+            <div className="grid grid-cols-1 gap-3 pt-4 border-t border-gray-100">
+              <a href="https://gopineapple.ca/muditchhura/preapproval" target="_blank" rel="noopener noreferrer" className="bg-blue-600 text-white text-center py-4 rounded-xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-lg">
+                <Zap size={16} className="fill-white" /> Start Pre-Approval
               </a>
+              <div className="grid grid-cols-2 gap-3">
+                 <Link href="/client/login" onClick={() => setIsOpen(false)} className="bg-slate-900 text-white text-center py-4 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2">
+                    <User size={14} /> Client Portal
+                 </Link>
+                 <Link href="/contact" onClick={() => setIsOpen(false)} className="bg-gray-100 text-slate-900 text-center py-4 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2">
+                   <Phone size={14} /> Contact
+                 </Link>
+              </div>
             </div>
 
           </nav>

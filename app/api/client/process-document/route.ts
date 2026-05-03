@@ -59,11 +59,8 @@ export async function POST(req: NextRequest) {
         metadata: { metadata: { leadId } }
     });
 
-    // Generate a secure download URL
-    const [downloadUrl] = await fileRef.getSignedUrl({
-        action: 'read',
-        expires: '01-01-2027' 
-    });
+    // THE FIX: Do NOT generate a signed URL here. 
+    // Save the raw 'filePath' so we can generate fresh URLs dynamically on load.
 
     // =================================================================
     // 3. UPDATE THE CRM
@@ -91,7 +88,7 @@ export async function POST(req: NextRequest) {
                 fileName,
                 mimeType,
                 documentType: aiSummary.documentType,
-                downloadUrl: downloadUrl,
+                storagePath: filePath, // <-- SAVING RAW PATH INSTEAD OF DYING URL
                 requirementName: requirementName || 'Additional Upload', 
                 uploadedAt: new Date().toISOString()
             })

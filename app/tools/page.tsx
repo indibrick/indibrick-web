@@ -134,6 +134,21 @@ export default function ToolsPage() {
                     Launch Tool <ArrowRight size={14}/>
                  </div>
               </Link>
+              
+              {/* HST Rebate Calculator (NEW) */}
+              <Link href="/hst-rebate-calculator" className="group bg-white rounded-[2rem] p-8 border border-gray-100 hover:border-black hover:shadow-2xl transition duration-300 flex flex-col h-full relative overflow-hidden">
+                 <div className="absolute top-6 right-6 bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest animate-pulse">
+                    New Builder
+                 </div>
+                 <div className="mb-6 flex justify-between items-start">
+                    <Building2 size={32} className="text-blue-600 group-hover:text-black transition" />
+                 </div>
+                 <h3 className="text-xl font-black uppercase mb-2">HST Rebate Calculator</h3>
+                 <p className="text-sm text-gray-500 mb-8 leading-relaxed">Calculate exact New Build & NRRP investor rebates in Ontario. Avoid closing day surprises.</p>
+                 <div className="mt-auto flex items-center gap-2 text-xs font-black uppercase tracking-widest group-hover:gap-4 transition-all">
+                    Launch Tool <ArrowRight size={14}/>
+                 </div>
+              </Link>
 
               {/* 6. Closing Costs */}
               <Link href="/closing-costs-calculator" className="group bg-white rounded-[2rem] p-8 border border-gray-100 hover:border-black hover:shadow-2xl transition duration-300 flex flex-col h-full">

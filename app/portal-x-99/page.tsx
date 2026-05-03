@@ -51,7 +51,7 @@ export default function AdminPage() {
     title: '', slug: '', category: 'Mortgage', imageUrl: '', excerpt: '', content: ''
   });
 
-  // --- AI TRAINER STATES (NEW) ---
+  // --- AI TRAINER STATES ---
   const [uploadMode, setUploadMode] = useState<'text' | 'pdf'>('pdf');
   const [knowledgeSource, setKnowledgeSource] = useState('');
   const [knowledgeText, setKnowledgeText] = useState('');
@@ -59,6 +59,11 @@ export default function AdminPage() {
   const [adminKey, setAdminKey] = useState('');
   const [trainingStatus, setTrainingStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [trainingMessage, setTrainingMessage] = useState('');
+
+  // --- CSV IMPORT STATES ---
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [adminSecretKey, setAdminSecretKey] = useState('');
 
   // --- INIT ---
   useEffect(() => { 
@@ -219,6 +224,38 @@ export default function AdminPage() {
     await publishBlogPost({ ...newPost, author: 'Admin', date: new Date().toISOString(), status: 'published' });
     setNewPost({ title: '', slug: '', category: 'Mortgage', imageUrl: '', excerpt: '', content: '' });
     alert('Article Published!');
+  };
+
+  // --- CSV IMPORT HANDLER ---
+  const handleCsvImport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!csvFile || !adminSecretKey) {
+       alert("Please select a CSV file and enter the Admin Secret Key.");
+       return;
+    }
+
+    setIsImporting(true);
+    try {
+       const text = await csvFile.text();
+       const res = await fetch('/api/admin/bulk-import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ csvData: text, adminKey: adminSecretKey })
+       });
+       
+       const data = await res.json();
+       if (!res.ok) throw new Error(data.error);
+       
+       alert(`Success: ${data.message}`);
+       setCsvFile(null);
+       setAdminSecretKey('');
+       refreshLeads(); 
+       loadAllData();
+    } catch (err: any) {
+       alert(`Import Failed: ${err.message}`);
+    } finally {
+       setIsImporting(false);
+    }
   };
 
   // --- AI TRAINER HANDLERS ---
@@ -396,38 +433,63 @@ export default function AdminPage() {
         )}
 
         {activeTab === 'leads' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-             <table className="w-full text-left text-sm">
-               <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 uppercase text-xs">
-                 <tr><th className="p-4">Date</th><th className="p-4">Lead Info</th><th className="p-4">Service</th><th className="p-4">Status</th><th className="p-4">Actions</th></tr>
-               </thead>
-               <tbody className="divide-y divide-gray-100">
-                 {leads.map(lead => (
-                   <tr key={lead.id} className="hover:bg-slate-50 transition">
-                     <td className="p-4 text-gray-500 text-xs">{new Date(lead.date).toLocaleDateString()}</td>
-                     <td className="p-4">
-                       <div className="font-bold">{lead.name}</div>
-                       <div className="text-xs text-gray-500">{lead.phone} • {lead.email}</div>
-                     </td>
-                     <td className="p-4"><span className="bg-black text-white px-2 py-1 rounded-full text-[10px] font-bold uppercase">{lead.serviceNeeded}</span></td>
-                     <td className="p-4">
-                       <select value={lead.status} onChange={(e) => handleLeadStatusUpdate(lead.id, e.target.value)} className="p-2 rounded-lg text-xs font-bold uppercase border outline-none cursor-pointer">
-                         <option value="new">New</option><option value="contacted">Contacted</option><option value="closed">Closed</option>
-                       </select>
-                     </td>
-                     <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <select className="bg-white border border-gray-200 text-gray-700 rounded-lg p-2 text-xs font-bold outline-none w-32 cursor-pointer hover:border-black transition" onChange={(e) => handleTransferToPartner(lead, e.target.value)} defaultValue="">
-                             <option value="" disabled>Transfer...</option>
-                             {externalPartners.map(p => <option key={p.uid} value={p.uid}>{p.displayName}</option>)}
-                          </select>
-                          <button onClick={() => handleLeadDelete(lead.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"><Trash2 size={16}/></button>
-                        </div>
-                     </td>
-                   </tr>
-                 ))}
-               </tbody>
-             </table>
+          <div className="space-y-6">
+             
+             {/* CSV UPLOAD WIDGET */}
+             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                <h3 className="font-black text-lg mb-2 flex items-center gap-2"><UploadCloud size={18}/> Bulk Import Leads</h3>
+                <p className="text-xs text-gray-500 mb-4">Upload a .CSV file with exact headers: <code className="bg-gray-100 px-1 rounded">Name, Phone, Email, Service, City, Notes</code></p>
+                <form onSubmit={handleCsvImport} className="flex flex-col md:flex-row items-center gap-4">
+                   <input 
+                      type="file" accept=".csv" required 
+                      onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                      className="text-sm w-full md:w-auto file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-black file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                   />
+                   <input 
+                      type="password" required placeholder="Admin Secret Key" 
+                      value={adminSecretKey} onChange={(e) => setAdminSecretKey(e.target.value)}
+                      className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 text-sm font-bold outline-none focus:border-black w-full md:w-auto"
+                   />
+                   <button disabled={isImporting || !csvFile} className="bg-black text-white px-6 py-2 rounded-lg font-bold uppercase text-xs disabled:opacity-50 hover:bg-gray-800 transition w-full md:w-auto">
+                      {isImporting ? 'Importing...' : 'Upload CSV'}
+                   </button>
+                </form>
+             </div>
+
+             {/* EXISTING LEADS TABLE */}
+             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+               <table className="w-full text-left text-sm">
+                 <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 uppercase text-xs">
+                   <tr><th className="p-4">Date</th><th className="p-4">Lead Info</th><th className="p-4">Service</th><th className="p-4">Status</th><th className="p-4">Actions</th></tr>
+                 </thead>
+                 <tbody className="divide-y divide-gray-100">
+                   {leads.map(lead => (
+                     <tr key={lead.id} className="hover:bg-slate-50 transition">
+                       <td className="p-4 text-gray-500 text-xs">{new Date(lead.date).toLocaleDateString()}</td>
+                       <td className="p-4">
+                         <div className="font-bold">{lead.name}</div>
+                         <div className="text-xs text-gray-500">{lead.phone} • {lead.email}</div>
+                       </td>
+                       <td className="p-4"><span className="bg-black text-white px-2 py-1 rounded-full text-[10px] font-bold uppercase">{lead.serviceNeeded}</span></td>
+                       <td className="p-4">
+                         <select value={lead.status} onChange={(e) => handleLeadStatusUpdate(lead.id, e.target.value)} className="p-2 rounded-lg text-xs font-bold uppercase border outline-none cursor-pointer">
+                           <option value="new">New</option><option value="contacted">Contacted</option><option value="closed">Closed</option>
+                         </select>
+                       </td>
+                       <td className="p-4">
+                          <div className="flex items-center gap-2">
+                            <select className="bg-white border border-gray-200 text-gray-700 rounded-lg p-2 text-xs font-bold outline-none w-32 cursor-pointer hover:border-black transition" onChange={(e) => handleTransferToPartner(lead, e.target.value)} defaultValue="">
+                               <option value="" disabled>Transfer...</option>
+                               {externalPartners.map(p => <option key={p.uid} value={p.uid}>{p.displayName}</option>)}
+                            </select>
+                            <button onClick={() => handleLeadDelete(lead.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"><Trash2 size={16}/></button>
+                          </div>
+                       </td>
+                     </tr>
+                   ))}
+                 </tbody>
+               </table>
+             </div>
           </div>
         )}
 
