@@ -76,6 +76,17 @@ export async function POST(req: NextRequest) {
     }
 
     if (docRef) {
+        const newVaultItem = {
+            fileName,
+            mimeType,
+            documentType: aiSummary.documentType,
+            storagePath: filePath,
+            requirementName: requirementName || 'Additional Upload',
+            uploadedAt: new Date().toISOString(),
+            grossIncome: aiSummary.grossIncome || null,
+            employerName: aiSummary.employerName || null,
+            extractionSummary: aiSummary.summary || null,
+        };
         const newTimelineEntry = {
             type: 'system', author: 'AI Underwriter',
             content: `📄 Document Uploaded: ${fileName}\nType: ${aiSummary.documentType}\nIncome Detected: ${aiSummary.grossIncome || 'N/A'}\nSummary: ${aiSummary.summary}`,
@@ -84,15 +95,68 @@ export async function POST(req: NextRequest) {
 
         await docRef.update({
             timeline: FieldValue.arrayUnion(newTimelineEntry),
-            vault: FieldValue.arrayUnion({
-                fileName,
-                mimeType,
-                documentType: aiSummary.documentType,
-                storagePath: filePath, // <-- SAVING RAW PATH INSTEAD OF DYING URL
-                requirementName: requirementName || 'Additional Upload', 
-                uploadedAt: new Date().toISOString()
-            })
+            vault: FieldValue.arrayUnion(newVaultItem)
         });
+
+        // =================================================================
+        // 4. REFRESH AI DEAL SUMMARY
+        // The deal summary written by the partner intake flow reflects the file as
+        // of intake time. When new documents arrive (paystubs, T4s, NoAs), we re-run
+        // the underwriter prompt with the full vault context so the summary stays
+        // accurate — agents see verified data overwrite the client's stated numbers.
+        // =================================================================
+        try {
+            const freshSnap = await docRef.get();
+            const dealData = freshSnap.data() || {};
+            const fullVault = [...(dealData.vault || []), newVaultItem];
+            const existingSummary = dealData.dealSummary || '';
+            const requiredDocs = dealData.requiredDocuments || [];
+
+            const vaultManifest = fullVault.map((v: any) => {
+                const parts = [`- ${v.documentType || v.fileName}`];
+                if (v.grossIncome) parts.push(`income: ${v.grossIncome}`);
+                if (v.employerName) parts.push(`employer: ${v.employerName}`);
+                if (v.extractionSummary) parts.push(`note: ${v.extractionSummary}`);
+                return parts.join(' | ');
+            }).join('\n');
+
+            const refreshPrompt = `
+You are a Canadian mortgage underwriter. The deal currently has this AI summary:
+--- EXISTING SUMMARY ---
+${existingSummary || '(none yet)'}
+--- DOCUMENTS UPLOADED SO FAR (${fullVault.length} files) ---
+${vaultManifest}
+--- REQUIRED DOCUMENT CHECKLIST (${requiredDocs.length} items) ---
+${requiredDocs.map((d: string) => `- ${d}`).join('\n') || '(none)'}
+
+A new document was just uploaded: ${fileName} (${aiSummary.documentType}).
+
+REWRITE the summary as a concise underwriter assessment (4-8 lines, plain text, no markdown).
+- Keep the existing LTV/GDS/TDS metric block if it was present (mark numbers stale if income from docs differs).
+- Add a "DOCS VERIFIED:" line listing which checklist items are now satisfied.
+- Add a "STILL OUTSTANDING:" line listing checklist items not yet covered.
+- If the uploaded doc's income differs materially from the originally-stated income, FLAG it.
+Output the new summary only — no preamble.`;
+
+            const refreshModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+            const refreshResult = await refreshModel.generateContent(refreshPrompt);
+            const newSummary = refreshResult.response.text().trim();
+
+            if (newSummary) {
+                await docRef.update({
+                    dealSummary: newSummary,
+                    summaryRefreshedAt: new Date().toISOString(),
+                    timeline: FieldValue.arrayUnion({
+                        type: 'system', author: 'AI Underwriter',
+                        content: `♻️ Deal summary auto-refreshed after ${aiSummary.documentType || 'document'} upload.`,
+                        timestamp: new Date().toISOString(), isSystemMessage: true
+                    })
+                });
+            }
+        } catch (refreshErr) {
+            // Non-fatal: doc still saved, only the summary refresh failed
+            console.warn('Deal summary refresh failed:', refreshErr);
+        }
     }
 
     return NextResponse.json({ success: true, aiSummary });

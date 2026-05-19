@@ -136,28 +136,69 @@ export class CRMService {
   static async createReferral(referrer: PartnerProfile, clientData: any) {
     try {
       const timestamp = new Date().toISOString();
-      await addDoc(collection(db, "referrals"), {
+      const payload: any = {
         referrerId: referrer.uid,
         referrerName: referrer.displayName,
-        assignedAgentId: referrer.uid, 
-        assignedAgentName: referrer.displayName,
+        assignedAgentId: clientData.assignedAgentId || referrer.uid,
+        assignedAgentName: clientData.assignedAgentName || referrer.displayName,
         status: 'New',
+        stageEnteredAt: timestamp,
         clientName: clientData.name,
         clientPhone: clientData.phone,
         clientEmail: clientData.email || '',
         referralDate: timestamp,
         notes: clientData.message || '',
+        serviceNeeded: clientData.service || '',
+        loanAmount: Number(clientData.loanAmount || 0),
+        expectedCommission: Number(clientData.expectedCommission || 0),
+        participants: clientData.participants || [],
+        callCount: clientData.callCount || 0,
+        dealCategory: clientData.dealCategory || 'potential',
         timeline: [{
           type: 'system', author: 'System', content: `Lead ingested via ${clientData.type || 'Manual Entry'}.`,
           timestamp: timestamp, isSystemMessage: true
         }],
-        type: clientData.type || 'Manual Entry' 
-      });
-      return { success: true };
+        type: clientData.type || 'Manual Entry'
+      };
+      const ref = await addDoc(collection(db, "referrals"), payload);
+      return { success: true, id: ref.id };
     } catch (error) {
       console.error("CRM Error:", error);
       return { success: false, error };
     }
+  }
+
+  // Auto-create the 5-touch follow-up cadence the moment a lead is captured.
+  // Industry-standard mortgage cadence: Day 0, 1, 3, 7, 14.
+  static async createTouchCadence(referralId: string, clientName: string, assigneeId: string) {
+    if (!assigneeId || assigneeId === 'ADMIN_INBOX') return; // Skip for unassigned leads
+    const today = new Date();
+    const fmt = (offsetDays: number) => {
+        const d = new Date(today);
+        d.setDate(d.getDate() + offsetDays);
+        return d.toISOString().split('T')[0];
+    };
+    const cadence = [
+        { offset: 0,  description: `📞 Day 0: Initial outreach — call ${clientName}` },
+        { offset: 1,  description: `📞 Day 1: Follow-up call/voicemail (SMS if no answer)` },
+        { offset: 3,  description: `✉️ Day 3: Value-add email — rate snapshot + savings illustration` },
+        { offset: 7,  description: `📞 Day 7: Check-in call — uncover blockers` },
+        { offset: 14, description: `📞 Day 14: Final outreach attempt before archiving` },
+    ];
+    const batch = writeBatch(db);
+    const tasksRef = collection(db, "tasks");
+    cadence.forEach(step => {
+        const t = doc(tasksRef);
+        batch.set(t, {
+            referralId, clientName, assigneeId,
+            dueDate: fmt(step.offset),
+            description: step.description,
+            status: 'Pending',
+            cadence: true,
+            createdAt: new Date().toISOString()
+        });
+    });
+    await batch.commit();
   }
 
   static async batchImportLeads(partnerProfile: any, leads: any[]) {
@@ -223,6 +264,7 @@ export class CRMService {
 
       await updateDoc(ref, {
         status: newStatus,
+        stageEnteredAt: new Date().toISOString(),
         timeline: arrayUnion(systemNote),
         lastUpdated: new Date().toISOString()
       });
@@ -250,9 +292,10 @@ export class CRMService {
   static async routeLeadToPartner(referralId: string, currentPartnerName: string, targetPartnerUid: string, targetPartnerName: string) {
     const ref = doc(db, "referrals", referralId);
     await updateDoc(ref, {
-      assignedAgentId: targetPartnerUid, 
+      assignedAgentId: targetPartnerUid,
       assignedAgentName: targetPartnerName,
       status: 'Routed to Partner',
+      stageEnteredAt: new Date().toISOString(),
       lastUpdated: new Date().toISOString(),
       timeline: arrayUnion({
         type: 'system', author: 'Indibrick Routing Engine',
