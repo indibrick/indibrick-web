@@ -156,9 +156,9 @@ export const stalledDealDigest = onSchedule(
       if (!assignee || assignee === "ADMIN_INBOX") return;
 
       const timeline = Array.isArray(r.timeline) ? r.timeline : [];
-      const lastActivityStr = timeline.length > 0
-        ? timeline[timeline.length - 1].timestamp
-        : (r.lastUpdated || r.referralDate);
+      const lastActivityStr = timeline.length > 0 ?
+        timeline[timeline.length - 1].timestamp :
+        (r.lastUpdated || r.referralDate);
       if (!lastActivityStr) return;
       const lastActivityTs = new Date(lastActivityStr).getTime();
       if (isNaN(lastActivityTs)) return;
@@ -195,9 +195,9 @@ export const stalledDealDigest = onSchedule(
             <td style="padding: 10px 8px;">${d.clientPhone ? `<a href="tel:${d.clientPhone}" style="color: #2563eb; font-weight: 700;">${d.clientPhone}</a>` : "—"}</td>
           </tr>`).join("");
 
-        const moreLine = deals.length > 25
-          ? `<p style="color:#64748b; font-size:12px; margin-top:8px;">+${deals.length - 25} more stalled deals not shown.</p>`
-          : "";
+        const moreLine = deals.length > 25 ?
+          `<p style="color:#64748b; font-size:12px; margin-top:8px;">+${deals.length - 25} more stalled deals not shown.</p>` :
+          "";
 
         await db.collection("mail").add({
           to: [email],
