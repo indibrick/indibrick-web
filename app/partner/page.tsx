@@ -697,9 +697,10 @@ export default function PartnerCRM() {
       }
   };
 
-  // Agent confirms — write to CRM and email the client
-  const confirmIntake = async () => {
-      if (!selectedDeal || intakeChecklist.length === 0) return;
+  // Agent confirms — write the AI summary to the CRM. When skipEmail is false we also email
+  // the client the checklist; when true we only persist the summary (+ checklist) on the file.
+  const confirmIntake = async (skipEmail: boolean = false) => {
+      if (!selectedDeal || !intakeSummary.trim()) return;
       setIntakePhase('sending');
       const enriched = buildEnrichedSummary(intakeSummary, intakeFinancials);
       try {
@@ -713,18 +714,21 @@ export default function PartnerCRM() {
                   clientName: selectedDeal.clientName,
                   clientEmail: selectedDeal.clientEmail || '',
                   agentName: fullName,
+                  skipEmail,
               }),
           });
-          if (!res.ok) throw new Error('Failed to send');
+          if (!res.ok) throw new Error('Failed to save');
 
           // Optimistic local update — modal reflects the new summary + required docs immediately
-          setSelectedDeal((prev: any) => prev ? { ...prev, dealSummary: enriched, requiredDocuments: intakeChecklist } : prev);
-          setAllReferrals(prev => prev.map(r => r.id === selectedDeal.id ? { ...r, dealSummary: enriched, requiredDocuments: intakeChecklist } : r));
+          const patch: any = { dealSummary: enriched };
+          if (intakeChecklist.length > 0) patch.requiredDocuments = intakeChecklist;
+          setSelectedDeal((prev: any) => prev ? { ...prev, ...patch } : prev);
+          setAllReferrals(prev => prev.map(r => r.id === selectedDeal.id ? { ...r, ...patch } : r));
 
           setShowIntakeForm(false);
           resetIntakeForm();
       } catch (e) {
-          alert('Could not send intake. Please retry.');
+          alert('Could not save intake. Please retry.');
           setIntakePhase('review');
       }
   };
@@ -2126,21 +2130,33 @@ export default function PartnerCRM() {
                     </div>
 
                     {/* Action bar */}
-                    <div className="flex justify-between items-center mt-auto pt-4 border-t border-gray-200">
+                    <div className="flex flex-col md:flex-row justify-between md:items-end gap-3 mt-auto pt-4 border-t border-gray-200">
                         <button
                             type="button"
                             onClick={() => setIntakePhase('form')}
-                            className="px-6 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-200 transition"
+                            className="px-6 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-200 transition self-start md:self-auto"
                         ><ChevronLeft size={14} className="inline mr-1"/> Back to form</button>
 
-                        <div className="flex flex-col items-end">
-                            {!selectedDeal.clientEmail && <p className="text-[10px] font-bold text-red-600 mb-1 uppercase tracking-widest">No email on file — checklist will save but not be emailed</p>}
-                            <button
-                                type="button"
-                                disabled={intakeChecklist.length === 0 || !intakeSummary.trim()}
-                                onClick={confirmIntake}
-                                className="bg-black text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest text-sm hover:bg-gray-800 transition flex items-center gap-2 shadow-2xl disabled:opacity-40"
-                            ><CheckCircle size={16}/> Confirm & {selectedDeal.clientEmail ? 'Email Client' : 'Save'}</button>
+                        <div className="flex flex-col items-stretch md:items-end gap-2">
+                            {!selectedDeal.clientEmail && <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest md:text-right">No email on file — only "Save to File" is available</p>}
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                {/* Option 1: save the AI summary to the CRM WITHOUT emailing */}
+                                <button
+                                    type="button"
+                                    disabled={!intakeSummary.trim()}
+                                    onClick={() => confirmIntake(true)}
+                                    className="bg-white border-2 border-slate-900 text-slate-900 px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-slate-50 transition flex items-center justify-center gap-2 disabled:opacity-40"
+                                ><Save size={15}/> Save Summary to File</button>
+
+                                {/* Option 2: save AND email the checklist to the client */}
+                                <button
+                                    type="button"
+                                    disabled={intakeChecklist.length === 0 || !intakeSummary.trim() || !selectedDeal.clientEmail}
+                                    onClick={() => confirmIntake(false)}
+                                    title={!selectedDeal.clientEmail ? 'Add a client email to enable emailing' : ''}
+                                    className="bg-black text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-blue-600 transition flex items-center justify-center gap-2 shadow-xl disabled:opacity-40"
+                                ><Mail size={15}/> Save & Email Checklist</button>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -19,11 +19,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Server not initialized' }, { status: 500 });
     }
 
-    const { leadId, summary, checklist, clientName, clientEmail, agentName } = await req.json();
+    const { leadId, summary, checklist, clientName, clientEmail, agentName, skipEmail } = await req.json();
 
-    if (!leadId || !summary || !Array.isArray(checklist) || checklist.length === 0) {
-      return NextResponse.json({ error: 'Missing leadId, summary, or checklist' }, { status: 400 });
+    // checklist is optional when the agent only wants to save the AI summary
+    if (!leadId || !summary) {
+      return NextResponse.json({ error: 'Missing leadId or summary' }, { status: 400 });
     }
+    const safeChecklist: string[] = Array.isArray(checklist) ? checklist : [];
+    const willEmail = !skipEmail && !!clientEmail && safeChecklist.length > 0;
 
     // Locate the referral by leadId field first; fall back to direct doc id (partner-created leads use the doc id)
     const referralsRef = adminDb.collection('referrals');
@@ -41,20 +44,28 @@ export async function POST(req: NextRequest) {
 
     const timestamp = new Date().toISOString();
 
-    await docRef.update({
+    const timelineContent = willEmail
+      ? `🤖 AI Intake completed and emailed to client. ${safeChecklist.length} document${safeChecklist.length === 1 ? '' : 's'} requested.`
+      : `🤖 AI Intake summary saved to file (not emailed).${safeChecklist.length ? ` ${safeChecklist.length} document${safeChecklist.length === 1 ? '' : 's'} on checklist.` : ''}`;
+
+    const updatePayload: any = {
       dealSummary: summary,
-      requiredDocuments: checklist,
       timeline: FieldValue.arrayUnion({
         type: 'system',
         author: agentName || 'AI Underwriter',
-        content: `🤖 AI Intake completed and sent to client. ${checklist.length} document${checklist.length === 1 ? '' : 's'} requested.`,
+        content: timelineContent,
         timestamp,
         isSystemMessage: true,
       }),
       lastUpdated: timestamp,
-    });
+    };
+    // Only persist the checklist as required documents when there is one
+    if (safeChecklist.length > 0) updatePayload.requiredDocuments = safeChecklist;
 
-    if (clientEmail) {
+    await docRef.update(updatePayload);
+
+    if (willEmail) {
+      const checklist = safeChecklist;
       const checklistHtml = checklist
         .map((item: string) => `<li style="margin-bottom: 8px; color: #1e293b;">${item}</li>`)
         .join('');
@@ -89,7 +100,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ success: true, emailed: !!clientEmail });
+    return NextResponse.json({ success: true, emailed: willEmail });
   } catch (error: any) {
     console.error('intake-send error:', error);
     return NextResponse.json({ error: error.message || 'Internal error' }, { status: 500 });
