@@ -6,27 +6,31 @@ import { CRMService } from '../../services/CRMService';
 import { PropertyService } from '../../services/PropertyService';
 import { LeadService } from '../../services/LeadService';
 import { Referral, Property, Lead } from '../../types';
-import { 
-  Lock, LogOut, Users, FileText, Settings, Plus, Trash2, RefreshCw, 
-  Briefcase, ArrowRightCircle, ArrowUpRight, ArrowDownLeft, 
-  Home, Edit2, X, MessageSquare, Send, UserPlus, BrainCircuit, Database, UploadCloud 
+import {
+  Lock, LogOut, Users, FileText, Settings, Plus, Trash2, RefreshCw,
+  Briefcase, ArrowRightCircle, ArrowUpRight, ArrowDownLeft,
+  Home, Edit2, X, MessageSquare, Send, UserPlus, BrainCircuit, Database, UploadCloud,
+  Sparkles, Loader2, Image as ImageIcon, CheckCircle
 } from 'lucide-react';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage, auth, db } from '../../firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 export default function AdminPage() {
-  const { 
-    isAuthenticated, login, verifyOtp, logout, 
-    leads, refreshLeads, 
+  const {
+    login, logout, loadingAuth,
+    leads, refreshLeads,
     blogPosts, publishBlogPost, deleteBlogPost,
-    user 
+    user
   } = useAdmin();
-  
+
   // --- AUTH ---
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [otp, setOtp] = useState('');
-  const [step, setStep] = useState<'login' | 'otp' | 'dashboard'>('login');
+  const [step, setStep] = useState<'login' | 'verifying' | 'dashboard'>('login');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [adminName, setAdminName] = useState('Admin'); // publisher identity for attribution
   
   // --- TABS ---
   const [activeTab, setActiveTab] = useState('inventory');
@@ -50,6 +54,15 @@ export default function AdminPage() {
   const [newPost, setNewPost] = useState({
     title: '', slug: '', category: 'Mortgage', imageUrl: '', excerpt: '', content: ''
   });
+  const [seoGenerating, setSeoGenerating] = useState(false);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [articleGenerating, setArticleGenerating] = useState(false);
+  const [articleNotes, setArticleNotes] = useState('');
+  // When editing an existing post we lock these so the slug (doc id) stays stable and the original author/date are preserved
+  const [editing, setEditing] = useState<{ slug: string; author: string; date: string } | null>(null);
+  // Reused for the property/listing modal image upload
+  const [listingUploading, setListingUploading] = useState(false);
 
   // --- AI TRAINER STATES ---
   const [uploadMode, setUploadMode] = useState<'text' | 'pdf'>('pdf');
@@ -65,13 +78,35 @@ export default function AdminPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [adminSecretKey, setAdminSecretKey] = useState('');
 
-  // --- INIT ---
-  useEffect(() => { 
-    if (isAuthenticated) {
-      setStep('dashboard');
-      loadAllData();
-    }
-  }, [isAuthenticated]);
+  // --- INIT / ADMIN GATE ---
+  // Verifies the signed-in user has role 'admin' in the users collection. Runs on login
+  // and on page refresh (session restore). Non-admins are signed out immediately.
+  useEffect(() => {
+    if (loadingAuth) return;
+    if (!user) { setStep('login'); return; }
+
+    let active = true;
+    setStep('verifying');
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, 'users', user.uid));
+        const data: any = snap.exists() ? snap.data() : null;
+        if (!active) return;
+        if (data?.role === 'admin') {
+          setAdminName(data.displayName || user.displayName || user.email || 'Admin');
+          setStep('dashboard');
+          loadAllData();
+        } else {
+          setError('Access denied — this portal is restricted to admin accounts.');
+          await logout();
+          setStep('login');
+        }
+      } catch (e) {
+        if (active) { setError('Could not verify access. Try again.'); setStep('login'); }
+      }
+    })();
+    return () => { active = false; };
+  }, [user, loadingAuth]);
 
   const loadAllData = async () => {
     setLoading(true);
@@ -219,11 +254,159 @@ export default function AdminPage() {
     }
   };
 
-  const handlePublish = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await publishBlogPost({ ...newPost, author: 'Admin', date: new Date().toISOString(), status: 'published' });
+  // Local slugify mirror of the server sanitizer — keeps client + server consistent
+  const slugify = (s: string) => String(s || '').toLowerCase().trim()
+    .replace(/<[^>]*>/g, '').replace(/['"]/g, '')
+    .replace(/[^a-z0-9\s-]/g, ' ').replace(/\s+/g, '-')
+    .replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 70).replace(/-$/, '');
+
+  // Posts are keyed by slug (doc id), so guarantee uniqueness against existing posts
+  const uniqueSlug = (base: string) => {
+    let slug = slugify(base) || `post-${Date.now()}`;
+    const existing = new Set(blogPosts.map((p: any) => p.slug));
+    if (!existing.has(slug)) return slug;
+    let n = 2;
+    while (existing.has(`${slug}-${n}`)) n++;
+    return `${slug}-${n}`;
+  };
+
+  // Ask the AI for a slug + excerpt from the title/content the agent already typed
+  const generateSeo = async (): Promise<{ slug: string; excerpt: string } | null> => {
+    if (!newPost.title.trim() && !newPost.content.trim()) {
+      alert('Add a title and some content first.');
+      return null;
+    }
+    setSeoGenerating(true);
+    try {
+      const res = await fetch('/api/admin/generate-seo', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newPost.title, content: newPost.content, category: newPost.category }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to generate');
+      const slug = uniqueSlug(data.slug || newPost.title);
+      const excerpt = data.excerpt || '';
+      setNewPost(prev => ({ ...prev, slug, excerpt }));
+      return { slug, excerpt };
+    } catch (err: any) {
+      alert(err.message || 'SEO generation failed.');
+      return null;
+    } finally {
+      setSeoGenerating(false);
+    }
+  };
+
+  // Upload a listing photo to Firebase Storage and set it on the current listing
+  const handleListingUpload = async (file: File) => {
+    if (!file || !file.type.startsWith('image/')) { alert('Please choose an image file.'); return; }
+    setListingUploading(true);
+    try {
+      const path = `listings/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const r = storageRef(storage, path);
+      await uploadBytes(r, file);
+      const url = await getDownloadURL(r);
+      setCurrentListing(prev => ({ ...prev, imageUrl: url }));
+    } catch (err: any) {
+      alert('Image upload failed: ' + (err.message || 'unknown error') + '\nYou can paste an image URL instead.');
+    } finally {
+      setListingUploading(false);
+    }
+  };
+
+  // Upload a cover image straight to Firebase Storage and store the permanent download URL
+  const handleCoverUpload = async (file: File) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { alert('Please choose an image file.'); return; }
+    setCoverUploading(true);
+    try {
+      const path = `blog/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const r = storageRef(storage, path);
+      await uploadBytes(r, file);
+      const url = await getDownloadURL(r);
+      setNewPost(prev => ({ ...prev, imageUrl: url }));
+    } catch (err: any) {
+      alert('Image upload failed: ' + (err.message || 'unknown error') + '\nYou can paste an image URL instead.');
+    } finally {
+      setCoverUploading(false);
+    }
+  };
+
+  // Ask the AI to draft a full HTML article body from the title + a few bullet points
+  const generateArticle = async () => {
+    if (!newPost.title.trim()) { alert('Add a title first so the AI knows the topic.'); return; }
+    setArticleGenerating(true);
+    try {
+      const res = await fetch('/api/admin/generate-article', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newPost.title, notes: articleNotes, category: newPost.category }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to draft article');
+      setNewPost(prev => ({ ...prev, content: data.content || prev.content }));
+    } catch (err: any) {
+      alert(err.message || 'Article generation failed.');
+    } finally {
+      setArticleGenerating(false);
+    }
+  };
+
+  const loadPostForEdit = (post: any) => {
+    setEditing({ slug: post.slug, author: post.author || adminName, date: post.date || new Date().toISOString() });
+    setNewPost({
+      title: post.title || '',
+      slug: post.slug || '',
+      category: post.category || 'Mortgage',
+      imageUrl: post.imageUrl || '',
+      excerpt: post.excerpt || '',
+      content: post.content || '',
+    });
+    setArticleNotes('');
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEdit = () => {
+    setEditing(null);
     setNewPost({ title: '', slug: '', category: 'Mortgage', imageUrl: '', excerpt: '', content: '' });
-    alert('Article Published!');
+    setArticleNotes('');
+  };
+
+  // status: 'published' saves live; 'draft' keeps it out of the public feed
+  const savePost = async (status: 'published' | 'draft') => {
+    if (!newPost.title.trim() || !newPost.content.trim()) {
+      alert('Title and content are required.');
+      return;
+    }
+    setPublishing(true);
+    try {
+      // Auto-fill SEO if the agent didn't generate it manually
+      let slug = newPost.slug;
+      let excerpt = newPost.excerpt;
+      if (!slug.trim() || !excerpt.trim()) {
+        const seo = await generateSeo();
+        if (seo) { slug = seo.slug; excerpt = seo.excerpt; }
+      }
+
+      // Editing keeps the original slug (doc id) stable; new posts get a unique slug
+      slug = editing ? editing.slug : uniqueSlug(slug || newPost.title);
+
+      await publishBlogPost({
+        ...newPost,
+        slug,
+        excerpt,
+        author: editing ? editing.author : adminName,
+        date: editing ? editing.date : new Date().toISOString(),
+        status,
+      });
+
+      setNewPost({ title: '', slug: '', category: 'Mortgage', imageUrl: '', excerpt: '', content: '' });
+      setArticleNotes('');
+      setEditing(null);
+      alert(status === 'published' ? (editing ? 'Article updated!' : 'Article published!') : 'Draft saved.');
+    } catch (err: any) {
+      alert('Save failed: ' + (err.message || 'unknown error'));
+    } finally {
+      setPublishing(false);
+    }
   };
 
   // --- CSV IMPORT HANDLER ---
@@ -313,9 +496,17 @@ export default function AdminPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    try { await login(username, password); setStep('otp'); } catch (err) { setError('Access Denied'); }
+    setError('');
+    setLoading(true);
+    try {
+      // The admin-gate useEffect handles role verification + dashboard transition once auth state updates
+      await login(username, password);
+    } catch (err) {
+      setError('Invalid email or password.');
+    } finally {
+      setLoading(false);
+    }
   };
-  const handleOtp = (e: React.FormEvent) => { e.preventDefault(); if (verifyOtp(otp)) { setStep('dashboard'); loadAllData(); } else setError('Invalid OTP'); };
 
   if (step !== 'dashboard') {
     return (
@@ -323,17 +514,22 @@ export default function AdminPage() {
         <div className="bg-white p-10 rounded-2xl w-full max-w-md text-center">
           <Lock className="w-12 h-12 mx-auto mb-4" />
           <h1 className="text-2xl font-black uppercase">IndiBrick OS</h1>
-          {step === 'login' ? (
-             <form onSubmit={handleLogin} className="mt-6 space-y-4">
-               <input type="email" placeholder="Email" className="w-full p-4 bg-gray-50 rounded-xl" value={username} onChange={e => setUsername(e.target.value)} />
-               <input type="password" placeholder="Password" className="w-full p-4 bg-gray-50 rounded-xl" value={password} onChange={e => setPassword(e.target.value)} />
-               <button className="w-full bg-black text-white py-4 rounded-xl font-bold uppercase">Login</button>
-             </form>
+          <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Admin Access Only</p>
+
+          {step === 'verifying' || loadingAuth ? (
+            <div className="mt-8 flex flex-col items-center gap-3 text-gray-500">
+              <Loader2 className="animate-spin" size={24} />
+              <p className="text-sm font-bold">Verifying access…</p>
+            </div>
           ) : (
-             <form onSubmit={handleOtp} className="mt-6">
-               <input placeholder="OTP" className="w-full p-4 bg-gray-50 rounded-xl text-center text-xl" value={otp} onChange={e => setOtp(e.target.value)} />
-               <button className="w-full bg-black text-white py-4 rounded-xl font-bold uppercase mt-4">Verify</button>
-             </form>
+            <form onSubmit={handleLogin} className="mt-6 space-y-4">
+              <input type="email" required placeholder="Email" className="w-full p-4 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-black" value={username} onChange={e => setUsername(e.target.value)} />
+              <input type="password" required placeholder="Password" className="w-full p-4 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-black" value={password} onChange={e => setPassword(e.target.value)} />
+              {error && <p className="text-red-600 text-xs font-bold bg-red-50 py-2 px-3 rounded-lg">{error}</p>}
+              <button disabled={loading} className="w-full bg-black text-white py-4 rounded-xl font-bold uppercase disabled:opacity-50 flex items-center justify-center gap-2">
+                {loading ? <><Loader2 size={16} className="animate-spin"/> Signing in…</> : 'Login'}
+              </button>
+            </form>
           )}
         </div>
       </div>
@@ -577,27 +773,102 @@ export default function AdminPage() {
         {activeTab === 'content' && (
            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
-                 <h3 className="font-black text-xl mb-6 flex items-center gap-2"><Plus size={20} /> New Article</h3>
-                 <form onSubmit={handlePublish} className="space-y-4">
-                    <input required type="text" placeholder="Title" value={newPost.title} onChange={e => setNewPost({...newPost, title: e.target.value})} className="w-full p-4 bg-gray-50 rounded-xl border border-gray-200 outline-none font-bold" />
-                    <div className="grid grid-cols-2 gap-4">
-                       <input required type="text" placeholder="Slug" value={newPost.slug} onChange={e => setNewPost({...newPost, slug: e.target.value})} className="w-full p-4 bg-gray-50 rounded-xl border border-gray-200 outline-none text-xs font-mono" />
-                       <select value={newPost.category} onChange={e => setNewPost({...newPost, category: e.target.value})} className="w-full p-4 bg-gray-50 rounded-xl border border-gray-200 outline-none font-bold">
-                          <option>Mortgage</option><option>Real Estate</option><option>Investment</option><option>Insurance</option>
-                       </select>
+                 <div className="flex items-center justify-between mb-1">
+                    <h3 className="font-black text-xl flex items-center gap-2">{editing ? <><Edit2 size={20}/> Edit Article</> : <><Plus size={20} /> New Article</>}</h3>
+                    {editing && <button type="button" onClick={cancelEdit} className="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-black">Cancel Edit</button>}
+                 </div>
+                 <p className="text-xs text-gray-500 mb-6">{editing ? `Editing "${editing.slug}" — slug stays the same to preserve the URL.` : 'Add a title, content and a cover image — AI writes the SEO slug + excerpt for you.'}</p>
+                 <form onSubmit={(e) => { e.preventDefault(); savePost('published'); }} className="space-y-4">
+
+                    {/* 1. The stuff the agent actually writes */}
+                    <input required type="text" placeholder="Article Title" value={newPost.title} onChange={e => setNewPost({...newPost, title: e.target.value})} className="w-full p-4 bg-gray-50 rounded-xl border border-gray-200 outline-none font-bold" />
+
+                    <select value={newPost.category} onChange={e => setNewPost({...newPost, category: e.target.value})} className="w-full p-4 bg-gray-50 rounded-xl border border-gray-200 outline-none font-bold">
+                       <option>Mortgage</option><option>Real Estate</option><option>Investment</option><option>Insurance</option>
+                    </select>
+
+                    {/* AI article drafting — title + a few notes -> full HTML body */}
+                    <div className="bg-purple-50 border border-purple-100 rounded-xl p-4 space-y-2">
+                       <span className="text-[10px] font-black uppercase tracking-widest text-purple-800 flex items-center gap-1.5"><Sparkles size={12}/> Draft with AI (optional)</span>
+                       <textarea placeholder="Jot a few bullet points you want covered (optional), then let AI write the full article…" rows={2} value={articleNotes} onChange={e => setArticleNotes(e.target.value)} className="w-full p-3 bg-white rounded-lg border border-purple-200 outline-none text-sm resize-none" />
+                       <button type="button" onClick={generateArticle} disabled={articleGenerating} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition disabled:opacity-50">
+                          {articleGenerating ? <><Loader2 size={14} className="animate-spin"/> Writing article…</> : <><Sparkles size={14}/> {newPost.content.trim() ? 'Rewrite Article with AI' : 'Write Article with AI'}</>}
+                       </button>
                     </div>
-                    <input type="text" placeholder="Cover Image URL" value={newPost.imageUrl} onChange={e => setNewPost({...newPost, imageUrl: e.target.value})} className="w-full p-4 bg-gray-50 rounded-xl border border-gray-200 outline-none text-xs" />
-                    <textarea required placeholder="SEO Excerpt" rows={2} value={newPost.excerpt} onChange={e => setNewPost({...newPost, excerpt: e.target.value})} className="w-full p-4 bg-gray-50 rounded-xl border border-gray-200 outline-none text-sm"></textarea>
-                    <textarea required placeholder="Content (HTML)" rows={8} value={newPost.content} onChange={e => setNewPost({...newPost, content: e.target.value})} className="w-full p-4 bg-gray-50 rounded-xl border border-gray-200 outline-none font-mono text-sm"></textarea>
-                    <button className="w-full bg-black text-white py-4 rounded-xl font-black uppercase hover:bg-gray-800">Publish</button>
+
+                    <textarea required placeholder="Content (HTML or plain text) — or generate it above" rows={8} value={newPost.content} onChange={e => setNewPost({...newPost, content: e.target.value})} className="w-full p-4 bg-gray-50 rounded-xl border border-gray-200 outline-none font-mono text-sm"></textarea>
+
+                    {/* 2. Cover image: upload OR paste URL */}
+                    <div>
+                       <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 block">Cover Image</label>
+                       <div className="flex items-center gap-3">
+                          <div className="w-20 h-20 rounded-xl bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
+                             {newPost.imageUrl ? <img src={newPost.imageUrl} className="w-full h-full object-cover" /> : <ImageIcon size={20} className="text-gray-300" />}
+                          </div>
+                          <div className="flex-1 space-y-2">
+                             <label className="block">
+                                <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest cursor-pointer transition ${coverUploading ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}>
+                                   {coverUploading ? <Loader2 size={14} className="animate-spin"/> : <UploadCloud size={14}/>}
+                                   {coverUploading ? 'Uploading…' : 'Upload Image'}
+                                </span>
+                                <input type="file" accept="image/*" disabled={coverUploading} onChange={e => { const f = e.target.files?.[0]; if (f) handleCoverUpload(f); }} className="hidden" />
+                             </label>
+                             <input type="text" placeholder="…or paste an image URL" value={newPost.imageUrl} onChange={e => setNewPost({...newPost, imageUrl: e.target.value})} className="w-full p-2.5 bg-gray-50 rounded-lg border border-gray-200 outline-none text-xs" />
+                          </div>
+                       </div>
+                    </div>
+
+                    {/* 3. AI SEO block */}
+                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-3">
+                       <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-blue-800 flex items-center gap-1.5"><Sparkles size={12}/> SEO (auto-generated)</span>
+                          <button type="button" onClick={generateSeo} disabled={seoGenerating} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 transition disabled:opacity-50">
+                             {seoGenerating ? <Loader2 size={12} className="animate-spin"/> : <Sparkles size={12}/>}
+                             {seoGenerating ? 'Generating…' : (newPost.slug ? 'Regenerate' : 'Generate SEO')}
+                          </button>
+                       </div>
+                       <div>
+                          <label className="text-[9px] font-bold uppercase tracking-widest text-blue-700/70 mb-1 block">URL Slug</label>
+                          <div className="flex items-center gap-1 bg-white rounded-lg border border-blue-200 px-3 py-2">
+                             <span className="text-[11px] font-mono text-gray-400 shrink-0">/blog/</span>
+                             <input type="text" placeholder="auto-generated on publish" value={newPost.slug} onChange={e => setNewPost({...newPost, slug: slugify(e.target.value)})} className="flex-1 bg-transparent outline-none text-xs font-mono text-slate-900" />
+                          </div>
+                       </div>
+                       <div>
+                          <label className="text-[9px] font-bold uppercase tracking-widest text-blue-700/70 mb-1 block">Meta Excerpt <span className="text-blue-700/50">({newPost.excerpt.length}/160)</span></label>
+                          <textarea placeholder="auto-generated on publish" rows={2} value={newPost.excerpt} onChange={e => setNewPost({...newPost, excerpt: e.target.value})} className="w-full p-3 bg-white rounded-lg border border-blue-200 outline-none text-sm"></textarea>
+                       </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                       <button type="button" onClick={() => savePost('draft')} disabled={publishing || seoGenerating} className="flex-1 bg-white border-2 border-slate-900 text-slate-900 py-3.5 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-gray-50 transition flex items-center justify-center gap-2 disabled:opacity-50">
+                          <FileText size={15}/> Save Draft
+                       </button>
+                       <button type="submit" disabled={publishing || seoGenerating} className="flex-1 bg-black text-white py-3.5 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-gray-800 transition flex items-center justify-center gap-2 disabled:opacity-50">
+                          {publishing ? <><Loader2 size={15} className="animate-spin"/> Saving…</> : <><CheckCircle size={15}/> {editing ? 'Update & Publish' : 'Publish'}</>}
+                       </button>
+                    </div>
+                    <p className="text-[10px] text-gray-400 text-center">No SEO yet? Saving will auto-generate the slug + excerpt first.</p>
                  </form>
               </div>
-              <div className="space-y-4">
-                 <h3 className="font-bold text-lg">Live Articles</h3>
-                 {blogPosts.map(post => (
-                    <div key={post.id} className="bg-white p-4 rounded-xl border border-gray-100 flex justify-between items-center">
-                       <span className="font-bold text-sm">{post.title}</span>
-                       <button onClick={() => deleteBlogPost(post.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
+              <div className="space-y-3">
+                 <h3 className="font-bold text-lg">All Articles ({blogPosts.length})</h3>
+                 {blogPosts.length === 0 && <p className="text-sm text-gray-400 bg-white p-4 rounded-xl border border-gray-100">No articles yet.</p>}
+                 {blogPosts.map((post: any) => (
+                    <div key={post.id} className="bg-white p-4 rounded-xl border border-gray-100 flex justify-between items-center gap-3">
+                       <div className="min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                             <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${post.status === 'draft' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>{post.status === 'draft' ? 'Draft' : 'Live'}</span>
+                             <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400">{post.category}</span>
+                          </div>
+                          <p className="font-bold text-sm text-slate-900 truncate">{post.title}</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">By {post.author || 'Admin'} · {post.date ? new Date(post.date).toLocaleDateString() : ''}</p>
+                       </div>
+                       <div className="flex items-center gap-1.5 shrink-0">
+                          <a href={`/blog/${post.slug}`} target="_blank" rel="noopener noreferrer" className="p-2 bg-gray-100 rounded-lg hover:bg-black hover:text-white transition" title="View"><ArrowUpRight size={14}/></a>
+                          <button onClick={() => loadPostForEdit(post)} className="p-2 bg-gray-100 rounded-lg hover:bg-black hover:text-white transition" title="Edit"><Edit2 size={14}/></button>
+                          <button onClick={() => { if (confirm('Delete this article?')) deleteBlogPost(post.id); }} className="p-2 bg-red-50 text-red-500 rounded-lg hover:bg-red-600 hover:text-white transition" title="Delete"><Trash2 size={14}/></button>
+                       </div>
                     </div>
                  ))}
               </div>
@@ -780,8 +1051,22 @@ export default function AdminPage() {
                 <input className="w-full bg-gray-50 p-3 rounded-lg font-bold outline-none" value={currentListing.city} onChange={e => setCurrentListing({...currentListing, city: e.target.value})} />
               </div>
               <div className="md:col-span-2">
-                <label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Image URL</label>
-                <input className="w-full bg-gray-50 p-3 rounded-lg font-bold outline-none text-xs" value={currentListing.imageUrl} onChange={e => setCurrentListing({...currentListing, imageUrl: e.target.value})} />
+                <label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Property Photo</label>
+                <div className="flex items-center gap-3">
+                   <div className="w-20 h-20 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
+                      {currentListing.imageUrl ? <img src={currentListing.imageUrl} className="w-full h-full object-cover" /> : <ImageIcon size={20} className="text-gray-300" />}
+                   </div>
+                   <div className="flex-1 space-y-2">
+                      <label className="block">
+                         <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest cursor-pointer transition ${listingUploading ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}>
+                            {listingUploading ? <Loader2 size={14} className="animate-spin"/> : <UploadCloud size={14}/>}
+                            {listingUploading ? 'Uploading…' : 'Upload Photo'}
+                         </span>
+                         <input type="file" accept="image/*" disabled={listingUploading} onChange={e => { const f = e.target.files?.[0]; if (f) handleListingUpload(f); }} className="hidden" />
+                      </label>
+                      <input className="w-full bg-gray-50 p-2.5 rounded-lg outline-none text-xs" placeholder="…or paste an image URL" value={currentListing.imageUrl} onChange={e => setCurrentListing({...currentListing, imageUrl: e.target.value})} />
+                   </div>
+                </div>
               </div>
               <div className="md:col-span-2 pt-4 flex gap-4">
                 <button type="button" onClick={() => setShowListingModal(false)} className="flex-1 py-4 font-bold text-gray-500 hover:bg-gray-50 rounded-xl transition">Cancel</button>

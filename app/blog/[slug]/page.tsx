@@ -123,15 +123,20 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
 
   const activeTool = getContextualTool(post.slug, post.category);
 
+  const authorName = post.author || 'IndiBrick Research';
   const articleSchema = {
     '@context': 'https://schema.org',
     '@type': 'BlogPosting',
     headline: post.title,
     image: post.imageUrl,
     datePublished: post.date,
-    author: { '@type': 'Organization', name: 'IndiBrick Financial' },
+    author: { '@type': 'Person', name: authorName },
+    publisher: { '@type': 'Organization', name: 'IndiBrick Financial' },
     description: post.excerpt
   };
+
+  // Initials for the byline avatar
+  const authorInitials = authorName.split(/\s+/).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() || 'IB';
 
   // 🔒 SECURE & SCALABLE: Sanitize content natively. Preserves styling, drops malicious scripts.
   const cleanHTML = sanitizeHtml(post.content, {
@@ -177,10 +182,10 @@ export default async function BlogPostPage({ params }: { params: { slug: string 
 
             <div className="flex flex-wrap items-center gap-6 text-sm border-t border-gray-100 pt-6">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-slate-900 rounded-full flex items-center justify-center text-white font-bold">IB</div>
+                    <div className="w-10 h-10 bg-slate-900 rounded-full flex items-center justify-center text-white font-bold">{authorInitials}</div>
                     <div>
-                        <p className="font-bold text-slate-900 leading-tight">IndiBrick Research</p>
-                        <p className="text-gray-500 text-xs">Financial Strategy Team</p>
+                        <p className="font-bold text-slate-900 leading-tight">{authorName}</p>
+                        <p className="text-gray-500 text-xs">IndiBrick Financial</p>
                     </div>
                 </div>
                 <div className="h-8 w-px bg-gray-200 hidden sm:block"></div>

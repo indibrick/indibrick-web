@@ -23,9 +23,12 @@ export const dynamic = 'force-dynamic';
 export default async function KnowledgeHubPage() {
   // --- 2. DATA FETCHING & SORTING ---
   const allPosts = await ContentService.fetchPosts();
-  
+
+  // Only show published posts publicly (legacy posts have no status field → treated as published)
+  const publishedPosts = allPosts.filter((p: any) => p.status !== 'draft');
+
   // Sort all posts by date, newest first (Chronological Feed)
-  const sortedPosts = allPosts.sort((a, b) => {
+  const sortedPosts = publishedPosts.sort((a, b) => {
       const dateA = new Date(a.date).getTime();
       const dateB = new Date(b.date).getTime();
       return dateB - dateA;

@@ -19,14 +19,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Server not initialized' }, { status: 500 });
     }
 
-    const { leadId, summary, checklist, clientName, clientEmail, agentName, skipEmail } = await req.json();
+    const { leadId, summary, crmSummary, checklist, clientName, clientEmail, agentName, skipEmail } = await req.json();
 
-    // checklist is optional when the agent only wants to save the AI summary
+    // summary = plain PURPOSE/PROFILE/INCOME/CREDIT recap (emailed to client for confirmation)
+    // crmSummary = same recap enriched with internal risk band + LTV/GDS/TDS (saved to the deal, internal only)
     if (!leadId || !summary) {
       return NextResponse.json({ error: 'Missing leadId or summary' }, { status: 400 });
     }
     const safeChecklist: string[] = Array.isArray(checklist) ? checklist : [];
-    const willEmail = !skipEmail && !!clientEmail && safeChecklist.length > 0;
+    // The client email is a data-confirmation message — it does not require a checklist
+    const willEmail = !skipEmail && !!clientEmail;
 
     // Locate the referral by leadId field first; fall back to direct doc id (partner-created leads use the doc id)
     const referralsRef = adminDb.collection('referrals');
@@ -45,11 +47,12 @@ export async function POST(req: NextRequest) {
     const timestamp = new Date().toISOString();
 
     const timelineContent = willEmail
-      ? `🤖 AI Intake completed and emailed to client. ${safeChecklist.length} document${safeChecklist.length === 1 ? '' : 's'} requested.`
-      : `🤖 AI Intake summary saved to file (not emailed).${safeChecklist.length ? ` ${safeChecklist.length} document${safeChecklist.length === 1 ? '' : 's'} on checklist.` : ''}`;
+      ? `🤖 AI Intake summary emailed to client for confirmation.${safeChecklist.length ? ` ${safeChecklist.length} document${safeChecklist.length === 1 ? '' : 's'} on internal checklist.` : ''}`
+      : `🤖 AI Intake summary saved to file (not emailed).${safeChecklist.length ? ` ${safeChecklist.length} document${safeChecklist.length === 1 ? '' : 's'} on internal checklist.` : ''}`;
 
     const updatePayload: any = {
-      dealSummary: summary,
+      // Save the enriched (internal) version when provided; fall back to the plain summary
+      dealSummary: crmSummary || summary,
       timeline: FieldValue.arrayUnion({
         type: 'system',
         author: agentName || 'AI Underwriter',
@@ -59,40 +62,32 @@ export async function POST(req: NextRequest) {
       }),
       lastUpdated: timestamp,
     };
-    // Only persist the checklist as required documents when there is one
+    // Keep the checklist on the file for the agent/underwriter even though it isn't emailed
     if (safeChecklist.length > 0) updatePayload.requiredDocuments = safeChecklist;
 
     await docRef.update(updatePayload);
 
     if (willEmail) {
-      const checklist = safeChecklist;
-      const checklistHtml = checklist
-        .map((item: string) => `<li style="margin-bottom: 8px; color: #1e293b;">${item}</li>`)
-        .join('');
-
+      // Client gets ONLY the plain data recap to confirm accuracy — no checklist, no internal metrics
       await adminDb.collection('mail').add({
         to: [clientEmail],
         message: {
-          subject: `Your IndiBrick Mortgage File — Summary & Document Checklist`,
+          subject: `Please confirm your details — IndiBrick`,
           html: `
             <div style="font-family: sans-serif; max-width: 640px; margin: 0 auto; padding: 24px;">
               <h2 style="color: #0f172a; margin-bottom: 8px;">Hi ${clientName || 'there'},</h2>
               <p style="color: #475569; font-size: 15px; line-height: 1.6;">
-                Thank you for taking a few minutes with us. Here is a summary of your file along with the exact documents our underwriters need to move forward.
+                Thanks for speaking with us. Below is a summary of what we captured for your file. Please review it and <strong>reply to this email to confirm everything is correct</strong> — or let us know what needs fixing.
               </p>
 
-              <h3 style="color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 24px;">Your File Summary</h3>
-              <div style="background: #f8fafc; padding: 16px; border-radius: 10px; border: 1px solid #e2e8f0; color: #334155; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${summary}</div>
+              <h3 style="color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 24px;">Summary of Your Details</h3>
+              <div style="background: #f8fafc; padding: 16px; border-radius: 10px; border: 1px solid #e2e8f0; color: #334155; font-size: 14px; line-height: 1.7; white-space: pre-wrap;">${summary}</div>
 
-              <h3 style="color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 24px;">Required Documents</h3>
-              <ul style="padding-left: 22px; font-size: 14px;">${checklistHtml}</ul>
-
-              <div style="margin: 30px 0;">
-                <a href="https://indibrick.ca/secure-portal/${leadId}" style="background-color: #000; color: #fff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Upload Documents Securely</a>
-              </div>
-
-              <p style="color: #64748b; font-size: 12px; margin-top: 24px;">
-                Replying to this email reaches your advisor directly. Your portal uses bank-level encryption.
+              <p style="color: #64748b; font-size: 13px; margin-top: 24px; line-height: 1.6;">
+                Once you confirm, your advisor will send over the exact documents needed to move forward.
+              </p>
+              <p style="color: #94a3b8; font-size: 12px; margin-top: 16px;">
+                Replying to this email reaches your advisor directly.
               </p>
             </div>
           `,

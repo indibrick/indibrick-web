@@ -12,7 +12,44 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { doc, getDoc, updateDoc, collection, getDocs, query, where, addDoc, arrayUnion } from 'firebase/firestore'; 
-import { db } from '../../firebase'; 
+import { db } from '../../firebase';
+
+// Pristine intake state — every client starts from a fresh clone of this so one client's
+// answers never bleed into another's. (structuredClone avoids sharing the nested array.)
+const BLANK_INTAKE = {
+  goal: 'Purchase' as 'Purchase' | 'Refinance' | 'Renewal Transfer',
+  fthb: 'No' as 'Yes' | 'No' | 'Not Sure',
+  // subject property
+  subjectAddress: '',
+  propertyValue: '',          // purchase price OR estimated market value depending on goal
+  propertyTaxes: '',
+  hasRentalIncome: 'No' as 'Yes' | 'No',
+  monthlyRent: '',
+  basementStatus: 'Not Sure' as 'Legal' | 'Not Legal' | 'Not Sure',
+  // purchase-only
+  downPayment: '',
+  downPaymentSource: 'Savings' as 'Savings' | 'Gift' | 'RRSP HBP' | 'Sale of Property' | 'Other',
+  // refi/renewal only
+  currentLender: '',
+  currentBalance: '',
+  currentRate: '',
+  renewalDate: '',
+  // applicants
+  numApplicants: '1' as '1' | '2' | '3+',
+  creditScore: '680-749' as '750+' | '680-749' | '600-679' | 'Below 600' | 'Not Sure',
+  empType: 'T4 / Salaried' as 'T4 / Salaried' | 'Self-Employed / Business Owner' | 'Hourly / Part-Time',
+  annualIncome: '',
+  incomeYear1: '',
+  incomeYear2: '',
+  coEmpType: 'T4 / Salaried' as 'T4 / Salaried' | 'Self-Employed / Business Owner' | 'Hourly / Part-Time',
+  coAnnualIncome: '',
+  coIncomeYear1: '',
+  coIncomeYear2: '',
+  // liabilities
+  monthlyDebtPayments: '',
+  substantialDebts: '',
+  otherPropertiesList: [] as { address: string; value: string; balance: string; rent: string; payment: string }[],
+};
 
 export default function PartnerCRM() {
   const { user, loading, logout } = useAdmin();
@@ -79,40 +116,7 @@ export default function PartnerCRM() {
   const [intakeNewItem, setIntakeNewItem] = useState('');
 
   type OtherProperty = { address: string; value: string; balance: string; rent: string; payment: string };
-  const [intakeData, setIntakeData] = useState({
-      goal: 'Purchase' as 'Purchase' | 'Refinance' | 'Renewal Transfer',
-      fthb: 'No' as 'Yes' | 'No' | 'Not Sure',
-      // subject property
-      subjectAddress: '',
-      propertyValue: '',          // purchase price OR estimated market value depending on goal
-      propertyTaxes: '',
-      hasRentalIncome: 'No' as 'Yes' | 'No',
-      monthlyRent: '',
-      basementStatus: 'Not Sure' as 'Legal' | 'Not Legal' | 'Not Sure',
-      // purchase-only
-      downPayment: '',
-      downPaymentSource: 'Savings' as 'Savings' | 'Gift' | 'RRSP HBP' | 'Sale of Property' | 'Other',
-      // refi/renewal only
-      currentLender: '',
-      currentBalance: '',
-      currentRate: '',
-      renewalDate: '',
-      // applicants
-      numApplicants: '1' as '1' | '2' | '3+',
-      creditScore: '680-749' as '750+' | '680-749' | '600-679' | 'Below 600' | 'Not Sure',
-      empType: 'T4 / Salaried' as 'T4 / Salaried' | 'Self-Employed / Business Owner' | 'Hourly / Part-Time',
-      annualIncome: '',
-      incomeYear1: '',
-      incomeYear2: '',
-      coEmpType: 'T4 / Salaried' as 'T4 / Salaried' | 'Self-Employed / Business Owner' | 'Hourly / Part-Time',
-      coAnnualIncome: '',
-      coIncomeYear1: '',
-      coIncomeYear2: '',
-      // liabilities
-      monthlyDebtPayments: '',
-      substantialDebts: '',
-      otherPropertiesList: [] as OtherProperty[],
-  });
+  const [intakeData, setIntakeData] = useState(() => structuredClone(BLANK_INTAKE));
 
   const addOtherProperty = () => setIntakeData(p => ({ ...p, otherPropertiesList: [...p.otherPropertiesList, { address: '', value: '', balance: '', rent: '', payment: '' }] }));
   const updateOtherProperty = (idx: number, field: keyof OtherProperty, value: string) => setIntakeData(p => {
@@ -641,7 +645,8 @@ export default function PartnerCRM() {
       setIntakeSummary('');
       setIntakeFinancials(null);
       setIntakeNewItem('');
-      // Note: we intentionally do NOT clear intakeData — agents may reopen mid-flow
+      // Clear the form completely so each client starts blank — no data carries over between clients
+      setIntakeData(structuredClone(BLANK_INTAKE));
   };
 
   // Build the financials object from raw form values (also used for the live metric preview at the bottom of the form)
@@ -697,19 +702,21 @@ export default function PartnerCRM() {
       }
   };
 
-  // Agent confirms — write the AI summary to the CRM. When skipEmail is false we also email
-  // the client the checklist; when true we only persist the summary (+ checklist) on the file.
+  // Agent confirms. The CRM gets the full underwriter note (PURPOSE/PROFILE/INCOME/CREDIT + metrics);
+  // the client (when skipEmail is false) is emailed ONLY the plain data summary to confirm it's correct
+  // — no document checklist, no internal risk metrics.
   const confirmIntake = async (skipEmail: boolean = false) => {
       if (!selectedDeal || !intakeSummary.trim()) return;
       setIntakePhase('sending');
-      const enriched = buildEnrichedSummary(intakeSummary, intakeFinancials);
+      const crmSummary = buildEnrichedSummary(intakeSummary, intakeFinancials);
       try {
           const res = await fetch('/api/partner/intake-send', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                   leadId: selectedDeal.leadId || selectedDeal.id,
-                  summary: enriched,
+                  summary: intakeSummary,   // plain PURPOSE/PROFILE/INCOME/CREDIT — this is what the client sees
+                  crmSummary,               // enriched with risk band + LTV/GDS/TDS — internal only
                   checklist: intakeChecklist,
                   clientName: selectedDeal.clientName,
                   clientEmail: selectedDeal.clientEmail || '',
@@ -720,7 +727,7 @@ export default function PartnerCRM() {
           if (!res.ok) throw new Error('Failed to save');
 
           // Optimistic local update — modal reflects the new summary + required docs immediately
-          const patch: any = { dealSummary: enriched };
+          const patch: any = { dealSummary: crmSummary };
           if (intakeChecklist.length > 0) patch.requiredDocuments = intakeChecklist;
           setSelectedDeal((prev: any) => prev ? { ...prev, ...patch } : prev);
           setAllReferrals(prev => prev.map(r => r.id === selectedDeal.id ? { ...r, ...patch } : r));
@@ -2148,14 +2155,14 @@ export default function PartnerCRM() {
                                     className="bg-white border-2 border-slate-900 text-slate-900 px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-slate-50 transition flex items-center justify-center gap-2 disabled:opacity-40"
                                 ><Save size={15}/> Save Summary to File</button>
 
-                                {/* Option 2: save AND email the checklist to the client */}
+                                {/* Option 2: save AND email the plain summary to the client to confirm their data */}
                                 <button
                                     type="button"
-                                    disabled={intakeChecklist.length === 0 || !intakeSummary.trim() || !selectedDeal.clientEmail}
+                                    disabled={!intakeSummary.trim() || !selectedDeal.clientEmail}
                                     onClick={() => confirmIntake(false)}
                                     title={!selectedDeal.clientEmail ? 'Add a client email to enable emailing' : ''}
                                     className="bg-black text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-blue-600 transition flex items-center justify-center gap-2 shadow-xl disabled:opacity-40"
-                                ><Mail size={15}/> Save & Email Checklist</button>
+                                ><Mail size={15}/> Save & Email Client to Confirm</button>
                             </div>
                         </div>
                     </div>

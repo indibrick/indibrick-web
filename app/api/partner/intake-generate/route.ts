@@ -105,7 +105,7 @@ ${retrievedContext || 'Standard Canadian B-20 rules. CMHC insurance required whe
 
 OUTPUT JSON ONLY (no markdown), shape:
 {
-  "summary": "4-6 line plain-text underwriter assessment. Mention risk band (Strong / Marginal / High Risk), key strengths, key concerns, and recommended lender lane (A / B / Private). Reference the metrics in context. Plain text, no asterisks, no bullets.",
+  "summary": "A clean, client-readable recap of the information collected, used so the CLIENT can confirm it is accurate. Use EXACTLY these four labelled sections, each on its own line, in this order:\\nPURPOSE: <goal + subject property + price/value + down payment or current mortgage details>\\nPROFILE: <number of applicants, first-time buyer status, properties owned, rental situation>\\nINCOME: <employment type(s) and stated income for each applicant>\\nCREDIT: <estimated credit score range and total monthly debt payments>\\nWrite it factually in plain text as a data recap (no risk assessment, no lender recommendation, no LTV/GDS/TDS — those are handled separately). Keep each section to 1-2 sentences.",
   "checklist": ["10-14 tailored document requirements as plain strings. ALWAYS include '2 pieces of Photo ID (no Ontario Health Cards)' first. Add docs specific to: the goal, the employment type (T4 vs Self-Employed vs Hourly), rental income, co-applicants, other properties owned, refi/renewal extras like mortgage statement and property tax bill."]
 }`;
 
@@ -162,17 +162,19 @@ OUTPUT JSON ONLY (no markdown), shape:
     // =================================================================
     if (!aiSummary) {
       const pv = Number(formData.propertyValue || 0);
-      const mtg = formData.goal === 'Purchase'
-        ? Math.max(0, pv - Number(formData.downPayment || 0))
-        : Number(formData.currentBalance || 0);
-      const ltv = pv > 0 ? ((mtg / pv) * 100).toFixed(1) : 'N/A';
+      const numOther = (formData.otherPropertiesList || []).length;
+      const purposeLine = formData.goal === 'Purchase'
+        ? `${formData.goal} of ${formData.subjectAddress || 'subject property'} at $${pv.toLocaleString()}, down payment $${Number(formData.downPayment || 0).toLocaleString()} (${formData.downPaymentSource}).`
+        : `${formData.goal} on ${formData.subjectAddress || 'subject property'} valued at $${pv.toLocaleString()}; current mortgage $${Number(formData.currentBalance || 0).toLocaleString()} with ${formData.currentLender || 'current lender'} at ${formData.currentRate || 'N/A'}% (renews ${formData.renewalDate || 'N/A'}).`;
+      const incomeLine = formData.numApplicants === '1'
+        ? `Applicant 1: ${formData.empType}, $${Number(formData.annualIncome || 0).toLocaleString()}/yr.`
+        : `Applicant 1: ${formData.empType}, $${Number(formData.annualIncome || 0).toLocaleString()}/yr. Applicant 2: ${formData.coEmpType}, $${Number(formData.coAnnualIncome || 0).toLocaleString()}/yr.`;
       aiSummary = [
-        `${clientName || 'Client'} — ${formData.goal} file.`,
-        `Subject ${formData.subjectAddress || 'TBD'}, value $${pv.toLocaleString()}, mortgage required $${mtg.toLocaleString()} (LTV ${ltv}%).`,
-        `${formData.numApplicants} applicant(s), credit ${formData.creditScore}, primary income $${Number(formData.annualIncome || 0).toLocaleString()} on ${formData.empType}.`,
-        `${(formData.otherPropertiesList || []).length} other propert${(formData.otherPropertiesList || []).length === 1 ? 'y' : 'ies'} held.`,
-        `Recommended lane: see GDS/TDS metric card.`
-      ].join(' ');
+        `PURPOSE: ${purposeLine}`,
+        `PROFILE: ${formData.numApplicants} applicant(s)${formData.goal === 'Purchase' ? `, first-time buyer: ${formData.fthb}` : ''}, ${numOther} other propert${numOther === 1 ? 'y' : 'ies'} owned${formData.hasRentalIncome === 'Yes' ? `, subject earns $${Number(formData.monthlyRent || 0).toLocaleString()}/mo rent` : ''}.`,
+        `INCOME: ${incomeLine}`,
+        `CREDIT: Estimated score ${formData.creditScore}; monthly consumer debt $${Number(formData.monthlyDebtPayments || 0).toLocaleString()}${formData.substantialDebts ? ` (${formData.substantialDebts})` : ''}.`,
+      ].join('\n');
     }
 
     return NextResponse.json({
