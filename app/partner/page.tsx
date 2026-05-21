@@ -278,28 +278,40 @@ export default function PartnerCRM() {
     } catch (err: any) { setAnalyzerStatus('error'); }
   };
 
+  const [injectingLead, setInjectingLead] = useState(false);
+
   const handleManualLeadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (!newClient.name.trim()) { alert('Client name is required.'); return; }
 
-    let assignedAgentId = newClient.assignedTo;
-    let assignedAgentName = 'Admin Triage';
-    if (assignedAgentId === user.uid) assignedAgentName = fullName;
-    else if (assignedAgentId !== 'ADMIN_INBOX') {
-        const partner = ecosystemPartners.find(p => p.uid === assignedAgentId);
-        if (partner) {
-            assignedAgentName = partner.displayName;
-            notifyParticipants(partner.email, `IndiBrick CRM: New Lead Assigned (${newClient.name})`, `<p><strong>${fullName}</strong> has assigned a new lead to your pipeline.</p><p><strong>Client:</strong> ${newClient.name}</p>`);
-        }
+    setInjectingLead(true);
+    try {
+      let assignedAgentId = newClient.assignedTo || user.uid;
+      let assignedAgentName = 'Admin Triage';
+      if (assignedAgentId === user.uid) assignedAgentName = fullName;
+      else if (assignedAgentId !== 'ADMIN_INBOX') {
+          const partner = ecosystemPartners.find(p => p.uid === assignedAgentId);
+          if (partner) {
+              assignedAgentName = partner.displayName;
+              notifyParticipants(partner.email, `IndiBrick CRM: New Lead Assigned (${newClient.name})`, `<p><strong>${fullName}</strong> has assigned a new lead to your pipeline.</p><p><strong>Client:</strong> ${newClient.name}</p>`);
+          }
+      }
+      const payload = { ...newClient, type: 'Manual Entry', dealCategory: 'potential', assignedAgentId, assignedAgentName, callCount: 0, participants: [] };
+      const result = await CRMService.createReferral({ uid: user.uid, role: partnerRole, displayName: fullName, email: user.email } as any, payload as any);
+      if (!result.success) throw new Error('Could not save the lead.');
+      if (result.id && assignedAgentId !== 'ADMIN_INBOX') {
+          try { await CRMService.createTouchCadence(result.id, newClient.name, assignedAgentId); }
+          catch (e) { console.warn('Cadence creation failed', e); }
+      }
+      setShowNewReferralForm(false);
+      setNewClient({ name: '', phone: '', email: '', service: 'General Inquiry', message: '', assignedTo: 'ADMIN_INBOX' });
+      loadProfileAndData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to inject lead. Please try again.');
+    } finally {
+      setInjectingLead(false);
     }
-    const payload = { ...newClient, type: 'Manual Entry', dealCategory: 'potential', assignedAgentId, assignedAgentName, callCount: 0, participants: [] };
-    const result = await CRMService.createReferral({ uid: user.uid, role: partnerRole, displayName: fullName } as any, payload as any);
-    if (result.success && result.id && assignedAgentId !== 'ADMIN_INBOX') {
-        try { await CRMService.createTouchCadence(result.id, newClient.name, assignedAgentId); }
-        catch (e) { console.warn('Cadence creation failed', e); }
-    }
-    setShowNewReferralForm(false); setNewClient({ name: '', phone: '', email: '', service: 'General Inquiry', message: '', assignedTo: 'ADMIN_INBOX' });
-    loadProfileAndData();
   };
 
   const notifyParticipants = async (specificEmail: string | null, subject: string, htmlContent: string) => {
@@ -872,7 +884,7 @@ export default function PartnerCRM() {
              </p>
            </div>
            
-           <button onClick={() => setShowNewReferralForm(true)} className="shrink-0 bg-slate-900 text-white px-4 py-3 md:px-5 md:py-3 rounded-xl font-bold text-[10px] md:text-xs uppercase tracking-widest hover:bg-blue-600 transition flex items-center justify-center gap-2 shadow-lg hover:-translate-y-0.5">
+           <button onClick={() => { setNewClient({ name: '', phone: '', email: '', service: 'General Inquiry', message: '', assignedTo: user?.uid || 'ADMIN_INBOX' }); setShowNewReferralForm(true); }} className="shrink-0 bg-slate-900 text-white px-4 py-3 md:px-5 md:py-3 rounded-xl font-bold text-[10px] md:text-xs uppercase tracking-widest hover:bg-blue-600 transition flex items-center justify-center gap-2 shadow-lg hover:-translate-y-0.5">
               <Plus size={16} /> <span className="hidden md:inline">Inject Lead</span><span className="md:hidden">Add</span>
            </button>
         </header>
@@ -1317,6 +1329,80 @@ export default function PartnerCRM() {
            </div>
         )}
       </main>
+
+      {/* ➕ INJECT NEW LEAD MODAL */}
+      {showNewReferralForm && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-slate-900 text-white p-5 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center"><Plus size={18}/></div>
+                <div>
+                  <h2 className="text-lg font-black uppercase tracking-tight leading-none">Inject Lead</h2>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Added by {fullName}</p>
+                </div>
+              </div>
+              <button onClick={() => setShowNewReferralForm(false)} className="bg-white/10 hover:bg-white hover:text-black text-white p-2 rounded-lg transition"><X size={16}/></button>
+            </div>
+
+            <form onSubmit={handleManualLeadSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Client Name *</label>
+                <input required type="text" value={newClient.name} onChange={e => setNewClient({ ...newClient, name: e.target.value })} placeholder="Jane Smith" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl font-bold text-sm outline-none focus:border-black" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Phone</label>
+                  <input type="tel" value={newClient.phone} onChange={e => setNewClient({ ...newClient, phone: e.target.value })} placeholder="(416) 555-0199" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl font-bold text-sm outline-none focus:border-black" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Email</label>
+                  <input type="email" value={newClient.email} onChange={e => setNewClient({ ...newClient, email: e.target.value })} placeholder="jane@email.com" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl font-bold text-sm outline-none focus:border-black" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Service Needed</label>
+                <select value={newClient.service} onChange={e => setNewClient({ ...newClient, service: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl font-bold text-sm outline-none focus:border-black cursor-pointer">
+                  <option>General Inquiry</option>
+                  <option>Purchase</option>
+                  <option>Refinance</option>
+                  <option>Renewal</option>
+                  <option>First Time Buyer</option>
+                  <option>Reverse Mortgage</option>
+                  <option>Commercial</option>
+                  <option>Insurance</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Assign To</label>
+                <select value={newClient.assignedTo} onChange={e => setNewClient({ ...newClient, assignedTo: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl font-bold text-sm outline-none focus:border-black cursor-pointer">
+                  <option value={user?.uid || ''}>Me ({fullName})</option>
+                  <option value="ADMIN_INBOX">📥 Admin Inbox (HQ Triage)</option>
+                  {ecosystemPartners.filter(p => p.uid !== user?.uid).map(p => (
+                    <option key={p.uid} value={p.uid}>{p.displayName}{p.role ? ` (${p.role.replace('partner_', '')})` : ''}</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-gray-400 mt-1">Assigning to a person auto-creates the 5-touch follow-up cadence.</p>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Notes</label>
+                <textarea rows={3} value={newClient.message} onChange={e => setNewClient({ ...newClient, message: e.target.value })} placeholder="Context from the call…" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl font-medium text-sm outline-none focus:border-black resize-none" />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowNewReferralForm(false)} className="px-5 py-3 text-xs font-black uppercase tracking-widest text-gray-500 hover:text-slate-900 transition">Cancel</button>
+                <button type="submit" disabled={injectingLead || !newClient.name.trim()} className="flex-1 bg-black text-white py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-blue-600 transition flex items-center justify-center gap-2 shadow-lg disabled:opacity-50">
+                  {injectingLead ? <><Loader2 size={15} className="animate-spin"/> Injecting…</> : <><Plus size={15}/> Inject Lead</>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* 🚀 ENTERPRISE DEAL COMMAND CENTER (MODAL) 🚀 */}
       {selectedDeal && (

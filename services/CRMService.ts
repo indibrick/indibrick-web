@@ -139,6 +139,10 @@ export class CRMService {
       const payload: any = {
         referrerId: referrer.uid,
         referrerName: referrer.displayName,
+        // Explicitly record who injected/created this lead, independent of who it's assigned to
+        injectedById: referrer.uid,
+        injectedByName: referrer.displayName,
+        injectedByEmail: (referrer as any).email || '',
         assignedAgentId: clientData.assignedAgentId || referrer.uid,
         assignedAgentName: clientData.assignedAgentName || referrer.displayName,
         status: 'New',
@@ -155,7 +159,8 @@ export class CRMService {
         callCount: clientData.callCount || 0,
         dealCategory: clientData.dealCategory || 'potential',
         timeline: [{
-          type: 'system', author: 'System', content: `Lead ingested via ${clientData.type || 'Manual Entry'}.`,
+          type: 'system', author: 'System',
+          content: `Lead injected by ${referrer.displayName} via ${clientData.type || 'Manual Entry'}.`,
           timestamp: timestamp, isSystemMessage: true
         }],
         type: clientData.type || 'Manual Entry'
