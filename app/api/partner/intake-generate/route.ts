@@ -105,7 +105,7 @@ ${retrievedContext || 'Standard Canadian B-20 rules. CMHC insurance required whe
 
 OUTPUT JSON ONLY (no markdown), shape:
 {
-  "summary": "A clean, client-readable recap of the information collected, used so the CLIENT can confirm it is accurate. Use EXACTLY these four labelled sections, each on its own line, in this order:\\nPURPOSE: <goal + subject property + price/value + down payment or current mortgage details>\\nPROFILE: <number of applicants, first-time buyer status, properties owned, rental situation>\\nINCOME: <employment type(s) and stated income for each applicant>\\nCREDIT: <estimated credit score range and total monthly debt payments>\\nWrite it factually in plain text as a data recap (no risk assessment, no lender recommendation, no LTV/GDS/TDS — those are handled separately). Keep each section to 1-2 sentences.",
+  "summary": "A clean, client-readable recap of the information collected, used so the CLIENT can confirm it is accurate. Use EXACTLY these five labelled sections, each starting on its own line, in this order:\\nPURPOSE: <goal + subject property address + purchase price or market value + down payment OR current mortgage details>\\nPROFILE: <number of applicants, first-time buyer status, and the rental situation on the subject property>\\nPROPERTIES: <list EVERY property on file, each as its own line beginning with '- '. FIRST the SUBJECT property with its full street address and value/price, THEN one line per additional property owned showing its full street address, estimated value, mortgage balance, and monthly rent. If there are no additional properties, write a single line '- Subject property only.'>\\nINCOME: <employment type(s) and stated income for each applicant>\\nCREDIT: <estimated credit score range and total monthly debt payments>\\nWrite it factually in plain text as a data recap (no risk assessment, no lender recommendation, no LTV/GDS/TDS — those are handled separately). ALWAYS write out every street address verbatim so the client can confirm it; never collapse multiple properties into a count.",
   "checklist": ["10-14 tailored document requirements as plain strings. ALWAYS include '2 pieces of Photo ID (no Ontario Health Cards)' first. Add docs specific to: the goal, the employment type (T4 vs Self-Employed vs Hourly), rental income, co-applicants, other properties owned, refi/renewal extras like mortgage statement and property tax bill."]
 }`;
 
@@ -162,16 +162,22 @@ OUTPUT JSON ONLY (no markdown), shape:
     // =================================================================
     if (!aiSummary) {
       const pv = Number(formData.propertyValue || 0);
-      const numOther = (formData.otherPropertiesList || []).length;
+      const otherList = (formData.otherPropertiesList || []) as any[];
       const purposeLine = formData.goal === 'Purchase'
         ? `${formData.goal} of ${formData.subjectAddress || 'subject property'} at $${pv.toLocaleString()}, down payment $${Number(formData.downPayment || 0).toLocaleString()} (${formData.downPaymentSource}).`
         : `${formData.goal} on ${formData.subjectAddress || 'subject property'} valued at $${pv.toLocaleString()}; current mortgage $${Number(formData.currentBalance || 0).toLocaleString()} with ${formData.currentLender || 'current lender'} at ${formData.currentRate || 'N/A'}% (renews ${formData.renewalDate || 'N/A'}).`;
       const incomeLine = formData.numApplicants === '1'
         ? `Applicant 1: ${formData.empType}, $${Number(formData.annualIncome || 0).toLocaleString()}/yr.`
         : `Applicant 1: ${formData.empType}, $${Number(formData.annualIncome || 0).toLocaleString()}/yr. Applicant 2: ${formData.coEmpType}, $${Number(formData.coAnnualIncome || 0).toLocaleString()}/yr.`;
+      // List the subject property first, then every additional property with its full address.
+      const propertyLines = [
+        `- Subject: ${formData.subjectAddress || '(address not provided)'} — ${formData.goal === 'Purchase' ? 'price' : 'value'} $${pv.toLocaleString()}${formData.hasRentalIncome === 'Yes' ? `, rent $${Number(formData.monthlyRent || 0).toLocaleString()}/mo` : ''}`,
+        ...otherList.map((p: any, i: number) => `- Property ${i + 1}: ${p.address || '(address not provided)'} — value $${Number(p.value || 0).toLocaleString()}, balance $${Number(p.balance || 0).toLocaleString()}, rent $${Number(p.rent || 0).toLocaleString()}/mo`),
+      ];
       aiSummary = [
         `PURPOSE: ${purposeLine}`,
-        `PROFILE: ${formData.numApplicants} applicant(s)${formData.goal === 'Purchase' ? `, first-time buyer: ${formData.fthb}` : ''}, ${numOther} other propert${numOther === 1 ? 'y' : 'ies'} owned${formData.hasRentalIncome === 'Yes' ? `, subject earns $${Number(formData.monthlyRent || 0).toLocaleString()}/mo rent` : ''}.`,
+        `PROFILE: ${formData.numApplicants} applicant(s)${formData.goal === 'Purchase' ? `, first-time buyer: ${formData.fthb}` : ''}${formData.hasRentalIncome === 'Yes' ? `, subject earns $${Number(formData.monthlyRent || 0).toLocaleString()}/mo rent` : ''}.`,
+        `PROPERTIES:\n${propertyLines.join('\n')}`,
         `INCOME: ${incomeLine}`,
         `CREDIT: Estimated score ${formData.creditScore}; monthly consumer debt $${Number(formData.monthlyDebtPayments || 0).toLocaleString()}${formData.substantialDebts ? ` (${formData.substantialDebts})` : ''}.`,
       ].join('\n');

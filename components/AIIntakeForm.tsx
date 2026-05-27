@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ArrowRight, CheckCircle, Loader2, Sparkles, FileText, Lock, AlertTriangle } from 'lucide-react';
 import { LeadService } from '../services/LeadService';
 
-export default function AIIntakeForm() {
+export default function AIIntakeForm({ partnerId }: { partnerId?: string }) {
   const [step, setStep] = useState<'contact' | 'questions' | 'success'>('contact');
   const [userData, setUserData] = useState({ name: '', email: '', phone: '' });
   const [error, setError] = useState('');
@@ -49,7 +49,8 @@ export default function AIIntakeForm() {
     setError('');
     setLoading(true);
 
-    // INSTANT LEAD CAPTURE: Send to CRM and trigger Admin Email instantly
+    // INSTANT LEAD CAPTURE: Send to CRM and trigger Admin Email instantly.
+    // partnerId (the realtor landing-page slug) attributes this lead to that partner.
     const result = await LeadService.submitLead({
       name: userData.name,
       email: userData.email,
@@ -57,7 +58,8 @@ export default function AIIntakeForm() {
       serviceNeeded: 'AI Document Checklist (Started)',
       city: 'AI Form',
       message: 'Client has started the AI Intake Questionnaire.',
-      consent: true
+      consent: true,
+      partnerId: partnerId || ''
     });
 
     if (result.success) {

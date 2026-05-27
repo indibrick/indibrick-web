@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     const timestamp = new Date().toISOString();
 
     const timelineContent = willEmail
-      ? `🤖 AI Intake summary emailed to client for confirmation.${safeChecklist.length ? ` ${safeChecklist.length} document${safeChecklist.length === 1 ? '' : 's'} on internal checklist.` : ''}`
+      ? `🤖 AI Intake summary${safeChecklist.length ? `, ${safeChecklist.length} document checklist,` : ''} and secure portal link emailed to client.`
       : `🤖 AI Intake summary saved to file (not emailed).${safeChecklist.length ? ` ${safeChecklist.length} document${safeChecklist.length === 1 ? '' : 's'} on internal checklist.` : ''}`;
 
     const updatePayload: any = {
@@ -68,11 +68,20 @@ export async function POST(req: NextRequest) {
     await docRef.update(updatePayload);
 
     if (willEmail) {
-      // Client gets ONLY the plain data recap to confirm accuracy — no checklist, no internal metrics
+      // Client receives: the data recap to confirm + the tailored document checklist + a secure portal link to upload.
+      const portalUrl = `https://indibrick.ca/secure-portal/${encodeURIComponent(leadId)}`;
+      const checklistHtml = safeChecklist.length
+        ? `
+              <h3 style="color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 28px;">Documents We'll Need</h3>
+              <ul style="color: #334155; font-size: 14px; line-height: 1.8; padding-left: 20px; margin-top: 12px;">
+                ${safeChecklist.map((item) => `<li>${item}</li>`).join('')}
+              </ul>`
+        : '';
+
       await adminDb.collection('mail').add({
         to: [clientEmail],
         message: {
-          subject: `Please confirm your details — IndiBrick`,
+          subject: `Your summary, document checklist & secure portal — IndiBrick`,
           html: `
             <div style="font-family: sans-serif; max-width: 640px; margin: 0 auto; padding: 24px;">
               <h2 style="color: #0f172a; margin-bottom: 8px;">Hi ${clientName || 'there'},</h2>
@@ -82,11 +91,16 @@ export async function POST(req: NextRequest) {
 
               <h3 style="color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; margin-top: 24px;">Summary of Your Details</h3>
               <div style="background: #f8fafc; padding: 16px; border-radius: 10px; border: 1px solid #e2e8f0; color: #334155; font-size: 14px; line-height: 1.7; white-space: pre-wrap;">${summary}</div>
+              ${checklistHtml}
 
-              <p style="color: #64748b; font-size: 13px; margin-top: 24px; line-height: 1.6;">
-                Once you confirm, your advisor will send over the exact documents needed to move forward.
+              <div style="text-align: center; margin-top: 32px;">
+                <a href="${portalUrl}" style="background-color: #0f172a; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px; display: inline-block;">Open Your Secure Portal</a>
+              </div>
+              <p style="color: #64748b; font-size: 13px; margin-top: 16px; line-height: 1.6; text-align: center;">
+                Upload your documents anytime through the secure portal above.
               </p>
-              <p style="color: #94a3b8; font-size: 12px; margin-top: 16px;">
+
+              <p style="color: #94a3b8; font-size: 12px; margin-top: 24px;">
                 Replying to this email reaches your advisor directly.
               </p>
             </div>

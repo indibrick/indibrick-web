@@ -40,7 +40,7 @@ export class CRMService {
        const sentAll = sentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Referral));
        const sent = sentAll.filter(lead => lead.assignedAgentId !== profile.uid);
 
-       return { sent, received: inbox, mine };
+       return { sent, received: inbox, mine, participating: [] as Referral[] };
     }
 
     const sentQuery = query(referralsRef, where("referrerId", "==", profile.uid));
@@ -51,11 +51,18 @@ export class CRMService {
     const receivedSnapshot = await getDocs(receivedQuery);
     const receivedAll = receivedSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Referral));
 
+    // Deals this user is a collaborator on (added as a participant) but doesn't own or refer.
+    // participantIds is a flat UID array maintained alongside the richer participants objects.
+    const participatingQuery = query(referralsRef, where("participantIds", "array-contains", profile.uid));
+    const participatingSnapshot = await getDocs(participatingQuery);
+    const participatingAll = participatingSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Referral));
+
     const mine = sentAll.filter(lead => lead.assignedAgentId === profile.uid);
     const sent = sentAll.filter(lead => lead.assignedAgentId !== profile.uid);
     const received = receivedAll.filter(lead => lead.referrerId !== profile.uid);
+    const participating = participatingAll.filter(lead => lead.assignedAgentId !== profile.uid && lead.referrerId !== profile.uid);
 
-    return { sent, received, mine };
+    return { sent, received, mine, participating };
   }
 
   static async getEcosystemPartners() {
@@ -156,6 +163,11 @@ export class CRMService {
         loanAmount: Number(clientData.loanAmount || 0),
         expectedCommission: Number(clientData.expectedCommission || 0),
         participants: clientData.participants || [],
+        participantIds: clientData.participantIds || [],
+        // Compensation/attribution: label (Realtor Partner / Self-Generated / …) + the specific partner if one was chosen
+        referralSource: clientData.referralSource || 'Self-Generated',
+        referralPartnerId: clientData.referralPartnerId || '',
+        referralPartnerName: clientData.referralPartnerName || '',
         callCount: clientData.callCount || 0,
         dealCategory: clientData.dealCategory || 'potential',
         timeline: [{

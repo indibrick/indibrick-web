@@ -10,13 +10,20 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, email, phone, serviceNeeded, city, message, pageSource, userAgent } = body;
+    const { name, email, phone, serviceNeeded, city, message, pageSource, userAgent, partnerId } = body;
     const timestamp = new Date().toISOString();
     const clientName = name || 'Unknown Client';
 
     if (!name || !phone || !serviceNeeded) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
     }
+
+    // Realtor landing-page attribution. partnerId is the page slug (e.g. "mudit-chhura").
+    const landingPageSlug = (partnerId || '').trim();
+    const partnerName = landingPageSlug
+      ? landingPageSlug.split('-').map((w: string) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : '')).join(' ').trim()
+      : '';
+    const referralSource = landingPageSlug ? 'Realtor Partner' : 'Web Lead';
 
     // 1. Write to Portal X 99 (Leads Collection) securely via Admin
     const leadRef = await adminDb.collection('leads').add({
@@ -31,14 +38,17 @@ export async function POST(request: Request) {
       date: timestamp,
       pageSource: pageSource || 'api',
       userAgent: userAgent || 'unknown',
+      referralSource,
+      landingPageSlug,
+      partnerName,
     });
 
     // 2. THE CRM BRIDGE: Inject instantly into Partner Portal bypassing client rules
     await adminDb.collection('referrals').add({
       leadId: leadRef.id,
-      referrerId: 'INDIBRICK_WEB_SYSTEM', 
-      referrerName: 'Indibrick Website',
-      assignedAgentId: 'ADMIN_INBOX', 
+      referrerId: 'INDIBRICK_WEB_SYSTEM',
+      referrerName: landingPageSlug ? partnerName : 'Indibrick Website',
+      assignedAgentId: 'ADMIN_INBOX',
       assignedAgentName: 'Indibrick Admin Triage',
       status: 'New Web Lead',
       clientName: clientName,
@@ -47,14 +57,19 @@ export async function POST(request: Request) {
       referralDate: timestamp,
       message: message || '', // <--- THE FIX: Explicitly save the message for the CRM UI
       notes: `System: Lead submitted from website form. Service requested: ${serviceNeeded}.`,
+      // Compensation/attribution: where the lead came from + which landing page (if any)
+      referralSource,
+      landingPageSlug,
       timeline: [{
         type: 'system',
         author: 'System',
-        content: 'Lead automatically ingested via secure Admin API from public web form.',
+        content: landingPageSlug
+          ? `Lead generated from ${partnerName}'s landing page.`
+          : 'Lead automatically ingested via secure Admin API from public web form.',
         timestamp: timestamp,
         isSystemMessage: true
       }],
-      type: 'Web Inbound' 
+      type: landingPageSlug ? 'Realtor Landing Page' : 'Web Inbound'
     });
 
     // 3. Trigger Admin Alert securely via Admin

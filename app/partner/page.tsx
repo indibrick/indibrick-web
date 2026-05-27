@@ -14,6 +14,9 @@ import { useRouter } from 'next/navigation';
 import { doc, getDoc, updateDoc, collection, getDocs, query, where, addDoc, arrayUnion } from 'firebase/firestore'; 
 import { db } from '../../firebase';
 
+// Referral source labels — drives compensation: who (if anyone) gets paid out on a file.
+const REFERRAL_SOURCES = ['Realtor Partner', 'Other Partner', 'Self-Generated', 'Web Lead'];
+
 // Pristine intake state — every client starts from a fresh clone of this so one client's
 // answers never bleed into another's. (structuredClone avoids sharing the nested array.)
 const BLANK_INTAKE = {
@@ -59,8 +62,9 @@ export default function PartnerCRM() {
   const [activeTab, setActiveTab] = useState<'pipeline' | 'analyzer' | 'calendar'>('pipeline');
   const [pipelineView, setPipelineView] = useState<'all' | 'mine' | 'incoming' | 'outbound'>('mine');
   const [filterAssignee, setFilterAssignee] = useState('all');
-  const [filterTag, setFilterTag] = useState('all'); 
+  const [filterTag, setFilterTag] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterReferralSource, setFilterReferralSource] = useState('all');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
   const [searchQuery, setSearchQuery] = useState(''); 
   
@@ -98,7 +102,7 @@ export default function PartnerCRM() {
 
   // --- FORMS ---
   const [showNewReferralForm, setShowNewReferralForm] = useState(false);
-  const [newClient, setNewClient] = useState({ name: '', phone: '', email: '', service: 'General Inquiry', message: '', assignedTo: 'ADMIN_INBOX' });
+  const [newClient, setNewClient] = useState({ name: '', phone: '', email: '', service: 'General Inquiry', message: '', assignedTo: 'ADMIN_INBOX', referralSource: 'Self-Generated' });
   const [showNewTaskForm, setShowNewTaskForm] = useState(false);
   const [newTask, setNewTask] = useState({ description: '', dueDate: '', referralId: 'general' });
 
@@ -201,8 +205,8 @@ export default function PartnerCRM() {
             activePipeline = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         } else {
             const profile = { uid: user.uid, role: currentRole, displayName: loadedFullName };
-            const { sent, received, mine } = await CRMService.getPartnerDashboard(profile as any);
-            activePipeline = [...sent, ...received, ...mine];
+            const { sent, received, mine, participating } = await CRMService.getPartnerDashboard(profile as any);
+            activePipeline = [...sent, ...received, ...mine, ...(participating || [])];
             activePipeline = activePipeline.filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i);
         }
         setAllReferrals(activePipeline);
@@ -279,6 +283,7 @@ export default function PartnerCRM() {
   };
 
   const [injectingLead, setInjectingLead] = useState(false);
+  const [nudgingOwner, setNudgingOwner] = useState(false);
 
   const handleManualLeadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -297,7 +302,12 @@ export default function PartnerCRM() {
               notifyParticipants(partner.email, `IndiBrick CRM: New Lead Assigned (${newClient.name})`, `<p><strong>${fullName}</strong> has assigned a new lead to your pipeline.</p><p><strong>Client:</strong> ${newClient.name}</p>`);
           }
       }
-      const payload = { ...newClient, type: 'Manual Entry', dealCategory: 'potential', assignedAgentId, assignedAgentName, callCount: 0, participants: [] };
+      // referralSource may hold a partner UID (admin picked a specific partner) or a generic label
+      const srcPartner = ecosystemPartners.find(p => p.uid === newClient.referralSource);
+      const referralSource = srcPartner ? srcPartner.displayName : (newClient.referralSource || 'Self-Generated');
+      const referralPartnerId = srcPartner ? srcPartner.uid : '';
+      const referralPartnerName = srcPartner ? srcPartner.displayName : '';
+      const payload = { ...newClient, type: 'Manual Entry', dealCategory: 'potential', assignedAgentId, assignedAgentName, callCount: 0, participants: [], participantIds: [], referralSource, referralPartnerId, referralPartnerName };
       const result = await CRMService.createReferral({ uid: user.uid, role: partnerRole, displayName: fullName, email: user.email } as any, payload as any);
       if (!result.success) throw new Error('Could not save the lead.');
       if (result.id && assignedAgentId !== 'ADMIN_INBOX') {
@@ -305,7 +315,7 @@ export default function PartnerCRM() {
           catch (e) { console.warn('Cadence creation failed', e); }
       }
       setShowNewReferralForm(false);
-      setNewClient({ name: '', phone: '', email: '', service: 'General Inquiry', message: '', assignedTo: 'ADMIN_INBOX' });
+      setNewClient({ name: '', phone: '', email: '', service: 'General Inquiry', message: '', assignedTo: 'ADMIN_INBOX', referralSource: 'Self-Generated' });
       loadProfileAndData();
     } catch (err: any) {
       alert(err.message || 'Failed to inject lead. Please try again.');
@@ -466,6 +476,48 @@ export default function PartnerCRM() {
     setAllReferrals(prev => prev.map(r => r.id === selectedDeal.id ? { ...r, leadTag: newTag } : r));
   };
 
+  // Referral source drives compensation: who (if anyone) gets paid out on this file.
+  // The select value is either a partner UID (specific referral partner) or a generic label.
+  const handleReferralSourceUpdate = async (value: string) => {
+    if (!selectedDeal || !user) return;
+    const partner = ecosystemPartners.find(p => p.uid === value);
+    const patch = partner
+      ? { referralSource: partner.displayName, referralPartnerId: partner.uid, referralPartnerName: partner.displayName }
+      : { referralSource: value, referralPartnerId: '', referralPartnerName: '' };
+    await updateDoc(doc(db, "referrals", selectedDeal.id), patch);
+    setSelectedDeal({ ...selectedDeal, ...patch });
+    setAllReferrals(prev => prev.map(r => r.id === selectedDeal.id ? { ...r, ...patch } : r));
+  };
+
+  // Admin-only: email the assigned agent (lead owner) a reminder to follow up with the client.
+  const handleNudgeOwner = async () => {
+    if (!selectedDeal) return;
+    const owner = ecosystemPartners.find(p => p.uid === selectedDeal.assignedAgentId);
+    if (selectedDeal.assignedAgentId === 'ADMIN_INBOX' || !owner?.email) {
+      alert('This lead has no assigned owner with an email on file. Route it to an agent first.');
+      return;
+    }
+    setNudgingOwner(true);
+    try {
+      await notifyParticipants(
+        owner.email,
+        `⏰ Follow-up needed: ${selectedDeal.clientName}`,
+        `<p>Hi ${owner.displayName || 'there'},</p>
+         <p><strong>${fullName}</strong> is asking you to follow up with <strong>${selectedDeal.clientName}</strong>${selectedDeal.serviceNeeded ? ` regarding their ${selectedDeal.serviceNeeded}` : ''}.</p>
+         <p>Current stage: <strong>${selectedDeal.status}</strong>. Please reach out to the client and update the deal.</p>
+         <p><a href="https://indibrick.ca/partner/login" style="color:#2563eb;font-weight:bold;">Open the CRM →</a></p>`
+      );
+      const entry = { type: 'system', author: fullName, content: `📧 Reminder emailed to ${owner.displayName} to follow up with the client.`, timestamp: new Date().toISOString(), isSystemMessage: true };
+      await CRMService.logActivity(selectedDeal.id, entry as any);
+      setSelectedDeal((prev: any) => prev ? { ...prev, timeline: [...(prev.timeline || []), entry] } : prev);
+      alert(`Follow-up reminder emailed to ${owner.displayName}.`);
+    } catch (e) {
+      alert('Could not send the reminder. Please try again.');
+    } finally {
+      setNudgingOwner(false);
+    }
+  };
+
   const handleCategoryUpdate = async (newCategory: 'active' | 'potential') => {
     if (!selectedDeal || !user) return;
     await updateDoc(doc(db, "referrals", selectedDeal.id), { dealCategory: newCategory });
@@ -530,12 +582,28 @@ export default function PartnerCRM() {
       if (!partner) return;
 
       const newParticipant = { uid: partner.uid, name: partner.displayName, role: partner.role || 'Partner', email: partner.email };
-      await updateDoc(doc(db, "referrals", selectedDeal.id), { participants: arrayUnion(newParticipant) });
+      // participantIds (flat UIDs) is what getPartnerDashboard queries via array-contains so the
+      // collaborator can actually see + update the deal; participants keeps the richer display objects.
+      await updateDoc(doc(db, "referrals", selectedDeal.id), {
+          participants: arrayUnion(newParticipant),
+          participantIds: arrayUnion(partner.uid),
+      });
       const updatedParticipants = [...(selectedDeal.participants || []), newParticipant];
-      setSelectedDeal({...selectedDeal, participants: updatedParticipants});
-      setAllReferrals(prev => prev.map(r => r.id === selectedDeal.id ? { ...r, participants: updatedParticipants } : r));
+      const updatedParticipantIds = Array.from(new Set([...(selectedDeal.participantIds || []), partner.uid]));
+      setSelectedDeal({...selectedDeal, participants: updatedParticipants, participantIds: updatedParticipantIds});
+      setAllReferrals(prev => prev.map(r => r.id === selectedDeal.id ? { ...r, participants: updatedParticipants, participantIds: updatedParticipantIds } : r));
       notifyParticipants(partner.email, `IndiBrick CRM: Added to Deal Team`, `<p>You have been added to the deal team for <strong>${selectedDeal.clientName}</strong>.</p>`);
       e.target.value = "";
+  };
+
+  // Admin-only: remove a collaborator from the deal team (drops them from both arrays).
+  const handleRemoveParticipant = async (participant: any) => {
+      if (!selectedDeal) return;
+      const updatedParticipants = (selectedDeal.participants || []).filter((p: any) => p.uid !== participant.uid);
+      const updatedParticipantIds = (selectedDeal.participantIds || []).filter((id: string) => id !== participant.uid);
+      await updateDoc(doc(db, "referrals", selectedDeal.id), { participants: updatedParticipants, participantIds: updatedParticipantIds });
+      setSelectedDeal({ ...selectedDeal, participants: updatedParticipants, participantIds: updatedParticipantIds });
+      setAllReferrals(prev => prev.map(r => r.id === selectedDeal.id ? { ...r, participants: updatedParticipants, participantIds: updatedParticipantIds } : r));
   };
 
   const handleCompleteTask = async (taskId: string) => {
@@ -783,13 +851,16 @@ export default function PartnerCRM() {
   // Memoized — called multiple times per render (list + kanban + empty-state check)
   const filteredDeals = useMemo(() => {
       let filtered = allReferrals;
-      if (pipelineView === 'mine') filtered = filtered.filter(r => r.assignedAgentId === user?.uid);
+      // "Mine" = deals I'm assigned to OR a participant/collaborator on
+      if (pipelineView === 'mine') filtered = filtered.filter(r => r.assignedAgentId === user?.uid || (r.participantIds || []).includes(user?.uid));
       if (pipelineView === 'incoming') filtered = filtered.filter(r => r.assignedAgentId === 'ADMIN_INBOX');
       if (pipelineView === 'outbound') filtered = filtered.filter(r => r.referrerId === 'INDIBRICK_WEB' && r.assignedAgentId !== 'ADMIN_INBOX');
 
       if (partnerRole === 'admin' && filterAssignee !== 'all') filtered = filtered.filter(r => r.assignedAgentId === filterAssignee);
       if (filterTag !== 'all') filtered = filtered.filter(r => r.leadTag === filterTag);
       if (filterStatus !== 'all') filtered = filtered.filter(r => r.status === filterStatus);
+      // Referral source filter: value is a partner UID (specific partner) or a generic source label
+      if (filterReferralSource !== 'all') filtered = filtered.filter(r => r.referralPartnerId === filterReferralSource || r.referralSource === filterReferralSource);
 
       if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
@@ -799,7 +870,7 @@ export default function PartnerCRM() {
           if (sortOrder === 'newest') return new Date(b.referralDate).getTime() - new Date(a.referralDate).getTime();
           return new Date(a.referralDate).getTime() - new Date(b.referralDate).getTime();
       });
-  }, [allReferrals, pipelineView, filterAssignee, filterTag, filterStatus, searchQuery, sortOrder, partnerRole, user?.uid]);
+  }, [allReferrals, pipelineView, filterAssignee, filterTag, filterStatus, filterReferralSource, searchQuery, sortOrder, partnerRole, user?.uid]);
 
   const getFilteredDeals = () => filteredDeals;
 
@@ -884,7 +955,7 @@ export default function PartnerCRM() {
              </p>
            </div>
            
-           <button onClick={() => { setNewClient({ name: '', phone: '', email: '', service: 'General Inquiry', message: '', assignedTo: user?.uid || 'ADMIN_INBOX' }); setShowNewReferralForm(true); }} className="shrink-0 bg-slate-900 text-white px-4 py-3 md:px-5 md:py-3 rounded-xl font-bold text-[10px] md:text-xs uppercase tracking-widest hover:bg-blue-600 transition flex items-center justify-center gap-2 shadow-lg hover:-translate-y-0.5">
+           <button onClick={() => { setNewClient({ name: '', phone: '', email: '', service: 'General Inquiry', message: '', assignedTo: user?.uid || 'ADMIN_INBOX', referralSource: 'Self-Generated' }); setShowNewReferralForm(true); }} className="shrink-0 bg-slate-900 text-white px-4 py-3 md:px-5 md:py-3 rounded-xl font-bold text-[10px] md:text-xs uppercase tracking-widest hover:bg-blue-600 transition flex items-center justify-center gap-2 shadow-lg hover:-translate-y-0.5">
               <Plus size={16} /> <span className="hidden md:inline">Inject Lead</span><span className="md:hidden">Add</span>
            </button>
         </header>
@@ -1121,6 +1192,13 @@ export default function PartnerCRM() {
                              <option value="all">All Statuses</option>
                              {PIPELINE_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
                          </select>
+                         <select value={filterReferralSource} onChange={(e) => setFilterReferralSource(e.target.value)} className="bg-gray-50 border border-gray-100 text-xs font-bold text-slate-700 outline-none cursor-pointer rounded-xl px-3 py-2.5 shrink-0" title="Filter by referral source / partner">
+                             <option value="all">All Sources</option>
+                             {REFERRAL_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+                             <optgroup label="Referral Partner">
+                                 {ecosystemPartners.filter(p => p.uid !== user?.uid).map(p => <option key={p.uid} value={p.uid}>{p.displayName}</option>)}
+                             </optgroup>
+                         </select>
                      </div>
                  </div>
 
@@ -1191,6 +1269,7 @@ export default function PartnerCRM() {
                                          <h3 className="text-base md:text-lg font-black text-slate-900 group-hover:text-blue-600 transition tracking-tight">{deal.clientName}</h3>
                                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                              {deal.leadTag && <span className="px-2 py-0.5 rounded text-[8px] md:text-[9px] font-black uppercase tracking-widest bg-purple-100 text-purple-700 border border-purple-200">{deal.leadTag}</span>}
+                                             {(deal.referralPartnerId || deal.referralSource === 'Realtor Partner' || deal.referralSource === 'Other Partner') && <span className="px-2 py-0.5 rounded text-[8px] md:text-[9px] font-black uppercase tracking-widest bg-amber-100 text-amber-700 border border-amber-200" title="Compensation payout owed">💰 {deal.referralPartnerName || deal.referralSource}</span>}
                                              <span className="text-[10px] md:text-xs text-gray-500 font-bold">{deal.serviceNeeded || deal.serviceRequested || deal.type || 'New Lead'}</span>
                                          </div>
                                      </div>
@@ -1388,6 +1467,19 @@ export default function PartnerCRM() {
                 <p className="text-[10px] text-gray-400 mt-1">Assigning to a person auto-creates the 5-touch follow-up cadence.</p>
               </div>
 
+              {partnerRole === 'admin' && (
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Referral Source</label>
+                  <select value={newClient.referralSource} onChange={e => setNewClient({ ...newClient, referralSource: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl font-bold text-sm outline-none focus:border-black cursor-pointer">
+                    {REFERRAL_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+                    <optgroup label="Specific Referral Partner">
+                      {ecosystemPartners.filter(p => p.uid !== user?.uid).map(p => <option key={p.uid} value={p.uid}>{p.displayName}{p.role ? ` (${p.role.replace('partner_', '')})` : ''}</option>)}
+                    </optgroup>
+                  </select>
+                  <p className="text-[10px] text-gray-400 mt-1">Used to track who gets paid out when this file funds.</p>
+                </div>
+              )}
+
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Notes</label>
                 <textarea rows={3} value={newClient.message} onChange={e => setNewClient({ ...newClient, message: e.target.value })} placeholder="Context from the call…" className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl font-medium text-sm outline-none focus:border-black resize-none" />
@@ -1410,19 +1502,19 @@ export default function PartnerCRM() {
           <div className="w-full max-w-[95vw] lg:max-w-7xl bg-[#F8FAFC] h-[95vh] rounded-3xl shadow-2xl animate-in fade-in zoom-in-95 duration-200 flex flex-col overflow-hidden">
             
             {/* Modal Header */}
-            <div className="bg-slate-900 text-white p-5 flex justify-between items-center shrink-0">
-                <div className="flex items-center gap-4">
-                    <h2 className="text-2xl font-black tracking-tight flex items-center gap-3">
+            <div className="bg-slate-900 text-white p-4 md:p-5 flex justify-between items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 md:gap-4 min-w-0">
+                    <h2 className="text-lg md:text-2xl font-black tracking-tight flex items-center gap-3 truncate">
                        {selectedDeal.clientName}
                     </h2>
                     {selectedDeal.dealCategory === 'active' ? (
-                       <button onClick={() => handleCategoryUpdate('potential')} className="bg-green-500 text-black px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-green-400 transition shadow-sm"><CheckCircle size={12}/> Active Deal</button>
+                       <button onClick={() => handleCategoryUpdate('potential')} className="shrink-0 bg-green-500 text-black px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-green-400 transition shadow-sm"><CheckCircle size={12}/> Active Deal</button>
                     ) : (
-                       <button onClick={() => handleCategoryUpdate('active')} className="bg-orange-500 text-black px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-green-400 transition shadow-sm"><Star size={12}/> Activate & Email Login</button>
+                       <button onClick={() => handleCategoryUpdate('active')} className="shrink-0 bg-orange-500 text-black px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-1 hover:bg-green-400 transition shadow-sm"><Star size={12}/> <span className="hidden sm:inline">Activate & Email Login</span><span className="sm:hidden">Activate</span></button>
                     )}
                 </div>
-                <div className="flex gap-2">
-                    <button onClick={() => { resetIntakeForm(); setShowIntakeForm(true); }} className="hidden md:flex bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest items-center gap-2 transition shadow-lg"><Bot size={14}/> Launch AI Intake</button>
+                <div className="flex gap-2 shrink-0">
+                    <button onClick={() => { resetIntakeForm(); setShowIntakeForm(true); }} className="flex bg-blue-600 hover:bg-blue-500 text-white px-3 md:px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest items-center gap-2 transition shadow-lg"><Bot size={14}/> <span className="hidden sm:inline">Launch AI Intake</span><span className="sm:hidden">Intake</span></button>
                     <button onClick={() => setSelectedDeal(null)} className="bg-white/10 hover:bg-white text-white hover:text-black p-2 rounded-lg transition"><X size={16}/></button>
                 </div>
             </div>
@@ -1430,8 +1522,8 @@ export default function PartnerCRM() {
             {/* Modal Body - 3 Columns. On mobile the body itself scrolls (columns stack); on desktop each column scrolls internally. */}
             <div className="flex-1 overflow-y-auto lg:overflow-hidden flex flex-col lg:flex-row min-h-0">
                
-               {/* COL 1: INTELLIGENCE & SLA (25%) */}
-               <div className="w-full lg:w-1/4 bg-white border-r border-gray-200 p-5 overflow-y-auto hidden lg:block space-y-6">
+               {/* COL 1: INTELLIGENCE & SLA (25%) — stacks on mobile, scrolls internally on desktop */}
+               <div className="w-full lg:w-1/4 bg-white lg:border-r border-b lg:border-b-0 border-gray-200 p-5 lg:overflow-y-auto space-y-6">
                   
                   <div>
                      <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-1.5"><Gauge size={12}/> SLA Health</h4>
@@ -1470,6 +1562,21 @@ export default function PartnerCRM() {
                                 <option value="Reverse Mortgage">Reverse Mortgage</option>
                                 <option value="Realtor Lead">Realtor Lead</option>
                             </select>
+                         </div>
+                         <div>
+                            <label className="text-[9px] font-bold text-gray-400 uppercase block mb-1 flex items-center gap-1"><Wallet size={10}/> Referral Source (payout)</label>
+                            {partnerRole === 'admin' ? (
+                                <select value={selectedDeal.referralPartnerId || selectedDeal.referralSource || ''} onChange={(e) => handleReferralSourceUpdate(e.target.value)} className="w-full bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-2 text-xs font-bold outline-none cursor-pointer">
+                                    <option value="">Not set</option>
+                                    {REFERRAL_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+                                    <optgroup label="Specific Referral Partner">
+                                        {ecosystemPartners.filter(p => p.uid !== user?.uid).map(p => <option key={p.uid} value={p.uid}>{p.displayName}{p.role ? ` (${p.role.replace('partner_', '')})` : ''}</option>)}
+                                    </optgroup>
+                                </select>
+                            ) : (
+                                <div className="w-full bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-2 text-xs font-bold">{selectedDeal.referralSource || 'Not set'}</div>
+                            )}
+                            {selectedDeal.landingPageSlug && <p className="text-[9px] text-amber-600 mt-1 font-bold">From {selectedDeal.referrerName}&apos;s landing page</p>}
                          </div>
                      </div>
                   </div>
@@ -1596,8 +1703,9 @@ export default function PartnerCRM() {
                   </div>
 
                   {/* Scrollable content area — wraps NBA + Summary + Timeline so they scroll as one cohesive panel
-                      (without this wrapper, NBA/Summary stole height from the timeline and broke its overflow scroll). */}
-                  <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+                      (without this wrapper, NBA/Summary stole height from the timeline and broke its overflow scroll).
+                      On mobile the whole modal body scrolls, so the internal scroll is scoped to lg+. */}
+                  <div className="lg:flex-1 lg:min-h-0 lg:overflow-y-auto custom-scrollbar">
 
                   {/* Next Best Action — heuristic-driven nudge so agents never have to think "what now?" */}
                   {(() => {
@@ -1709,8 +1817,8 @@ export default function PartnerCRM() {
                   </div>{/* end scrollable wrapper for NBA + Summary + Timeline */}
                </div>
 
-               {/* COL 3: DEAL TEAM & VAULT (25%) */}
-               <div className="w-full lg:w-1/4 bg-white border-l border-gray-200 p-5 overflow-y-auto hidden lg:block space-y-8">
+               {/* COL 3: DEAL TEAM & VAULT (25%) — stacks on mobile, scrolls internally on desktop */}
+               <div className="w-full lg:w-1/4 bg-white lg:border-l border-t lg:border-t-0 border-gray-200 p-5 lg:overflow-y-auto space-y-8">
                   
                   {/* Client Contact Info (Editable) */}
                   <div className="bg-slate-900 text-white p-5 rounded-2xl relative">
@@ -1753,6 +1861,17 @@ export default function PartnerCRM() {
                   <div>
                      <div className="flex justify-between items-center mb-3">
                          <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-1.5"><Users size={12}/> Deal Team Matrix</h4>
+                         {partnerRole === 'admin' && (
+                             <button
+                                 type="button"
+                                 onClick={handleNudgeOwner}
+                                 disabled={nudgingOwner}
+                                 title="Email the assigned agent a reminder to follow up"
+                                 className="flex items-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-widest transition disabled:opacity-50"
+                             >
+                                 {nudgingOwner ? <Loader2 size={11} className="animate-spin"/> : <Mail size={11}/>} Nudge Owner
+                             </button>
+                         )}
                      </div>
                      <div className="space-y-2 mb-3">
                          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
@@ -1772,23 +1891,32 @@ export default function PartnerCRM() {
                              </div>
                          )}
                          {selectedDeal.participants?.map((p: any, idx: number) => (
-                             <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                             <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100 group">
                                  <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center font-black text-xs shrink-0"><User size={14}/></div>
-                                 <div className="truncate">
+                                 <div className="truncate flex-1">
                                     <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 truncate">{p.role}</p>
                                     <p className="text-xs font-bold text-slate-900 truncate">{p.name}</p>
                                  </div>
+                                 {partnerRole === 'admin' && (
+                                     <button type="button" onClick={() => handleRemoveParticipant(p)} title={`Remove ${p.name} from the deal team`} className="opacity-0 group-hover:opacity-100 transition text-gray-300 hover:text-red-500 shrink-0"><Trash2 size={14}/></button>
+                                 )}
                              </div>
                          ))}
                      </div>
                      
-                     <div className="flex items-center gap-2">
-                        <select onChange={handleAddParticipant} value="" className="flex-1 bg-white border border-gray-200 text-[10px] font-bold uppercase rounded-lg p-2 outline-none cursor-pointer">
-                           <option value="" disabled>+ Add Participant</option>
-                           {ecosystemPartners.filter(p => p.uid !== user?.uid).map(p => <option key={p.uid} value={p.uid}>{p.displayName} ({p.role?.replace('partner_','')})</option>)}
-                        </select>
-                     </div>
-                     <p className="text-[9px] text-gray-400 mt-2 font-bold uppercase text-center"><Mail size={10} className="inline mr-1"/> Team notified on updates</p>
+                     {partnerRole === 'admin' ? (
+                        <>
+                          <div className="flex items-center gap-2">
+                             <select onChange={handleAddParticipant} value="" className="flex-1 bg-white border border-gray-200 text-[10px] font-bold uppercase rounded-lg p-2 outline-none cursor-pointer">
+                                <option value="" disabled>+ Add Participant</option>
+                                {ecosystemPartners.filter(p => p.uid !== user?.uid).map(p => <option key={p.uid} value={p.uid}>{p.displayName} ({p.role?.replace('partner_','')})</option>)}
+                             </select>
+                          </div>
+                          <p className="text-[9px] text-gray-400 mt-2 font-bold uppercase text-center"><Mail size={10} className="inline mr-1"/> Added members can view + edit · team notified on updates</p>
+                        </>
+                     ) : (
+                        <p className="text-[9px] text-gray-400 mt-2 font-bold uppercase text-center">Only an admin can change the deal team</p>
+                     )}
                   </div>
 
                   {/* Document Vault */}
@@ -1824,15 +1952,15 @@ export default function PartnerCRM() {
       {/* 🤖 AI CHAT INTAKE WIZARD OVERLAY 🤖 */}
       {showIntakeForm && selectedDeal && (
         <div className="fixed inset-0 bg-white z-[100] flex flex-col animate-fade-in">
-            <div className="bg-black text-white p-6 flex justify-between items-center shrink-0 shadow-md">
-                <div className="flex items-center gap-3">
-                   <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center"><Bot size={20}/></div>
-                   <div>
-                      <h2 className="text-xl font-black uppercase tracking-wide">AI Intake — {intakePhase === 'review' ? 'Review & Send' : intakePhase === 'sending' ? 'Sending…' : 'Capture Scenario'}</h2>
-                      <p className="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Client: {selectedDeal.clientName}</p>
+            <div className="bg-black text-white p-4 md:p-6 flex justify-between items-center gap-2 shrink-0 shadow-md">
+                <div className="flex items-center gap-3 min-w-0">
+                   <div className="w-9 h-9 md:w-10 md:h-10 bg-blue-600 rounded-xl flex items-center justify-center shrink-0"><Bot size={20}/></div>
+                   <div className="min-w-0">
+                      <h2 className="text-base md:text-xl font-black uppercase tracking-wide truncate">AI Intake — {intakePhase === 'review' ? 'Review & Send' : intakePhase === 'sending' ? 'Sending…' : 'Capture Scenario'}</h2>
+                      <p className="text-[10px] text-gray-400 font-bold tracking-widest uppercase truncate">Client: {selectedDeal.clientName}</p>
                    </div>
                 </div>
-                <button onClick={() => { setShowIntakeForm(false); resetIntakeForm(); }} className="hover:text-gray-300"><X size={24}/></button>
+                <button onClick={() => { setShowIntakeForm(false); resetIntakeForm(); }} className="hover:text-gray-300 shrink-0"><X size={24}/></button>
             </div>
 
             {/* Phase progress bar */}
@@ -2241,14 +2369,14 @@ export default function PartnerCRM() {
                                     className="bg-white border-2 border-slate-900 text-slate-900 px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-slate-50 transition flex items-center justify-center gap-2 disabled:opacity-40"
                                 ><Save size={15}/> Save Summary to File</button>
 
-                                {/* Option 2: save AND email the plain summary to the client to confirm their data */}
+                                {/* Option 2: save AND email the client the summary + document checklist + secure portal link */}
                                 <button
                                     type="button"
                                     disabled={!intakeSummary.trim() || !selectedDeal.clientEmail}
                                     onClick={() => confirmIntake(false)}
                                     title={!selectedDeal.clientEmail ? 'Add a client email to enable emailing' : ''}
                                     className="bg-black text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-blue-600 transition flex items-center justify-center gap-2 shadow-xl disabled:opacity-40"
-                                ><Mail size={15}/> Save & Email Client to Confirm</button>
+                                ><Mail size={15}/> Save & Email Summary + Checklist</button>
                             </div>
                         </div>
                     </div>
