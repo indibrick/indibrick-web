@@ -1,7 +1,7 @@
 import React from 'react';
 import { Metadata } from 'next';
 import LandTransferTaxCalculator from '../../components/LandTransferTaxCalculator';
-import LeadForm from '../../components/LeadForm';
+import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
 
 export const metadata: Metadata = {
   title: 'Ontario Land Transfer Tax Calculator 2026 | Toronto Rebates',
@@ -21,8 +21,8 @@ export default function LTTPage() {
       </section>
       <section className="py-20 bg-white container mx-auto px-6 max-w-4xl">
          <h2 className="text-3xl font-black mb-6">How Rebates Work in 2026</h2>
-         <p className="text-gray-600 mb-4">First-time buyers in Ontario get a rebate up to <strong>$4,000</strong>. If you buy in Toronto, you get an additional rebate of up to <strong>$4,475</strong>, for a total of $8,475 in savings.</p>
-         <LeadForm type="Mortgage" title="Get Closing Costs PDF" subtitle="We'll email you a full breakdown." />
+         <p className="text-gray-600 mb-10">First-time buyers in Ontario get a rebate up to <strong>$4,000</strong>. If you buy in Toronto, you get an additional rebate of up to <strong>$4,475</strong>, for a total of $8,475 in savings.</p>
+         <CalculatorLeadCTA calculatorName="Land Transfer Tax Calculator" />
       </section>
     </div>
   );

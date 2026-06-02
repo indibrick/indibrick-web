@@ -2,6 +2,7 @@ import React from 'react';
 import { Metadata } from 'next';
 import { Mail, Phone, MapPin, Clock, MessageSquare, Shield, Star } from 'lucide-react';
 import JsonLd from '../../components/JsonLd';
+import TrustedFormScript from '../../components/TrustedFormScript';
 import GamifiedContactForm from '../../components/GamifiedContactForm';
 
 // --- SEO & AEO METADATA ---
@@ -68,6 +69,7 @@ export default function ContactPage() {
   return (
     <div className="bg-white min-h-screen">
       <JsonLd data={contactSchema} />
+      <TrustedFormScript />
 
       {/* --- 1. HERO SECTION --- */}
       <section className="relative pt-32 pb-20 px-6 bg-slate-900 text-white overflow-hidden">

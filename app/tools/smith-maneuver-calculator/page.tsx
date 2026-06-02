@@ -1,7 +1,7 @@
 import React from 'react';
 import { Metadata } from 'next';
 import SmithManeuverCalculator from '../../../components/calculators/SmithManeuverCalculator';
-import LeadForm from '../../../components/LeadForm';
+import CalculatorLeadCTA from '../../../components/CalculatorLeadCTA';
 import JsonLd from '../../../components/JsonLd';
 import Link from 'next/link';
 import { ArrowLeft, CheckCircle, XCircle, HelpCircle, Shield, TrendingUp, BookOpen } from 'lucide-react';
@@ -203,20 +203,8 @@ export default function SmithManeuverPage() {
         </div>
 
         {/* LEAD CAPTURE SECTION (SCROLL TARGET) */}
-        <div id="strategy-form" className="mt-32 max-w-3xl mx-auto">
-            <div className="bg-slate-900 text-white rounded-[3rem] p-8 md:p-12 shadow-2xl text-center">
-                <Shield size={48} className="text-blue-400 mx-auto mb-6" />
-                <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tighter mb-4">
-                    Audit Your Mortgage.
-                </h2>
-                <p className="text-blue-200 text-lg mb-8 leading-relaxed max-w-xl mx-auto">
-                    Most Canadians are sitting on a goldmine of tax deductions. Book a 15-minute strategy call to see if your property qualifies for the Smith Maneuver.
-                </p>
-                
-                <div className="bg-white text-slate-900 rounded-3xl p-6 md:p-8 text-left">
-                    <LeadForm type="Strategy Session" title="Request Eligibility Audit" subtitle="Speak to a Smith Maneuver Certified Specialist." />
-                </div>
-            </div>
+        <div id="strategy-form" className="mt-32">
+            <CalculatorLeadCTA calculatorName="Smith Maneuver Calculator" />
         </div>
 
       </div>

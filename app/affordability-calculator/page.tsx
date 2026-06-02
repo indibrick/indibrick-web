@@ -1,7 +1,7 @@
 import React from 'react';
 import { Metadata } from 'next';
 import AffordabilityCalculator from '../../components/AffordabilityCalculator';
-import LeadForm from '../../components/LeadForm';
+import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
 import { Wallet, Info } from 'lucide-react';
 
 export const metadata: Metadata = {
@@ -59,7 +59,7 @@ export default function AffordabilityPage() {
 
       <section className="py-20 bg-gray-50 border-t border-gray-100">
          <div className="container mx-auto px-6 max-w-3xl">
-            <LeadForm type="Mortgage" title="Verify My Income" subtitle="Get an official pre-approval letter for offers." />
+            <CalculatorLeadCTA calculatorName="Affordability Calculator" />
          </div>
       </section>
     </div>

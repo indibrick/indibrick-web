@@ -2,6 +2,7 @@ import React from 'react';
 import { Metadata } from 'next';
 import UniversalLifeCalculator from '../../../components/calculators/UniversalLifeCalculator';
 import JsonLd from '../../../components/JsonLd';
+import CalculatorLeadCTA from '../../../components/CalculatorLeadCTA';
 import { TrendingUp, Building2, Lock, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
@@ -84,13 +85,8 @@ export default function ULPage() {
         </div>
 
         {/* CTA */}
-        <div className="mt-24 bg-black text-white rounded-[3rem] p-12 text-center relative overflow-hidden">
-           <div className="relative z-10 max-w-2xl mx-auto">
-              <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tight mb-6">Stop Leasing Your Wealth.<br/>Own It.</h2>
-              <Link href="/contact" className="inline-flex items-center gap-2 bg-green-500 text-black px-8 py-4 rounded-xl font-black uppercase tracking-widest hover:bg-white transition duration-300">
-                 Request Official Illustration <ArrowRight size={20}/>
-              </Link>
-           </div>
+        <div className="mt-24">
+           <CalculatorLeadCTA calculatorName="Universal Life Calculator" />
         </div>
 
       </div>

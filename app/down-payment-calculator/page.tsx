@@ -1,7 +1,7 @@
 import React from 'react';
 import { Metadata } from 'next';
 import DownPaymentCalculator from '../../components/DownPaymentCalculator';
-import LeadForm from '../../components/LeadForm';
+import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
 
 export const metadata: Metadata = {
   title: 'Down Payment Calculator Canada | CMHC Insurance Rates',
@@ -18,7 +18,7 @@ export default function DownPaymentPage() {
         <div className="container mx-auto px-6 max-w-5xl"><DownPaymentCalculator /></div>
       </section>
       <section className="py-20 bg-white container mx-auto px-6 max-w-3xl">
-         <LeadForm type="Mortgage" title="Get Pre-Approved" subtitle="See what you qualify for." />
+         <CalculatorLeadCTA calculatorName="Down Payment Calculator" />
       </section>
     </div>
   );

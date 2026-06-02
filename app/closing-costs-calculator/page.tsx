@@ -1,7 +1,7 @@
 import React from 'react';
 import { Metadata } from 'next';
 import ClosingCostsCalculator from '../../components/ClosingCostsCalculator';
-import LeadForm from '../../components/LeadForm';
+import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
 import { DollarSign, AlertTriangle, FileText } from 'lucide-react';
 
 export const metadata: Metadata = {
@@ -56,7 +56,7 @@ export default function ClosingCostsPage() {
               </div>
            </div>
            <div className="mt-12 text-center">
-              <LeadForm type="Mortgage" title="Get a Closing Cost Sheet" subtitle="We'll send you a PDF for your lawyer." />
+              <CalculatorLeadCTA calculatorName="Closing Costs Calculator" />
            </div>
         </div>
       </section>

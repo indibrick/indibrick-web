@@ -1,7 +1,7 @@
 import React from 'react';
 import { Metadata } from 'next';
 import TriggerRateCalculator from '../../components/TriggerRateCalculator';
-import LeadForm from '../../components/LeadForm';
+import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
 import { AlertTriangle } from 'lucide-react';
 
 export const metadata: Metadata = {
@@ -39,9 +39,7 @@ export default function TriggerRatePage() {
              If your current rate is higher than your trigger rate, your principal is growing every month. 
              We can help you refinance to a fixed rate or extend your amortization to lower payments.
            </p>
-           <div className="max-w-2xl mx-auto text-left">
-              <LeadForm type="Mortgage" title="Refinance Consultation" subtitle="Let's fix your mortgage structure." />
-           </div>
+           <CalculatorLeadCTA calculatorName="Trigger Rate Calculator" />
         </div>
       </section>
     </div>

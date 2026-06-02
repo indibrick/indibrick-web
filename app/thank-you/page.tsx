@@ -62,10 +62,8 @@ export default function ThankYouPage() {
 
               {/* The Massive Button */}
               <div className="lg:col-span-2 flex justify-center lg:justify-end">
-                 <a 
-                   href="https://gopineapple.ca/muditchhura/preapproval" 
-                   target="_blank" 
-                   rel="noopener noreferrer"
+                 <a
+                   href="/apply"
                    className="w-full h-full min-h-[160px] bg-slate-900 text-white p-8 rounded-3xl font-black uppercase tracking-widest hover:bg-blue-600 transition duration-300 shadow-xl hover:-translate-y-1 flex flex-col items-center justify-center text-center gap-4 group"
                  >
                    <span className="text-xl md:text-2xl">Apply Online<br/>Now</span>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Metadata } from 'next';
 import MortgageRenewalCalculator from '../../components/MortgageRenewalCalculator';
-import LeadForm from '../../components/LeadForm';
+import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
 
 export const metadata: Metadata = {
   title: 'Mortgage Renewal Calculator | Compare Rates',
@@ -18,7 +18,7 @@ export default function RenewalPage() {
         <div className="container mx-auto px-6 max-w-5xl"><MortgageRenewalCalculator /></div>
       </section>
       <section className="py-20 bg-white container mx-auto px-6 max-w-3xl">
-         <LeadForm type="Mortgage" title="Switch & Save" subtitle="Don't sign your bank's first offer." />
+         <CalculatorLeadCTA calculatorName="Mortgage Renewal Calculator" />
       </section>
     </div>
   );

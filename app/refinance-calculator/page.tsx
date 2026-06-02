@@ -1,7 +1,7 @@
 import React from 'react';
 import { Metadata } from 'next';
 import RefinanceCalculator from '../../components/RefinanceCalculator';
-import LeadForm from '../../components/LeadForm';
+import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
 import { CheckCircle, HelpCircle, TrendingUp } from 'lucide-react';
 
 export const metadata: Metadata = {
@@ -119,9 +119,7 @@ export default function RefinancePage() {
             <p className="text-gray-500 mb-10">
                We can often capitalize (add) the penalty into the new loan so you pay nothing out of pocket.
             </p>
-            <div className="text-left">
-               <LeadForm type="Mortgage" title="Request Refinance Assessment" subtitle="Get a full breakdown of costs vs. savings." />
-            </div>
+            <CalculatorLeadCTA calculatorName="Refinance Calculator" />
          </div>
       </section>
     </div>

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import LeadForm from '../../components/LeadForm';
 import AIIntakeForm from '../../components/AIIntakeForm';
 import JsonLd from '../../components/JsonLd';
+import TrustedFormScript from '../../components/TrustedFormScript';
 import { 
   TrendingDown, Shield, AlertTriangle, CheckCircle, 
   Banknote, Landmark, Percent, Lock, HelpCircle, 
@@ -231,6 +232,7 @@ export default function RatesPage() {
   return (
     <div className="bg-[#F8FAFC] min-h-screen pt-32 pb-24 font-sans text-slate-900 selection:bg-blue-600 selection:text-white">
       <JsonLd data={ratesSchema} />
+      <TrustedFormScript />
       <JsonLd data={faqSchema} />
 
       {/* --- FULL-SCREEN PERSONALIZED QUOTER OVERLAY --- */}

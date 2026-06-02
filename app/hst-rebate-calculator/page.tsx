@@ -1,7 +1,7 @@
 import React from 'react';
 import { Metadata } from 'next';
 import HSTRebateCalculator from '../../components/HSTRebateCalculator';
-import LeadForm from '../../components/LeadForm';
+import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
 import JsonLd from '../../components/JsonLd';
 import { 
   Building2, AlertTriangle, CheckCircle, HelpCircle, 
@@ -179,26 +179,7 @@ export default function HSTRebatePage() {
       {/* --- 5. LEAD CAPTURE (CLOSING STRATEGY) --- */}
       <section className="py-24 px-6 bg-gray-50 border-t border-gray-200">
          <div className="container mx-auto max-w-4xl">
-            <div className="bg-white rounded-[3rem] shadow-2xl p-8 md:p-16 border border-gray-100 text-center">
-               <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm">
-                  <Landmark size={32} />
-               </div>
-               <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tighter mb-4 text-slate-900">
-                  Don't Close Blind.
-               </h2>
-               <p className="text-gray-500 font-medium mb-10 max-w-xl mx-auto text-lg">
-                  Whether you need mortgage financing for your new build, or a legal partner to file your NRRP rebate, our ecosystem handles it all.
-               </p>
-               
-               <div className="text-left max-w-lg mx-auto">
-                  <LeadForm 
-                     type="Legal" 
-                     title="Request Closing Support" 
-                     subtitle="Ensure your rebates are filed correctly by our legal partners." 
-                     ctaText="Connect with Team"
-                  />
-               </div>
-            </div>
+            <CalculatorLeadCTA calculatorName="HST Rebate Calculator" />
          </div>
       </section>
 

@@ -52,11 +52,15 @@ const LeadForm: React.FC<LeadFormProps> = ({
 
     setError('');
     setLoading(true);
-    
+
+    // TrustedForm consent certificate (populated by the loader script in <head>)
+    const trustedFormCertUrl = (document.getElementById('xxTrustedFormCertUrl') as HTMLInputElement | null)?.value || '';
+
     const result = await LeadService.submitLead({
       ...formData,
-      phone: cleanedPhone, 
-      serviceNeeded: formData.serviceNeeded
+      phone: cleanedPhone,
+      serviceNeeded: formData.serviceNeeded,
+      trustedFormCertUrl,
     });
 
     if (result.success) {
@@ -115,6 +119,7 @@ const LeadForm: React.FC<LeadFormProps> = ({
       </div>
       
       <form onSubmit={handleSubmit} className="space-y-5">
+        <input type="hidden" name="xxTrustedFormCertUrl" id="xxTrustedFormCertUrl" />
         <div>
           <label className="block text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">I am interested in</label>
           <div className="relative group">

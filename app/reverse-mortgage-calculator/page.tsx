@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import JsonLd from '../../components/JsonLd';
 import ReverseMortgageCalculator from '../../components/calculators/ReverseMortgageCalculator';
-import LeadForm from '../../components/LeadForm'; // <--- Added LeadForm Import
+import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
 
 export const metadata: Metadata = {
   title: 'Reverse Mortgage Calculator Ontario (2026) | Calculate 55+ Payout',
@@ -169,16 +169,7 @@ export default function ReverseMortgageCalculatorPage() {
       {/* --- LEAD FORM SECTION (Target of the Calculator Button) --- */}
       <section id="quote" className="py-24 px-6 bg-orange-50 border-t border-orange-100">
          <div className="container mx-auto max-w-4xl">
-            <div className="bg-white rounded-[2.5rem] shadow-2xl p-8 md:p-12 overflow-hidden relative">
-               <div className="absolute top-0 left-0 w-full h-2 bg-orange-500"></div>
-               <div className="text-center mb-10">
-                  <h2 className="text-3xl font-black uppercase tracking-tight text-slate-900 mb-2">Claim Your Quote</h2>
-                  <p className="text-gray-500">
-                     Confirm your eligibility with a licensed advisor. No obligation.
-                  </p>
-               </div>
-               <LeadForm type="Reverse Mortgage Calc Page" title="Get Official Quote" subtitle="Confidential Review." />
-            </div>
+            <CalculatorLeadCTA calculatorName="Reverse Mortgage Calculator" />
          </div>
       </section>
 

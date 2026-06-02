@@ -197,13 +197,11 @@ const Header: React.FC = () => {
             </Link>
 
             {/* 2. High Priority Pre-Approval */}
-            <a 
-              href="https://gopineapple.ca/muditchhura/preapproval" 
-              target="_blank" 
-              rel="noopener noreferrer"
+            <a
+              href="/apply"
               className="hidden lg:flex items-center gap-1.5 bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-200 px-4 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition shadow-sm"
             >
-              <Zap size={14} className="fill-current" /> Pre-Approval
+              <Zap size={14} className="fill-current" /> Get Pre-Approved
             </a>
 
             {/* 3. Primary Client Portal */}
@@ -263,8 +261,8 @@ const Header: React.FC = () => {
 
             {/* MOBILE CTA GRID */}
             <div className="grid grid-cols-1 gap-3 pt-4 border-t border-gray-100">
-              <a href="https://gopineapple.ca/muditchhura/preapproval" target="_blank" rel="noopener noreferrer" className="bg-blue-600 text-white text-center py-4 rounded-xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-lg">
-                <Zap size={16} className="fill-white" /> Start Pre-Approval
+              <a href="/apply" className="bg-blue-600 text-white text-center py-4 rounded-xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 shadow-lg">
+                <Zap size={16} className="fill-white" /> Get Pre-Approved
               </a>
               <div className="grid grid-cols-2 gap-3">
                  <Link href="/client/login" onClick={() => setIsOpen(false)} className="bg-slate-900 text-white text-center py-4 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2">

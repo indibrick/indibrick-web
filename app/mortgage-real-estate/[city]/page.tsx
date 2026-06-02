@@ -94,13 +94,11 @@ export default async function CityPage({ params }: { params: { city: string } })
             </p>
             
             <div className="flex flex-col sm:flex-row gap-6">
-              <a 
-                href="https://gopineapple.ca/muditchhura/preapproval" 
-                target="_blank" 
-                rel="noopener noreferrer"
+              <a
+                href="/apply"
                 className="bg-white text-black px-12 py-6 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-gray-200 transition text-center shadow-2xl flex items-center justify-center gap-3"
               >
-                <Zap size={18} /> Start Pre-Approval
+                <Zap size={18} /> Get Pre-Approved
               </a>
               <Link 
                 href="#contact-form"

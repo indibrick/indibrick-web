@@ -2,7 +2,7 @@
 
 import React from 'react';
 import PenaltyCalculator from '../../components/PenaltyCalculator';
-import LeadForm from '../../components/LeadForm';
+import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
 import JsonLd from '../../components/JsonLd';
 import { ShieldAlert, BookOpen, CheckCircle, TrendingDown } from 'lucide-react'; // Added TrendingDown
 
@@ -117,16 +117,7 @@ export default function PenaltyCalculatorPage() {
                </div>
             </div>
 
-            {/* Final CTA */}
-            <div className="bg-black text-white p-12 rounded-[3rem] text-center relative overflow-hidden">
-               <div className="relative z-10">
-                  <h3 className="text-3xl font-black uppercase tracking-tight mb-4">Is it worth breaking?</h3>
-                  <p className="text-gray-400 mb-8 max-w-lg mx-auto">
-                     Sometimes paying a $5,000 penalty saves you $15,000 in interest over the next 3 years. Let us run the math for you.
-                  </p>
-                  <LeadForm type="Refinance" title="Get A Free Penalty Audit" subtitle="We verify the bank's math." />
-               </div>
-            </div>
+            <CalculatorLeadCTA calculatorName="Mortgage Penalty Calculator" />
 
          </div>
       </section>

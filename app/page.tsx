@@ -4,6 +4,7 @@ import { Metadata } from 'next';
 import LeadForm from '../components/LeadForm';
 import AIIntakeForm from '../components/AIIntakeForm'; // <-- NEW AI FORM IMPORT
 import JsonLd from '../components/JsonLd';
+import TrustedFormScript from '../components/TrustedFormScript';
 import { 
   TrendingUp, Hammer, BarChart3, Scale, 
   ArrowRight, Layers, CheckCircle, HelpCircle, ChevronDown, Factory, Users, Sun, Percent, Activity, Zap, Ruler
@@ -57,6 +58,7 @@ export default async function HomePage() {
   return (
     <div className="bg-white min-h-screen font-sans">
       <JsonLd data={homeSchema} />
+      <TrustedFormScript />
 
       {/* --- 1. HERO: FIXED MOBILE SPACING & DESKTOP HIERARCHY --- */}
       <section className="relative pt-24 md:pt-32 pb-16 md:pb-20 px-6 border-b border-gray-100 overflow-hidden">
@@ -82,8 +84,8 @@ export default async function HomePage() {
             <Link href="/city-data" className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-black transition shadow-xl hover:shadow-2xl hover:-translate-y-1 flex items-center justify-center gap-3">
                <Activity size={16} className="text-blue-400" /> Start Market Intelligence
             </Link>
-            <a href="#onboarding" className="bg-white text-slate-900 border border-gray-200 px-10 py-5 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-gray-50 transition flex items-center justify-center gap-3">
-               <TrendingUp size={16} /> Check Rates ({rates.insured_variable_5yr}%*)
+            <a href="/apply" className="bg-white text-slate-900 border border-gray-200 px-10 py-5 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-gray-50 transition flex items-center justify-center gap-3">
+               <TrendingUp size={16} /> Get My Mortgage Options
             </a>
           </div>
         </div>

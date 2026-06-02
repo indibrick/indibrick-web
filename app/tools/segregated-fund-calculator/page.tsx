@@ -2,6 +2,7 @@ import React from 'react';
 import { Metadata } from 'next';
 import SegregatedFundCalculator from '../../../components/calculators/SegregatedFundCalculator';
 import JsonLd from '../../../components/JsonLd';
+import CalculatorLeadCTA from '../../../components/CalculatorLeadCTA';
 import { Shield, Lock, EyeOff, Gavel, Check, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
@@ -217,6 +218,12 @@ export default function SegFundPage() {
                   </tbody>
                </table>
             </div>
+         </div>
+      </section>
+
+      <section className="py-20 bg-gray-50 border-t border-gray-100">
+         <div className="container mx-auto px-6">
+            <CalculatorLeadCTA calculatorName="Segregated Fund Calculator" />
          </div>
       </section>
     </div>

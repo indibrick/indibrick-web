@@ -2,7 +2,7 @@ import React from 'react';
 import { Metadata } from 'next';
 import MortgageCalculator from '../../components/MortgageCalculator';
 import GamifiedContactForm from '../../components/GamifiedContactForm';
-import AIIntakeForm from '../../components/AIIntakeForm';
+import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
 import JsonLd from '../../components/JsonLd';
 import { 
   Calculator, CheckCircle, AlertTriangle, TrendingUp, Shield, ChevronDown 
@@ -187,10 +187,7 @@ export default function MortgagePaymentPage() {
                Chat with our secure AI Copilot to generate your custom document checklist and secure today's lowest wholesale rates.
             </p>
             
-            {/* Replaced old LeadForm with the premium AI Intake */}
-            <div className="text-left">
-               <AIIntakeForm />
-            </div>
+            <CalculatorLeadCTA calculatorName="Mortgage Payment Calculator" />
          </div>
       </section>
 

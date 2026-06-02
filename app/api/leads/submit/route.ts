@@ -10,11 +10,23 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, email, phone, serviceNeeded, city, message, pageSource, userAgent, partnerId } = body;
+    const {
+      name, email, phone, serviceNeeded, city, message, pageSource, userAgent, partnerId,
+      // Wizard extensions (/contact + /apply): structured fields the legacy LeadForm doesn't send.
+      // All optional — the older `name/phone/serviceNeeded` contract still works when these are absent.
+      source, goal, province, propertyValue, mortgageBalance, ltv, employmentType,
+      firstName, lastName, consentGiven, lenderTier, creditRange, trustedFormCertUrl,
+    } = body;
     const timestamp = new Date().toISOString();
-    const clientName = name || 'Unknown Client';
 
-    if (!name || !phone || !serviceNeeded) {
+    // Derive `name` from firstName/lastName when the wizard sends them separately.
+    const clientName = (name && name.trim())
+      || [firstName, lastName].filter((s: any) => s && String(s).trim()).join(' ').trim()
+      || 'Unknown Client';
+    // Older callers always send serviceNeeded; the new wizard sends `goal` instead.
+    const effectiveServiceNeeded = (serviceNeeded && String(serviceNeeded).trim()) || (goal && String(goal).trim()) || '';
+
+    if (!clientName || clientName === 'Unknown Client' || !phone || !effectiveServiceNeeded) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
     }
 
@@ -30,7 +42,7 @@ export async function POST(request: Request) {
       name: clientName,
       email: email || '',
       phone: phone,
-      serviceNeeded: serviceNeeded,
+      serviceNeeded: effectiveServiceNeeded,
       city: city || 'Unknown',
       message: message || '',
       status: 'new',
@@ -41,6 +53,20 @@ export async function POST(request: Request) {
       referralSource,
       landingPageSlug,
       partnerName,
+      // Wizard fields — written when present, ignored by older callers.
+      source: source || '',
+      goal: goal || '',
+      province: province || '',
+      propertyValue: propertyValue ?? null,
+      mortgageBalance: mortgageBalance ?? null,
+      ltv: ltv ?? null,
+      employmentType: employmentType || '',
+      firstName: firstName || '',
+      lastName: lastName || '',
+      consentGiven: consentGiven === true,
+      lenderTier: lenderTier || '',
+      creditRange: creditRange || '',
+      trustedFormCertUrl: trustedFormCertUrl || '',
     });
 
     // 2. THE CRM BRIDGE: Inject instantly into Partner Portal bypassing client rules
@@ -56,10 +82,20 @@ export async function POST(request: Request) {
       clientEmail: email || '',
       referralDate: timestamp,
       message: message || '', // <--- THE FIX: Explicitly save the message for the CRM UI
-      notes: `System: Lead submitted from website form. Service requested: ${serviceNeeded}.`,
+      notes: `System: Lead submitted from website form. Service requested: ${effectiveServiceNeeded}.${lenderTier ? ` Tier: ${lenderTier}.` : ''}${ltv != null ? ` LTV: ${ltv}%.` : ''}`,
       // Compensation/attribution: where the lead came from + which landing page (if any)
       referralSource,
       landingPageSlug,
+      // Wizard context surfaced to the CRM so the agent can pick up the file cold
+      goal: goal || '',
+      province: province || '',
+      propertyValue: propertyValue ?? null,
+      mortgageBalance: mortgageBalance ?? null,
+      ltv: ltv ?? null,
+      employmentType: employmentType || '',
+      lenderTier: lenderTier || '',
+      creditRange: creditRange || '',
+      source: source || '',
       timeline: [{
         type: 'system',
         author: 'System',
@@ -74,10 +110,10 @@ export async function POST(request: Request) {
 
     // 3. Trigger Admin Alert securely via Admin
     await adminDb.collection('mail').add({
-      to: ['indibrick@gmail.com'], 
+      to: ['indibrick@gmail.com'],
       message: {
-        subject: `🚨 New Lead Alert: ${clientName} (${serviceNeeded})`,
-        text: `Name: ${clientName}\nPhone: ${phone}\nEmail: ${email}\nService: ${serviceNeeded}`,
+        subject: `🚨 New Lead Alert: ${clientName} (${effectiveServiceNeeded}${lenderTier ? ` · ${lenderTier}` : ''})`,
+        text: `Name: ${clientName}\nPhone: ${phone}\nEmail: ${email}\nService: ${effectiveServiceNeeded}${lenderTier ? `\nLender Tier: ${lenderTier}` : ''}${ltv != null ? `\nLTV: ${ltv}%` : ''}${source ? `\nSource: ${source}` : ''}`,
         html: `
           <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
             <h2 style="color: #2563eb;">New Lead Captured</h2>
@@ -85,7 +121,13 @@ export async function POST(request: Request) {
               <li><strong>Name:</strong> ${clientName}</li>
               <li><strong>Phone:</strong> ${phone}</li>
               <li><strong>Email:</strong> ${email || 'N/A'}</li>
-              <li><strong>Service Requested:</strong> ${serviceNeeded}</li>
+              <li><strong>Service Requested:</strong> ${effectiveServiceNeeded}</li>
+              ${lenderTier ? `<li><strong>Lender Tier:</strong> ${lenderTier}</li>` : ''}
+              ${ltv != null ? `<li><strong>LTV:</strong> ${ltv}%</li>` : ''}
+              ${province ? `<li><strong>Province:</strong> ${province}</li>` : ''}
+              ${employmentType ? `<li><strong>Employment:</strong> ${employmentType}</li>` : ''}
+              ${creditRange ? `<li><strong>Credit:</strong> ${creditRange}</li>` : ''}
+              ${source ? `<li><strong>Source:</strong> ${source}</li>` : ''}
             </ul>
             <p><strong>Message:</strong><br/> ${message || 'No message attached.'}</p>
             <br/>

@@ -1624,8 +1624,8 @@ export default function PartnerCRM() {
 
                </div>
 
-               {/* COL 2: INTERACTION & TIMELINE (50%) */}
-               <div className="w-full lg:w-1/2 flex flex-col bg-[#F8FAFC] min-h-0">
+               {/* COL 2: INTERACTION & TIMELINE (50%) — primary on mobile (order-first); natural order on desktop */}
+               <div className="w-full lg:w-1/2 flex flex-col bg-[#F8FAFC] min-h-0 order-first lg:order-none">
                   {/* AI Copilot toast — surfaces auto-scheduled follow-ups so the agent SEES a task got created */}
                   {aiTaskToast && (
                       <div className={`border-b px-5 py-3 flex items-start gap-3 shrink-0 animate-fade-in-up ${aiTaskToast.isDefault ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'}`}>
