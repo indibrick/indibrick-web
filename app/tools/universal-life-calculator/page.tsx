@@ -1,16 +1,17 @@
 import React from 'react';
-import { Metadata } from 'next';
 import UniversalLifeCalculator from '../../../components/calculators/UniversalLifeCalculator';
 import JsonLd from '../../../components/JsonLd';
 import CalculatorLeadCTA from '../../../components/CalculatorLeadCTA';
 import { TrendingUp, Building2, Lock, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { buildMetadata } from '../../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Universal Life Insurance Calculator Canada | Tax-Free Investment Tool',
+export const metadata = buildMetadata({
+  title: 'Universal Life Insurance Calculator Canada — Tax-Free Investment Tool',
   description: 'Calculate tax-exempt growth and death benefits with our Universal Life Insurance Calculator. Model Corporate Insured Retirement Plans (IRP) and estate transfer strategies.',
+  slug: '/tools/universal-life-calculator',
   keywords: ['Universal Life Insurance Calculator', 'Corporate IRP Calculator', 'Tax Free Investment Canada', 'Cash Value Life Insurance', 'Estate Planning Tool'],
-};
+});
 
 export default function ULPage() {
   const pageSchema = {

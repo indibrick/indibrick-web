@@ -1,13 +1,15 @@
 import React from 'react';
-import { Metadata } from 'next';
 import TriggerRateCalculator from '../../components/TriggerRateCalculator';
 import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
 import { AlertTriangle } from 'lucide-react';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Trigger Rate Calculator for Variable Mortgages | IndiBrick',
+export const metadata = buildMetadata({
+  title: 'Trigger Rate Calculator for Variable Mortgages',
   description: 'Find out at what interest rate your variable mortgage payments stop covering principal (Negative Amortization risk).',
-};
+  slug: '/trigger-rate-calculator',
+  keywords: ['trigger rate calculator', 'variable mortgage negative amortization', 'Canada trigger rate'],
+});
 
 export default function TriggerRatePage() {
   return (

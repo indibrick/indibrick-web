@@ -1,18 +1,19 @@
 import React from 'react';
-import { Metadata } from 'next';
 import HSTRebateCalculator from '../../components/HSTRebateCalculator';
 import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
 import JsonLd from '../../components/JsonLd';
-import { 
-  Building2, AlertTriangle, CheckCircle, HelpCircle, 
-  ChevronDown, FileText, Landmark, Zap, ArrowRight 
+import {
+  Building2, AlertTriangle, CheckCircle, HelpCircle,
+  ChevronDown, FileText, Landmark, Zap, ArrowRight
 } from 'lucide-react';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Ontario HST Rebate Calculator 2026 | New Build & Rental Rebates',
+export const metadata = buildMetadata({
+  title: 'Ontario HST Rebate Calculator 2026 — New Build & Rental Rebates',
   description: 'Calculate the exact HST Rebate for new build homes in Ontario. Learn about the new 100% GST removal for Purpose-Built Rentals and the NRRP Investor Rebate.',
+  slug: '/hst-rebate-calculator',
   keywords: ['HST Rebate Calculator Ontario', 'New Housing Rebate Canada', 'Purpose Built Rental HST Rebate', 'NRRP Rebate Calculator', 'Pre-construction HST Investor'],
-};
+});
 
 export default function HSTRebatePage() {
 

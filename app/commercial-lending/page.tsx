@@ -1,18 +1,19 @@
 import React from 'react';
-import { Metadata } from 'next';
 import Link from 'next/link';
-import { 
-  Building2, Factory, Store, HardHat, TrendingUp, 
-  Briefcase, DollarSign, CheckCircle, ArrowRight, HelpCircle 
+import {
+  Building2, Factory, Store, HardHat, TrendingUp,
+  Briefcase, DollarSign, CheckCircle, ArrowRight, HelpCircle
 } from 'lucide-react';
 import JsonLd from '../../components/JsonLd';
 import LeadForm from '../../components/LeadForm';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Commercial Mortgages & Business Loans Ontario | Indibrick',
+export const metadata = buildMetadata({
+  title: 'Commercial Mortgages & Business Loans Ontario',
   description: 'Exclusive access to Commercial Lenders, Private Funds, and CSBFL Business Loans. Financing for Multi-Unit Residential, Industrial, Retail, and Construction projects.',
+  slug: '/commercial-lending',
   keywords: ['Commercial Mortgage Broker Ontario', 'Business Loans Toronto', 'Multi-Family Mortgage Rates', 'Construction Financing', 'Small Business Loan Canada', 'Industrial Plaza Mortgage'],
-};
+});
 
 export default function CommercialLendingPage() {
   

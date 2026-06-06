@@ -1,15 +1,16 @@
 import React from 'react';
-import { Metadata } from 'next';
 import Link from 'next/link';
 import LeadForm from '../../components/LeadForm';
 import JsonLd from '../../components/JsonLd';
 import { TrendingUp, TrendingDown, Activity, AlertTriangle, ArrowRight } from 'lucide-react';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Ontario Mortgage Rate Forecast 2026 | Bond Yield Analysis',
+export const metadata = buildMetadata({
+  title: 'Ontario Mortgage Rate Forecast 2026 — Bond Yield Analysis',
   description: 'Live analysis of the 5-Year Canada Bond Yield vs. Fixed Mortgage Rates. Expert predictions for 2026 interest rate cuts.',
+  slug: '/mortgage-rate-forecast',
   keywords: ['Mortgage Rate Forecast 2026', 'Canada Bond Yields', 'Prime Rate Prediction', 'Will mortgage rates go down'],
-};
+});
 
 export default function ForecastPage() {
   const forecastSchema = {

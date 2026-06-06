@@ -1,18 +1,19 @@
 import React from 'react';
-import { Metadata } from 'next';
 import LeadForm from '../../components/LeadForm';
 import JsonLd from '../../components/JsonLd';
-import { 
-  ShieldCheck, Truck, Home, Briefcase, 
-  Umbrella, AlertTriangle, CheckCircle, Car, 
+import {
+  ShieldCheck, Truck, Home, Briefcase,
+  Umbrella, AlertTriangle, CheckCircle, Car,
   PieChart, TrendingUp, Anchor
 } from 'lucide-react';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Commercial, Auto & Home Insurance Ontario | RIBO Licensed Brokers',
+export const metadata = buildMetadata({
+  title: 'Commercial, Auto & Home Insurance Ontario — RIBO Licensed Brokers',
   description: 'Get the cheapest and most comprehensive quotes for Business, Fleet, and Property insurance. Dedicated RIBO licensed advisors shopping 20+ markets for you.',
+  slug: '/commercial-auto-home-insurance',
   keywords: ['Commercial Insurance Ontario', 'Auto Insurance Quote Toronto', 'Home Insurance Bundles', 'RIBO Licensed Broker', 'Business Liability Insurance', 'Fleet Insurance'],
-};
+});
 
 export default function GeneralInsurancePage() {
   const pageSchema = {

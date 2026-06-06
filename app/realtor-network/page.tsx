@@ -1,20 +1,21 @@
 import React from 'react';
 import Link from 'next/link';
-import { Metadata } from 'next';
 import LeadForm from '../../components/LeadForm';
 import AffordabilityCalculator from '../../components/AffordabilityCalculator';
 import JsonLd from '../../components/JsonLd';
-import { 
-  Users, Search, MapPin, Handshake, ShieldCheck, 
-  TrendingUp, CheckCircle, AlertTriangle, HelpCircle, 
-  ArrowRight, DollarSign, Calculator 
+import {
+  Users, Search, MapPin, Handshake, ShieldCheck,
+  TrendingUp, CheckCircle, AlertTriangle, HelpCircle,
+  ArrowRight, DollarSign, Calculator
 } from 'lucide-react';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Top 1% Realtor Network Ontario | Exclusive Off-Market Listings',
+export const metadata = buildMetadata({
+  title: 'Top 1% Realtor Network Ontario — Exclusive Off-Market Listings',
   description: 'Don\'t just browse MLS. Get matched with a top-tier local Realtor who specializes in investment properties and off-market deals. Pre-approval included.',
+  slug: '/realtor-network',
   keywords: ['Best Realtors Toronto', 'Investment Realtor Ontario', 'Off-Market Listings Toronto', 'Real Estate Agent Referral', 'Buy Home Ontario'],
-};
+});
 
 export default function RealtorNetworkPage() {
   

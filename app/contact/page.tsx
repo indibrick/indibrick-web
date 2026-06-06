@@ -4,13 +4,14 @@ import { Mail, Phone, MapPin, Clock, MessageSquare, Shield, Star } from 'lucide-
 import JsonLd from '../../components/JsonLd';
 import TrustedFormScript from '../../components/TrustedFormScript';
 import GamifiedContactForm from '../../components/GamifiedContactForm';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-// --- SEO & AEO METADATA ---
-export const metadata: Metadata = {
-  title: 'Contact Mortgage Advisor Vaughan | Indibrick & Pineapple Financial',
+export const metadata = buildMetadata({
+  title: 'Contact Mortgage Advisor Vaughan',
   description: 'Speak directly with a Senior Mortgage Strategist in Vaughan, Ontario. Get approved in 24 hours. Located at 60 Pippin Road. Specialists in Private Lending and Self-Employed.',
+  slug: '/contact',
   keywords: ['Mortgage Broker Vaughan', 'Indibrick Financial Contact', 'Private Lender Contact Ontario', 'Mortgage Renewal Advice', 'Speak to Mortgage Agent'],
-};
+});
 
 // --- UPDATED CONTACT INFO ---
 const CONTACT_INFO = [
@@ -24,7 +25,7 @@ const CONTACT_INFO = [
   {
     icon: Mail,
     label: "Email Support",
-    value: "sales@indibrick.ca",
+    value: 'sales' + '@' + 'indibrick.ca',
     link: "mailto:sales@indibrick.ca",
     sub: "Response in < 1 Hour"
   },

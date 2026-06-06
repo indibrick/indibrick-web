@@ -4,25 +4,28 @@ import { Metadata } from 'next';
 import { CityService } from '../../../services/CityService';
 import LeadForm from '../../../components/LeadForm';
 import Link from 'next/link';
-import { 
-  Zap, Shield, MapPin 
+import {
+  Zap, Shield, MapPin
 } from 'lucide-react';
+import { buildMetadata } from '../../../lib/buildMetadata';
 
 // 1. DYNAMIC METADATA
 export async function generateMetadata({ params }: { params: { city: string } }): Promise<Metadata> {
   const cityData = await CityService.getCityBySlug(params.city);
 
-  if (!cityData) return { title: 'City Not Found' };
+  if (!cityData) {
+    return buildMetadata({
+      title: 'City Not Found',
+      description: 'The requested city mortgage and real estate hub could not be located.',
+      slug: `/mortgage-real-estate/${params.city}`,
+    });
+  }
 
-  return {
-    title: `Mortgage Broker & Real Estate in ${cityData.name}, ON | IndiBrick`,
+  return buildMetadata({
+    title: `Mortgage Broker & Real Estate in ${cityData.name}, ON`,
     description: cityData.metaDescription,
-    openGraph: {
-        title: `${cityData.name} Mortgage & Real Estate Hub`,
-        description: cityData.intro.substring(0, 150),
-        images: ["https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80"]
-    }
-  };
+    slug: `/mortgage-real-estate/${params.city}`,
+  });
 }
 
 // 2. STATIC PARAMS (Builds pages for all cities in DB at compile time)

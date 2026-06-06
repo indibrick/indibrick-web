@@ -1,12 +1,14 @@
 import React from 'react';
-import { Metadata } from 'next';
 import LeadForm from '../../components/LeadForm';
 import { TrendingUp, ShieldCheck, Users, PieChart } from 'lucide-react';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Investment Planning & Wealth Growth Services in Canada | IndiBrick',
+export const metadata = buildMetadata({
+  title: 'Investment Planning & Wealth Growth Services in Canada',
   description: 'Professional investment planning and long-term wealth growth services. Connect with licensed advisors to explore structured investment solutions.',
-};
+  slug: '/investment-planning-wealth-growth',
+  keywords: ['investment planning Canada', 'wealth growth services', 'long-term investments', 'licensed advisors Canada'],
+});
 
 export default function InvestmentPage() {
   return (

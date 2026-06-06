@@ -1,19 +1,15 @@
 import React from 'react';
-import { Metadata } from 'next';
 import RefinanceCalculator from '../../components/RefinanceCalculator';
 import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
 import { CheckCircle, HelpCircle, TrendingUp } from 'lucide-react';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Debt Consolidation Calculator Ontario | Mortgage Refinance Tool',
+export const metadata = buildMetadata({
+  title: 'Debt Consolidation Calculator Ontario — Mortgage Refinance Tool',
   description: 'Calculate how much you can save by rolling credit cards and loans into your mortgage. Use our Equity Takeout Calculator to lower monthly payments.',
+  slug: '/refinance-calculator',
   keywords: ['debt consolidation calculator mortgage', 'refinance to pay off debt', 'equity takeout calculator', 'mortgage refinance ontario', 'lower monthly payments'],
-  openGraph: {
-    title: 'Stop Overpaying Interest. Consolidate Your Debt.',
-    description: 'See exactly how much you save by moving high-interest debt into a lower-rate mortgage.',
-    type: 'website',
-  },
-};
+});
 
 export default function RefinancePage() {
   // AEO: FAQ Schema for Voice Search & AI Snippets

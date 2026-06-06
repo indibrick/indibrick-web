@@ -1,19 +1,20 @@
 import React from 'react';
-import { Metadata } from 'next';
 import Link from 'next/link';
-import { 
-  Calculator, Sun, CheckCircle, HelpCircle, ArrowRight, 
-  TrendingUp, ShieldCheck, DollarSign 
+import {
+  Calculator, Sun, CheckCircle, HelpCircle, ArrowRight,
+  TrendingUp, ShieldCheck, DollarSign
 } from 'lucide-react';
 import JsonLd from '../../components/JsonLd';
 import ReverseMortgageCalculator from '../../components/calculators/ReverseMortgageCalculator';
 import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Reverse Mortgage Calculator Ontario (2026) | Calculate 55+ Payout',
+export const metadata = buildMetadata({
+  title: 'Reverse Mortgage Calculator Ontario (2026) — Calculate 55+ Payout',
   description: 'Instant Reverse Mortgage Calculator for Ontario. See exactly how much tax-free cash you can unlock from your home equity. No personal info required to calculate.',
+  slug: '/reverse-mortgage-calculator',
   keywords: ['Reverse Mortgage Calculator Ontario', 'CHIP Calculator', 'Equity Release Calculator', 'How much reverse mortgage can I get', 'Senior Home Loan Calculator'],
-};
+});
 
 export default function ReverseMortgageCalculatorPage() {
   

@@ -1,12 +1,14 @@
 import React from 'react';
-import { Metadata } from 'next';
 import DownPaymentCalculator from '../../components/DownPaymentCalculator';
 import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Down Payment Calculator Canada | CMHC Insurance Rates',
+export const metadata = buildMetadata({
+  title: 'Down Payment Calculator Canada — CMHC Insurance Rates',
   description: 'Calculate minimum down payment requirements (5% vs 20%) and estimate CMHC mortgage default insurance premiums.',
-};
+  slug: '/down-payment-calculator',
+  keywords: ['down payment calculator', 'CMHC insurance calculator', 'minimum down payment Canada'],
+});
 
 export default function DownPaymentPage() {
   return (

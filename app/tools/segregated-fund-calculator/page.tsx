@@ -1,16 +1,17 @@
 import React from 'react';
-import { Metadata } from 'next';
 import SegregatedFundCalculator from '../../../components/calculators/SegregatedFundCalculator';
 import JsonLd from '../../../components/JsonLd';
 import CalculatorLeadCTA from '../../../components/CalculatorLeadCTA';
 import { Shield, Lock, EyeOff, Gavel, Check, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { buildMetadata } from '../../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Segregated Fund Calculator | 75/100 Guarantee & Estate Bypass',
+export const metadata = buildMetadata({
+  title: 'Segregated Fund Calculator — 75/100 Guarantee & Estate Bypass',
   description: 'Calculate probate savings with Segregated Funds in Ontario. Protect your principal with 100% Death Benefit Guarantees and creditor protection.',
+  slug: '/tools/segregated-fund-calculator',
   keywords: ['Segregated Fund Calculator', 'Probate Fees Ontario', '75/100 Guarantee', 'Seg Funds vs Mutual Funds', 'Estate Planning Canada'],
-};
+});
 
 export default function SegFundPage() {
   const faqSchema = {

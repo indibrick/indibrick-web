@@ -1,21 +1,21 @@
 import React from 'react';
-import { Metadata } from 'next';
 import Link from 'next/link';
 import LeadForm from '../../components/LeadForm';
 import JsonLd from '../../components/JsonLd';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/firebase';
-import { 
-  ShieldAlert, CheckCircle, Unlock, Banknote, 
-  Briefcase, TrendingUp, AlertTriangle, HelpCircle, ChevronDown, ArrowRight 
+import {
+  ShieldAlert, CheckCircle, Unlock, Banknote,
+  Briefcase, TrendingUp, AlertTriangle, HelpCircle, ChevronDown, ArrowRight
 } from 'lucide-react';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-// --- SEO METADATA ---
-export const metadata: Metadata = {
-  title: 'Bad Credit Mortgages & Private Lenders Ontario | Approval in 24h',
+export const metadata = buildMetadata({
+  title: 'Bad Credit Mortgages & Private Lenders Ontario — Approval in 24h',
   description: 'Denied by the bank? We specialize in Bad Credit, Self-Employed, and Private Mortgages. Rates from 4.79%*. No income verification options available. Approved on Equity, not Credit.',
+  slug: '/bad-credit-private-mortgages',
   keywords: ['Bad Credit Mortgage Ontario', 'Private Lender Toronto', 'B Lender Mortgage Rates', 'Self Employed Mortgage No Income Verification', 'Second Mortgage Ontario', 'Stop Power of Sale'],
-};
+});
 
 // --- DATA FETCHING ---
 const DEFAULT_RATES = {

@@ -1,12 +1,14 @@
 import React from 'react';
-import { Metadata } from 'next';
 import LeadForm from '../../components/LeadForm';
 import { ShieldCheck, Heart, Umbrella, Users } from 'lucide-react';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Insurance & Financial Protection Services for Homeowners | IndiBrick',
+export const metadata = buildMetadata({
+  title: 'Insurance & Financial Protection Services for Homeowners',
   description: 'Life and critical illness insurance solutions designed to protect families and homeowners. Speak with licensed insurance advisors today.',
-};
+  slug: '/insurance-financial-protection',
+  keywords: ['life insurance Ontario', 'critical illness insurance', 'mortgage protection insurance', 'homeowner financial protection'],
+});
 
 export default function InsurancePage() {
   return (

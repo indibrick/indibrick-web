@@ -1,16 +1,17 @@
 import React from 'react';
-import { Metadata } from 'next';
 import SmithManeuverCalculator from '../../../components/calculators/SmithManeuverCalculator';
 import CalculatorLeadCTA from '../../../components/CalculatorLeadCTA';
 import JsonLd from '../../../components/JsonLd';
 import Link from 'next/link';
 import { ArrowLeft, CheckCircle, XCircle, HelpCircle, Shield, TrendingUp, BookOpen } from 'lucide-react';
+import { buildMetadata } from '../../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Smith Maneuver Calculator (2026) | Tax-Deductible Mortgage Strategy',
+export const metadata = buildMetadata({
+  title: 'Smith Maneuver Calculator (2026) — Tax-Deductible Mortgage Strategy',
   description: 'Calculate your tax refunds with the Smith Manoeuvre. Model the conversion of your mortgage into a tax-deductible investment loan using our institutional-grade engine.',
+  slug: '/tools/smith-maneuver-calculator',
   keywords: ['Smith Maneuver Calculator', 'Tax Deductible Mortgage Canada', 'Readvanceable Mortgage', 'Scotia STEP', 'TD FlexLine', 'Debt Conversion Strategy', 'Indibrick Tools'],
-};
+});
 
 export default function SmithManeuverPage() {
   

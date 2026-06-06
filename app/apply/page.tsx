@@ -1,12 +1,13 @@
-import { Metadata } from 'next';
 import ApplyWizard from '../../components/ApplyWizard';
 import TrustedFormScript from '../../components/TrustedFormScript';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Get Your Mortgage Options in 90 Seconds | IndiBrick',
+export const metadata = buildMetadata({
+  title: 'Get Your Mortgage Options in 90 Seconds',
   description: 'See what you qualify for instantly. No hard credit check. No obligation. A licensed Canadian mortgage advisor will call you within 1 business hour.',
+  slug: '/apply',
   keywords: ['Mortgage Pre-Approval', 'Canadian Mortgage Options', 'No Credit Check Mortgage', 'Mortgage Wizard'],
-};
+});
 
 export default function ApplyPage() {
   return (

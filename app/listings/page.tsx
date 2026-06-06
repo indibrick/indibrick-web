@@ -1,13 +1,15 @@
 import React from 'react';
-import { Metadata } from 'next';
 import { PropertyService } from '../../services/PropertyService';
 import ListingsClient from '../../components/ListingsClient';
 import { Zap } from 'lucide-react';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Curated Real Estate Opportunities | IndiBrick',
+export const metadata = buildMetadata({
+  title: 'Curated Real Estate Opportunities',
   description: 'Access off-market assignments, pre-construction allocations, and exclusive resale properties selected by our investment team.',
-};
+  slug: '/listings',
+  keywords: ['off-market real estate Ontario', 'pre-construction listings', 'exclusive resale properties', 'curated real estate opportunities'],
+});
 
 export const dynamic = 'force-dynamic';
 
@@ -33,8 +35,44 @@ export default async function ListingsPage() {
     status: 'Active'
   };
 
-  // Combine them, putting the Royal Tuscan funnel front and center
-  const listings = [royalTuscanListing, ...fetchedListings];
+  // AURA Lakeview Village (Caivan) — Phase II pre-con
+  const auraLakeviewListing = {
+    id: 'aura-lakeview-vip-manual',
+    title: 'AURA Lakeview Village — Phase II',
+    price: 550000,
+    city: 'Mississauga',
+    address: 'Lakeview Village, Mississauga ON',
+    bedrooms: 3,
+    bathrooms: 2,
+    type: 'Townhouse',
+    purpose: 'Pre-Construction',
+    imageUrl: '/aura/hero.jpg',
+    landingPageUrl: '/aura-lakeview-village',
+    description: 'Phase II of AURA Lakeview Village by Caivan — urban 2-storey freehold towns on the Mississauga waterfront. Phase I sold out in one day. From the mid $500s.',
+    isFeatured: true,
+    status: 'Active'
+  };
+
+  // Hamilton Restaurant — turnkey commercial sale of business (MLS X12933580)
+  const hamiltonRestaurantListing = {
+    id: 'hamilton-restaurant-x12933580',
+    title: 'Turnkey Restaurant for Sale (LLBO) — Hamilton',
+    price: 110000,
+    city: 'Hamilton',
+    address: 'Landsdale, Hamilton ON L8L 2X9',
+    bedrooms: 0,
+    bathrooms: 0,
+    type: 'Commercial',
+    purpose: 'Sale of Business',
+    imageUrl: '/listings/x12933580/dining.jpg',
+    landingPageUrl: '/hamilton-restaurant-for-sale',
+    description: 'Active LLBO beer license. Fully equipped commercial kitchen (stove, hood, tandoor, refrigeration). 1,234 sqft retail in a high-traffic Landsdale corridor. MLS X12933580.',
+    isFeatured: true,
+    status: 'Active'
+  };
+
+  // Combine — featured funnels first, then dynamic Firestore inventory
+  const listings = [auraLakeviewListing, hamiltonRestaurantListing, royalTuscanListing, ...fetchedListings];
 
   return (
     <div className="bg-white min-h-screen">

@@ -1,19 +1,20 @@
 import React from 'react';
 import Link from 'next/link';
-import { Metadata } from 'next';
 import LeadForm from '../../components/LeadForm';
 import JsonLd from '../../components/JsonLd';
-import { 
-  TrendingUp, Map, Shield, Hammer, BarChart3, Scale, 
-  ArrowRight, Layers, CheckCircle, BrainCircuit, XCircle, 
-  Sun, Factory, Users, Ruler 
+import {
+  TrendingUp, Map, Shield, Hammer, BarChart3, Scale,
+  ArrowRight, Layers, CheckCircle, BrainCircuit, XCircle,
+  Sun, Factory, Users, Ruler
 } from 'lucide-react';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Real Estate Ecosystem | Mortgage, Insurance, Renovation & Wealth',
+export const metadata = buildMetadata({
+  title: 'Real Estate Ecosystem — Mortgage, Insurance, Renovation & Wealth',
   description: 'IndiBrick is the first fully integrated Real Estate Operating System in Ontario. We consolidate Mortgages, Realty, Insurance, Renovations, and Legal into one efficient platform.',
+  slug: '/services',
   keywords: ['Integrated Real Estate Services', 'One Stop Shop Real Estate Toronto', 'Mortgage and Renovation Bundle', 'Real Estate Asset Management', 'IndiBrick Ecosystem'],
-};
+});
 
 export default function ServicesPage() {
   const serviceSchema = {

@@ -1,19 +1,19 @@
 import React from 'react';
 import Link from 'next/link';
-import { Metadata } from 'next';
-import { 
-  Calculator, DollarSign, Wallet, Shield, Lock, 
-  ArrowRight, PieChart, Landmark, Building2, Percent, 
+import {
+  Calculator, DollarSign, Wallet, Shield, Lock,
+  ArrowRight, PieChart, Landmark, Building2, Percent,
   RefreshCw, TrendingUp, MapPin, AlertTriangle, Sun
- } 
-  from 'lucide-react';
+} from 'lucide-react';
 import JsonLd from '../../components/JsonLd';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Financial Tools Hub | 10+ Canadian Mortgage & Wealth Calculators',
+export const metadata = buildMetadata({
+  title: 'Financial Tools Hub — 10+ Canadian Mortgage & Wealth Calculators',
   description: 'The most comprehensive financial toolkit for Ontario homeowners. Calculate mortgage payments, land transfer tax, trigger rates, and mortgage penalties.',
+  slug: '/tools',
   keywords: ['Mortgage Calculator Ontario', 'Land Transfer Tax Calculator', 'Trigger Rate Calculator', 'Mortgage Penalty Calculator', 'Universal Life Calculator'],
-};
+});
 
 export default function ToolsPage() {
   // AEO Schema

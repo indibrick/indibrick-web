@@ -1,14 +1,15 @@
 import React from 'react';
-import { Metadata } from 'next';
 import AffordabilityCalculator from '../../components/AffordabilityCalculator';
 import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
 import { Wallet, Info } from 'lucide-react';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Home Affordability Calculator: "Max" vs "Safe" | IndiBrick',
+export const metadata = buildMetadata({
+  title: 'Home Affordability Calculator — "Max" vs "Safe"',
   description: 'Determine your true home buying power in Ontario. Compare bank qualification limits against your actual safe monthly budget.',
+  slug: '/affordability-calculator',
   keywords: ['affordability calculator', 'how much house can i afford', 'gds tds calculator'],
-};
+});
 
 export default function AffordabilityPage() {
   const jsonLd = {

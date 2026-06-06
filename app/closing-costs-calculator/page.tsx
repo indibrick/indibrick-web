@@ -1,19 +1,15 @@
 import React from 'react';
-import { Metadata } from 'next';
 import ClosingCostsCalculator from '../../components/ClosingCostsCalculator';
 import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
 import { DollarSign, AlertTriangle, FileText } from 'lucide-react';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Closing Costs Calculator Ontario 2026 | True Cash Required',
+export const metadata = buildMetadata({
+  title: 'Closing Costs Calculator Ontario 2026 — True Cash Required',
   description: 'Calculate Land Transfer Tax, Legal Fees, and the hidden PST on CMHC insurance for 2026 closings.',
+  slug: '/closing-costs-calculator',
   keywords: ['closing costs calculator ontario 2026', 'land transfer tax calculator', 'legal fees buying house'],
-  openGraph: {
-    title: 'Don\'t be short on Closing Day.',
-    description: 'Calculate your exact cash requirements including hidden taxes.',
-    type: 'website',
-  },
-};
+});
 
 export default function ClosingCostsPage() {
   return (

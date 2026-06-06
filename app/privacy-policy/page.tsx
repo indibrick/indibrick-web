@@ -1,11 +1,12 @@
 import React from 'react';
-import { Metadata } from 'next';
 import { Shield, Lock, FileText, Eye, Share2, Globe } from 'lucide-react';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Privacy Policy | IndiBrick Real Estate Ecosystem',
+export const metadata = buildMetadata({
+  title: 'Privacy Policy',
   description: 'How IndiBrick protects your financial data and how we share information within our ecosystem of Mortgages, Real Estate, and Insurance partners.',
-};
+  slug: '/privacy-policy',
+});
 
 export default function PrivacyPolicyPage() {
   return (

@@ -1,19 +1,20 @@
 import React from 'react';
-import { Metadata } from 'next';
 import Link from 'next/link';
-import { 
-  Sun, ShieldCheck, DollarSign, Home, Heart, 
-  CheckCircle, HelpCircle, ArrowRight, BrainCircuit 
+import {
+  Sun, ShieldCheck, DollarSign, Home, Heart,
+  CheckCircle, HelpCircle, ArrowRight, BrainCircuit
 } from 'lucide-react';
 import JsonLd from '../../components/JsonLd';
 import LeadForm from '../../components/LeadForm';
 import ReverseMortgageCalculator from '../../components/calculators/ReverseMortgageCalculator';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Reverse Mortgage Calculator Ontario (55+) | Indibrick',
+export const metadata = buildMetadata({
+  title: 'Reverse Mortgage Calculator Ontario (55+)',
   description: 'Calculate your tax-free cash eligibility. Access up to 55% of your home\'s value with no monthly payments. Safe, secure, and regulated.',
+  slug: '/reverse-mortgages',
   keywords: ['Reverse Mortgage Calculator', 'CHIP Reverse Mortgage Ontario', 'Senior Home Equity Loan', 'No Monthly Payment Mortgage'],
-};
+});
 
 export default function ReverseMortgagePage() {
   

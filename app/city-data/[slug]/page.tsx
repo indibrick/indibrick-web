@@ -2,12 +2,13 @@ import React from 'react';
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 // --- FIX: Use '@/' for robust imports ---
-import CityGate from '@/components/CityGate'; 
+import CityGate from '@/components/CityGate';
 import MarketTrendChart from '@/components/MarketTrendChart';
 import JsonLd from '@/components/JsonLd';
 import { MarketReportService } from '@/services/MarketReportService';
 // ----------------------------------------
 import { TrendingUp, TrendingDown, Target, AlertCircle } from 'lucide-react';
+import { buildMetadata } from '@/lib/buildMetadata';
 
 interface Props {
   params: { slug: string };
@@ -16,12 +17,19 @@ interface Props {
 // 1. DYNAMIC SEO METADATA (Visible to Google)
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const report = await MarketReportService.getReport(params.slug);
-  if (!report) return { title: 'City Not Found' };
-  
-  return {
-    title: `${report.cityName} Real Estate Market Report 2026 | AI Forecast`,
+  if (!report) {
+    return buildMetadata({
+      title: 'City Not Found',
+      description: 'The requested city market report could not be located.',
+      slug: `/city-data/${params.slug}`,
+    });
+  }
+
+  return buildMetadata({
+    title: `${report.cityName} Real Estate Market Report 2026 — AI Forecast`,
     description: `Is now a good time to buy in ${report.cityName}? Access our 2026 AI-driven market analysis, price trends, and investor scores.`,
-  };
+    slug: `/city-data/${params.slug}`,
+  });
 }
 
 export default async function CityReportPage({ params }: Props) {

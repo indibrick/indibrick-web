@@ -1,23 +1,19 @@
 import React from 'react';
-import { Metadata } from 'next';
 import MortgageCalculator from '../../components/MortgageCalculator';
 import GamifiedContactForm from '../../components/GamifiedContactForm';
 import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
 import JsonLd from '../../components/JsonLd';
-import { 
-  Calculator, CheckCircle, AlertTriangle, TrendingUp, Shield, ChevronDown 
+import {
+  Calculator, CheckCircle, AlertTriangle, TrendingUp, Shield, ChevronDown
 } from 'lucide-react';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Canada Mortgage Payment Calculator 2026 | Land Transfer Tax & Stress Test',
+export const metadata = buildMetadata({
+  title: 'Canada Mortgage Payment Calculator 2026 — Land Transfer Tax & Stress Test',
   description: 'The most robust mortgage calculator in Canada. Instantly calculate monthly payments, CMHC insurance, Ontario Land Transfer Tax, and exact income required to pass the 2026 Stress Test.',
+  slug: '/mortgage-payment-calculator',
   keywords: ['canada mortgage calculator 2026', 'ontario land transfer tax calculator', 'realtor mortgage payment', 'stress test calculator', 'cmhc premium calculator', 'cash to close calculator'],
-  openGraph: {
-    title: 'Canada Mortgage Payment Calculator | Bank-Grade Accuracy',
-    description: 'Don\'t guess. Run the official 2026 Stress Test numbers, LTT, and CMHC premiums with IndiBrick.',
-    type: 'website',
-  },
-};
+});
 
 export default function MortgagePaymentPage() {
   const jsonLd = {

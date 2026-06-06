@@ -1,22 +1,17 @@
 import React from 'react';
-import { Metadata } from 'next';
 import Link from 'next/link';
 import { ContentService } from '../../services/ContentService';
 import JsonLd from '../../components/JsonLd';
 import GamifiedContactForm from '../../components/GamifiedContactForm';
 import { ArrowRight, Calendar, Zap, BookOpen, ChevronRight } from 'lucide-react';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-// --- 1. ENTERPRISE SEO METADATA ---
-export const metadata: Metadata = {
-  title: 'Intelligence Hub | Market Data & Financial Strategy | IndiBrick',
+export const metadata = buildMetadata({
+  title: 'Intelligence Hub — Market Data & Financial Strategy',
   description: 'The latest chronological market intelligence, mortgage strategies, and real estate data for Ontario investors and homeowners.',
-  openGraph: {
-    title: 'IndiBrick Intelligence Hub',
-    description: 'Latest market intelligence and financial strategies.',
-    type: 'website',
-    url: 'https://indibrick.ca/blog',
-  }
-};
+  slug: '/blog',
+  keywords: ['Ontario mortgage market', 'real estate intelligence', 'financial strategy blog', 'IndiBrick market news'],
+});
 
 export const dynamic = 'force-dynamic';
 

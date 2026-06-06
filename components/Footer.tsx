@@ -92,7 +92,7 @@ export default function Footer() {
                   </li>
                   <li className="flex items-center gap-3">
                      <Mail size={18} className="text-blue-500 shrink-0" />
-                     <a href="mailto:sales@indibrick.ca">sales@indibrick.ca</a>
+                     <a href="mailto:sales@indibrick.ca">{'sales' + '@' + 'indibrick.ca'}</a>
                   </li>
                </ul>
             </div>

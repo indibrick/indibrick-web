@@ -1,12 +1,14 @@
 import React from 'react';
-import { Metadata } from 'next';
 import MortgageRenewalCalculator from '../../components/MortgageRenewalCalculator';
 import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Mortgage Renewal Calculator | Compare Rates',
+export const metadata = buildMetadata({
+  title: 'Mortgage Renewal Calculator — Compare Rates',
   description: 'Calculate your payment increase at renewal. Compare your bank offer vs. market broker rates.',
-};
+  slug: '/mortgage-renewal-calculator',
+  keywords: ['mortgage renewal calculator', 'renewal rate comparison', 'switch lenders at renewal'],
+});
 
 export default function RenewalPage() {
   return (

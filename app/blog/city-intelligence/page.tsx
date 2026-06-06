@@ -1,14 +1,16 @@
 import React from 'react';
-import { Metadata } from 'next';
 import Link from 'next/link';
 import { ContentService } from '../../../services/ContentService';
 import { CityService } from '../../../services/CityService';
 import { MapPin, ArrowRight } from 'lucide-react';
+import { buildMetadata } from '../../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'City Intelligence | Real Estate Market Data by Region',
+export const metadata = buildMetadata({
+  title: 'City Intelligence — Real Estate Market Data by Region',
   description: 'Deep dives into Toronto, Vaughan, Mississauga, and GTA housing markets. Localized mortgage and investment analysis.',
-};
+  slug: '/blog/city-intelligence',
+  keywords: ['GTA real estate market', 'city housing data', 'Toronto Vaughan Mississauga intelligence', 'localized mortgage analysis'],
+});
 
 export const dynamic = 'force-dynamic';
 

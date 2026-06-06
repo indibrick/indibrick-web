@@ -1,13 +1,14 @@
 import React from 'react';
-import { Metadata } from 'next';
 import LandTransferTaxCalculator from '../../components/LandTransferTaxCalculator';
 import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Ontario Land Transfer Tax Calculator 2026 | Toronto Rebates',
+export const metadata = buildMetadata({
+  title: 'Ontario Land Transfer Tax Calculator 2026 — Toronto Rebates',
   description: 'Calculate Land Transfer Tax for Ontario and Toronto. Includes First-Time Home Buyer rebates up to $8,475. Accurate for 2026 rates.',
+  slug: '/land-transfer-tax-calculator-ontario',
   keywords: ['land transfer tax calculator ontario 2026', 'toronto ltt calculator', 'first time home buyer rebate'],
-};
+});
 
 export default function LTTPage() {
   return (

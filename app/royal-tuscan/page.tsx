@@ -1,19 +1,21 @@
 import React from 'react';
-import { Metadata } from 'next';
 import LeadForm from '../../components/LeadForm';
 import JsonLd from '../../components/JsonLd';
-import { 
-  MapPin, Building2, ShieldCheck, Zap, ChevronDown, 
-  Wine, Car, TreePine, Star, CheckCircle, ArrowRight, 
-  Shield, Landmark, Hammer, Clock, Lock, FileText, 
+import {
+  MapPin, Building2, ShieldCheck, Zap, ChevronDown,
+  Wine, Car, TreePine, Star, CheckCircle, ArrowRight,
+  Shield, Landmark, Hammer, Clock, Lock, FileText,
   Train, Compass
 } from 'lucide-react';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Royal Tuscan Masterpiece Residences | VIP Pricing & Floor Plans',
+export const metadata = buildMetadata({
+  title: 'Royal Tuscan Masterpiece Residences — VIP Pricing & Floor Plans',
   description: 'Invest in Royal Tuscan St. Catharines. Discover boutique steel & concrete condos and penthouses by Wilshire Development from the $390s. Get VIP access to floor plans and pricing.',
+  slug: '/royal-tuscan',
+  image: '/rt-_0004_8-sunset-view-new-sky.jpg',
   keywords: ['Royal Tuscan', 'Royal Tuscan St Catharines', 'Pre-construction Condos Niagara', '1024 Vansickle Road North', 'Steel and concrete condos', 'Wilshire Development Services', 'Palazzo Royale', 'Grapeview Condos', 'Niagara Escarpment Real Estate'],
-};
+});
 
 export default function RoyalTuscanPage() {
 

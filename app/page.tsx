@@ -5,6 +5,7 @@ import LeadForm from '../components/LeadForm';
 import AIIntakeForm from '../components/AIIntakeForm'; // <-- NEW AI FORM IMPORT
 import JsonLd from '../components/JsonLd';
 import TrustedFormScript from '../components/TrustedFormScript';
+import { buildMetadata } from '../lib/buildMetadata';
 import { 
   TrendingUp, Hammer, BarChart3, Scale, 
   ArrowRight, Layers, CheckCircle, HelpCircle, ChevronDown, Factory, Users, Sun, Percent, Activity, Zap, Ruler
@@ -14,11 +15,19 @@ import { db } from '@/firebase';
 
 export const revalidate = 60; 
 
-export const metadata: Metadata = {
-  title: 'IndiBrick | The All-in-One Real Estate Ecosystem (Mortgage, Realty, Insurance)',
-  description: 'Stop juggling professionals. IndiBrick consolidates Real Estate, Mortgages (3.39%*), Insurance, and Legal into one intelligent platform. The operating system for your wealth.',
-  keywords: ['One Stop Shop Real Estate Ontario', 'Mortgage and Real Estate Bundle', 'Home Auto Insurance Ontario', 'Renovation Contractors Toronto', 'Real Estate Investing Strategy'],
-};
+// Metadata pulls the live insured-variable 5yr rate from Firestore so the
+// description never goes stale. Falls back to DEFAULT_RATES if the read fails.
+export async function generateMetadata(): Promise<Metadata> {
+  const rates = await getLiveRates();
+  const headlineRate = rates.insured_variable_5yr || DEFAULT_RATES.insured_variable_5yr;
+  return buildMetadata({
+    title: 'IndiBrick | The All-in-One Real Estate Ecosystem (Mortgage, Realty, Insurance)',
+    titleAbsolute: true,
+    description: `IndiBrick consolidates mortgages, real estate, and legal into one platform. Beat the banks with wholesale rates from ${headlineRate}%. Serving GTA, Vaughan & Brampton.`,
+    slug: '/',
+    keywords: ['One Stop Shop Real Estate Ontario', 'Mortgage and Real Estate Bundle', 'Home Auto Insurance Ontario', 'Renovation Contractors Toronto', 'Real Estate Investing Strategy'],
+  });
+}
 
 const DEFAULT_RATES = {
   insured_variable_5yr: '3.39',
@@ -71,7 +80,7 @@ export default async function HomePage() {
           </div>
           
           <h1 className="text-5xl md:text-8xl font-black text-slate-900 tracking-tighter mb-6 leading-[1.0] md:leading-[0.9]">
-            The Only Partner <br/>
+            The Only Mortgage &amp; Real Estate Partner <br/>
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">You Need.</span>
           </h1>
           

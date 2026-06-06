@@ -1,14 +1,16 @@
 import React from 'react';
-import { Metadata } from 'next';
 import Link from 'next/link';
 import JsonLd from '../../components/JsonLd';
 import { CityService } from '../../services/CityService';
 import { Map, BarChart2, Zap, ArrowRight } from 'lucide-react';
+import { buildMetadata } from '../../lib/buildMetadata';
 
-export const metadata: Metadata = {
-  title: 'Ontario Real Estate Market Data 2026 | AI Analysis for 100 Cities',
+export const metadata = buildMetadata({
+  title: 'Ontario Real Estate Market Data 2026 — AI Analysis for 100 Cities',
   description: 'Deep market intelligence powered by Gemini AI. Compare average home prices, market velocity, and investor scores for 100+ Ontario communities.',
-};
+  slug: '/city-data',
+  keywords: ['Ontario real estate market data', 'AI city intelligence', '100 city analysis', 'investor scores Ontario'],
+});
 
 export default async function CityDataHub() {
   const cities = await CityService.getAllCities();
