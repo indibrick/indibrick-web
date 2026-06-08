@@ -80,7 +80,7 @@ export default async function HomePage() {
           </div>
           
           <h1 className="text-5xl md:text-8xl font-black text-slate-900 tracking-tighter mb-6 leading-[1.0] md:leading-[0.9]">
-            The Only Mortgage &amp; Real Estate Partner <br/>
+            The Only Partner <br/>
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">You Need.</span>
           </h1>
           
