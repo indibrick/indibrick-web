@@ -30,3 +30,6 @@ public/index.html
 public/placeholder.htmltsconfig.tsbuildinfo
 *.zip
 *.pdf
+
+# TS incremental build cache
+tsconfig.tsbuildinfo
