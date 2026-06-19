@@ -9,9 +9,26 @@ import { ArrowLeft, Clock, Calculator, ShieldCheck } from 'lucide-react';
 import JsonLd from '@/components/JsonLd';
 import LeadForm from '@/components/LeadForm';
 import { buildMetadata } from '@/lib/buildMetadata';
+import { ContentService } from '@/services/ContentService';
+
+// ISR — every blog post regenerates at most once an hour. Tradeoff: typo fixes
+// take up to 60 min to propagate, but Google sees pre-rendered HTML on crawl.
+export const revalidate = 3600;
+
+// Pre-render every published post at build time so Google + LLM crawlers see
+// fully-static HTML. New posts published after build are still SSR'd on first
+// visit and then cached by ISR.
+export async function generateStaticParams() {
+  try {
+    const posts = await ContentService.fetchPosts();
+    return posts.filter((p) => p.slug).map((p) => ({ slug: p.slug }));
+  } catch {
+    return [];
+  }
+}
 
 // 🚀 CTO DIRECTIVE: Swapped to native Node.js parser to fix Docker/ESM build crash
-import sanitizeHtml from 'sanitize-html'; 
+import sanitizeHtml from 'sanitize-html';
 
 // Import Calculators
 import MortgageCalculator from '@/components/MortgageCalculator';

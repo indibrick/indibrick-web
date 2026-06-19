@@ -9,9 +9,21 @@ import { MarketReportService } from '@/services/MarketReportService';
 // ----------------------------------------
 import { TrendingUp, TrendingDown, Target, AlertCircle } from 'lucide-react';
 import { buildMetadata } from '@/lib/buildMetadata';
+import { CityService } from '@/services/CityService';
 
 interface Props {
   params: { slug: string };
+}
+
+// ISR — market reports refresh hourly; report-data ages slowly so this is plenty.
+export const revalidate = 3600;
+
+// Pre-render a page for every known city so Google sees fully-static HTML on
+// first crawl. Unknown slugs render on demand (and 404 if MarketReportService
+// can't produce a report).
+export async function generateStaticParams() {
+  const cities = await CityService.getAllCities();
+  return cities.map((c) => ({ slug: c.slug }));
 }
 
 // 1. DYNAMIC SEO METADATA (Visible to Google)

@@ -85,7 +85,46 @@ export const CITIES: CityData[] = [
   generateCityData('Milton', 'milton', ['Dempsey', 'Beaty', 'Clarke', 'Coates', 'Harrison', 'Scott']),
   generateCityData('Markham', 'markham', ['Unionville', 'Cornell', 'Wismer', 'Berczy Village', 'Milliken', 'Thornhill']),
   generateCityData('Richmond Hill', 'richmond-hill', ['Oak Ridges', 'Jefferson', 'Bayview Hill', 'Mill Pond', 'Doncrest', 'Elgin West']),
-  generateCityData('Etobicoke', 'etobicoke', ['Mimico', 'Humber Bay', 'Islington Village', 'The Kingsway', 'Richview', 'New Toronto'])
+  generateCityData('Etobicoke', 'etobicoke', ['Mimico', 'Humber Bay', 'Islington Village', 'The Kingsway', 'Richview', 'New Toronto']),
+  // Halton + Hamilton corridor
+  generateCityData('Burlington', 'burlington', ['Downtown Burlington', 'Aldershot', 'Roseland', 'Tyandaga', 'Alton Village', 'Millcroft']),
+  generateCityData('Hamilton', 'hamilton', ['Westdale', 'Locke Street', 'Stoney Creek', 'Ancaster', 'Dundas', 'Durand']),
+  generateCityData('Halton Hills', 'halton-hills', ['Georgetown', 'Acton', 'Glen Williams', 'Norval', 'Limehouse', 'Stewarttown']),
+  // Niagara region
+  generateCityData('St. Catharines', 'st-catharines', ['Grapeview', 'Port Dalhousie', 'Glenridge', 'Martindale', 'Western Hill', 'Old Town']),
+  generateCityData('Niagara Falls', 'niagara-falls', ['Stamford', 'Chippawa', 'Drummond Park', 'Mount Carmel', 'Dorchester', 'Westlane']),
+  generateCityData('Welland', 'welland', ['Cooks Mills', 'Dain City', 'Crowland', 'Chippawa Park', 'Welland South', 'East Welland']),
+  generateCityData('Niagara-on-the-Lake', 'niagara-on-the-lake', ['Old Town', 'Virgil', 'St. Davids', 'Queenston', 'Glendale', 'Garrison Village']),
+  generateCityData('Fort Erie', 'fort-erie', ['Crystal Beach', 'Ridgeway', 'Stevensville', 'Bridgeburg', 'Black Creek', 'Garrison Village']),
+  generateCityData('Grimsby', 'grimsby', ['Grimsby Beach', 'Casablanca', 'Park Road', 'West Grimsby', 'Mountain Estates', 'Vineland Estates']),
+  // KW + Guelph
+  generateCityData('Kitchener', 'kitchener', ['Downtown Kitchener', 'Doon', 'Forest Heights', 'Stanley Park', 'Country Hills', 'Huron South']),
+  generateCityData('Waterloo', 'waterloo', ['Uptown Waterloo', 'Beechwood', 'Westmount', 'Lakeshore', 'University Heights', 'Lincoln Heights']),
+  generateCityData('Cambridge', 'cambridge', ['Galt', 'Preston', 'Hespeler', 'Blair', 'West Galt', 'East Galt']),
+  generateCityData('Guelph', 'guelph', ['Downtown Guelph', 'Old University', 'Exhibition Park', 'Kortright Hills', 'Westminster Woods', 'Pine Ridge']),
+  // London + SW Ontario
+  generateCityData('London', 'london', ['Old North', 'Wortley Village', 'Byron', 'Westmount', 'Masonville', 'Sunningdale']),
+  generateCityData('Windsor', 'windsor', ['Walkerville', 'Riverside', 'Sandwich', 'South Walkerville', 'Old Riverside', 'Forest Glade']),
+  // North GTA / Simcoe
+  generateCityData('Barrie', 'barrie', ['Downtown Barrie', 'Allandale', 'South Shore', 'Innishore', 'Painswick', 'Sunnidale']),
+  generateCityData('Innisfil', 'innisfil', ['Alcona', 'Lefroy', 'Stroud', 'Cookstown', 'Sandy Cove', 'Big Bay Point']),
+  generateCityData('Bradford', 'bradford', ['Bradford West', 'Bond Head', 'Newton Robinson', 'Holland Marsh', 'Bradford East', 'Bradford South']),
+  generateCityData('Newmarket', 'newmarket', ['Stonehaven', 'Glenway', 'Bristol-London', 'Summerhill Estates', 'Woodland Hill', 'Gorham-College Manor']),
+  generateCityData('Aurora', 'aurora', ['Aurora Village', 'Hills of St. Andrew', 'Aurora Heights', 'Bayview Wellington', 'Aurora Estates', 'Aurora Grove']),
+  generateCityData('King City', 'king-city', ['Nobleton', 'Schomberg', 'Pottageville', 'Kettleby', 'Snowball', 'Eversley']),
+  // Durham region
+  generateCityData('Pickering', 'pickering', ['Bay Ridges', 'Liverpool', 'Amberlea', 'Rougemount', 'Rosebank', 'Brock Ridge']),
+  generateCityData('Ajax', 'ajax', ['Central Ajax', 'South Ajax', 'Pickering Beach', 'Audley', 'Riverside', 'Lakeside']),
+  generateCityData('Whitby', 'whitby', ['Downtown Whitby', 'Brooklin', 'Williamsburg', 'Pringle Creek', 'Lynde Creek', 'Port Whitby']),
+  generateCityData('Oshawa', 'oshawa', ['McLaughlin', 'O\'Neill', 'Eastdale', 'Lakeview', 'Pinecrest', 'Vanier']),
+  generateCityData('Clarington', 'clarington', ['Bowmanville', 'Courtice', 'Newcastle', 'Orono', 'Newtonville', 'Hampton']),
+  // Peel north
+  generateCityData('Caledon', 'caledon', ['Bolton', 'Caledon East', 'Inglewood', 'Mono Mills', 'Palgrave', 'Cheltenham']),
+  // Ottawa region
+  generateCityData('Ottawa', 'ottawa', ['Westboro', 'The Glebe', 'Rockcliffe Park', 'Centretown', 'Old Ottawa South', 'Hintonburg']),
+  generateCityData('Kanata', 'kanata', ['Kanata Lakes', 'Beaverbrook', 'Bridlewood', 'Glen Cairn', 'Katimavik-Hazeldean', 'Morgan\'s Grant']),
+  generateCityData('Nepean', 'nepean', ['Barrhaven', 'Bells Corners', 'Crystal Beach', 'Bayshore', 'Centrepointe', 'Manordale']),
+  generateCityData('Orleans', 'orleans', ['Avalon', 'Convent Glen', 'Fallingbrook', 'Chapel Hill', 'Queenswood Heights', 'Cardinal Creek'])
 ];
 
 export const PRE_CON_CITIES: PreConCityData[] = CITIES.map(city => ({

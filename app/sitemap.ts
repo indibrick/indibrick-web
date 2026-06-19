@@ -2,6 +2,12 @@ import { MetadataRoute } from 'next';
 import { CityService } from '../services/CityService';
 import { ContentService } from '../services/ContentService';
 import { PropertyService } from '../services/PropertyService';
+import { MarketDataService } from '../services/MarketDataService';
+import { CITIES } from '../data/cityData';
+
+// Local slug helper — mirrors the one used in the neighborhood route.
+const slugifyNeighborhood = (s: string) =>
+  s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
 // 🚀 CTO DIRECTIVE: Shift from force-dynamic to ISR. 
 // Revalidate every 3600 seconds (1 hour). This protects our database 
@@ -81,13 +87,34 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.8,
     }));
 
+    // 4. pSEO Matrix — every (city × type × priceRange) cell. 40 × 4 × 5 = 800.
+    const matrixUrls = MarketDataService.enumerateCells().map((cell) => ({
+      url: `${baseUrl}/real-estate/${cell.city}/${cell.type}/${cell.price}`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly' as const,
+      priority: 0.75,
+    }));
+
+    // 5. Neighborhood pages — ~6 per city across the full city list (≈240 URLs).
+    const neighborhoodUrls = CITIES.flatMap((c) =>
+      c.neighborhoods.map((n) => ({
+        url: `${baseUrl}/real-estate/${c.slug}/neighborhood/${slugifyNeighborhood(n)}`,
+        lastModified: new Date(),
+        changeFrequency: 'weekly' as const,
+        priority: 0.7,
+      })),
+    );
+
+    console.log(`📊 pSEO matrix: ${matrixUrls.length} cells | neighborhoods: ${neighborhoodUrls.length}`);
     console.log("✅ [SEO] SITEMAP GENERATION COMPLETE.");
 
     return [
-        ...staticPages, 
-        ...cityUrls, 
-        ...preConUrls, 
-        ...blogUrls, 
+        ...staticPages,
+        ...cityUrls,
+        ...preConUrls,
+        ...matrixUrls,
+        ...neighborhoodUrls,
+        ...blogUrls,
         ...propertyUrls
     ];
 

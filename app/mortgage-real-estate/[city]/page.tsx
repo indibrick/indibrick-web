@@ -9,6 +9,9 @@ import {
 } from 'lucide-react';
 import { buildMetadata } from '../../../lib/buildMetadata';
 
+// ISR — once-an-hour revalidation keeps city pages fresh without re-deploying.
+export const revalidate = 3600;
+
 // 1. DYNAMIC METADATA
 export async function generateMetadata({ params }: { params: { city: string } }): Promise<Metadata> {
   const cityData = await CityService.getCityBySlug(params.city);
