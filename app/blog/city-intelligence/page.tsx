@@ -12,7 +12,8 @@ export const metadata = buildMetadata({
   keywords: ['GTA real estate market', 'city housing data', 'Toronto Vaughan Mississauga intelligence', 'localized mortgage analysis'],
 });
 
-export const dynamic = 'force-dynamic';
+// ISR — hourly regen so the city intelligence hub stays fresh as new posts ship.
+export const revalidate = 3600;
 
 export default async function CityIntelligencePage() {
   const allPosts = await ContentService.fetchPosts();

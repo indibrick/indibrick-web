@@ -87,21 +87,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.8,
     }));
 
-    // 4. pSEO Matrix — every (city × type × priceRange) cell. 40 × 4 × 5 = 800.
+    // High-volume cities get bumped priority so Google's crawl budget is spent
+    // on the cells most likely to convert.
+    const HIGH_VOLUME_CITIES = new Set([
+      'toronto', 'mississauga', 'brampton', 'vaughan', 'markham',
+      'oakville', 'hamilton', 'burlington', 'richmond-hill', 'ottawa',
+    ]);
+
+    // 4. pSEO Matrix — every (city × type × priceRange) cell.
+    // changeFrequency 'daily' matches our 1h ISR so Google recrawls promptly.
+    const now = new Date();
     const matrixUrls = MarketDataService.enumerateCells().map((cell) => ({
       url: `${baseUrl}/real-estate/${cell.city}/${cell.type}/${cell.price}`,
-      lastModified: new Date(),
-      changeFrequency: 'weekly' as const,
-      priority: 0.75,
+      lastModified: now,
+      changeFrequency: 'daily' as const,
+      priority: HIGH_VOLUME_CITIES.has(cell.city) ? 0.9 : 0.7,
     }));
 
-    // 5. Neighborhood pages — ~6 per city across the full city list (≈240 URLs).
+    // 5. Neighborhood pages — high-volume cities get the bump here too.
     const neighborhoodUrls = CITIES.flatMap((c) =>
       c.neighborhoods.map((n) => ({
         url: `${baseUrl}/real-estate/${c.slug}/neighborhood/${slugifyNeighborhood(n)}`,
-        lastModified: new Date(),
-        changeFrequency: 'weekly' as const,
-        priority: 0.7,
+        lastModified: now,
+        changeFrequency: 'daily' as const,
+        priority: HIGH_VOLUME_CITIES.has(c.slug) ? 0.85 : 0.65,
       })),
     );
 

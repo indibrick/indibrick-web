@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { LeadService } from '../services/LeadService';
+import { trackLeadConversion } from '../lib/analytics';
 import { ShieldCheck, Zap, AlertTriangle, RefreshCcw, ChevronDown, Lock } from 'lucide-react';
 
 interface LeadFormProps {
@@ -67,9 +68,12 @@ const LeadForm: React.FC<LeadFormProps> = ({
       setLoading(false);
       setSubmitted(true);
       
-      if (typeof window !== 'undefined' && (window as any).gtag) {
-         (window as any).gtag('event', 'generate_lead', { 'event_category': 'form', 'event_label': 'PPC_Landing' });
-      }
+      // Tag the conversion with the landing-page URL so Google Ads Smart Bidding
+      // can attribute spend to the specific pSEO cell that drove the lead.
+      trackLeadConversion({
+        formType: type,
+        extra: { service: formData.serviceNeeded, city: formData.city },
+      });
 
       // Universal Redirect: Reliable and clean.
       setTimeout(() => {

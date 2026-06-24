@@ -11,8 +11,9 @@ import {
 } from 'lucide-react';
 
 // --- SERVER SIDE CONFIG ---
-export const revalidate = 60; 
-export const dynamic = 'force-dynamic';
+// ISR — 60s revalidate keeps live rates fresh; force-dynamic removed because
+// it was silently overriding the revalidate above and forcing SSR on every hit.
+export const revalidate = 60;
 
 // --- CONSTANTS ---
 const TOP_LENDERS = [

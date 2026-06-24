@@ -13,7 +13,8 @@ export const metadata = buildMetadata({
   keywords: ['Ontario mortgage market', 'real estate intelligence', 'financial strategy blog', 'IndiBrick market news'],
 });
 
-export const dynamic = 'force-dynamic';
+// ISR — blog index regenerates hourly so new posts appear without a redeploy.
+export const revalidate = 3600;
 
 export default async function KnowledgeHubPage() {
   // --- 2. DATA FETCHING & SORTING ---

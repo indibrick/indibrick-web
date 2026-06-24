@@ -6,6 +6,7 @@ import {
   AlertCircle, Phone, Sparkles, CheckCircle, TrendingDown,
 } from 'lucide-react';
 import { LeadService } from '../services/LeadService';
+import { trackLeadConversion } from '../lib/analytics';
 
 type Step = 'GOAL' | 'PROPERTY' | 'CREDIT' | 'CONTACT' | 'SUCCESS';
 
@@ -161,6 +162,14 @@ export default function ApplyWizard() {
     setSubmittedTier(tier);
     setSubmittedLtv(ltv);
     setStep('SUCCESS');
+
+    // Per-URL conversion attribution → Google Ads Smart Bidding picks up which
+    // landing page drove this pre-approval request.
+    trackLeadConversion({
+      formType: 'Apply Wizard',
+      estimatedValue: tier === 'A-Lender' ? 60 : tier === 'B-Lender' ? 40 : 25,
+      extra: { lenderTier: tier, goal: formData.goal, province: formData.province, ltv: ltv ?? -1 },
+    });
   };
 
   const stepIndex = step === 'GOAL' ? 1 : step === 'PROPERTY' ? 2 : step === 'CREDIT' ? 3 : 4;

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { ArrowRight, Home, DollarSign, TrendingUp, AlertCircle, ChevronLeft, ShieldCheck, Phone } from 'lucide-react';
 import { LeadService } from '../services/LeadService';
+import { trackLeadConversion } from '../lib/analytics';
 
 type Step = 'GOAL' | 'DETAILS' | 'CONTACT' | 'SUCCESS';
 
@@ -120,6 +121,12 @@ export default function GamifiedContactForm() {
     }
     setSubmittedTier(tier);
     setStep('SUCCESS');
+
+    trackLeadConversion({
+      formType: 'Contact Wizard',
+      estimatedValue: tier === 'A-Lender' ? 60 : tier === 'B-Lender' ? 40 : 25,
+      extra: { lenderTier: tier, goal: formData.goal, province: formData.province },
+    });
   };
 
   // Step 2 Next is enabled only once we have the data we need to compute LTV / tier.

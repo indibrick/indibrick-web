@@ -78,7 +78,12 @@ export function parseHPIWorkbook(filePath: string): HPIReading[] {
   if (!fs.existsSync(filePath)) return [];
   let wb: XLSX.WorkBook;
   try {
-    wb = XLSX.readFile(filePath);
+    // Read the bytes ourselves and hand a Buffer to XLSX.read(). Next.js's
+    // production bundle wraps XLSX.readFile() in a way that loses access to
+    // Node's fs module, so the path-based API throws "Cannot access file"
+    // even when the file exists. Buffer-based read avoids that entirely.
+    const buffer = fs.readFileSync(filePath);
+    wb = XLSX.read(buffer, { type: 'buffer' });
   } catch (e) {
     console.warn('[parseHPI] failed to read', filePath, e);
     return [];

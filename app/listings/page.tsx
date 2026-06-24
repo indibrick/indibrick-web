@@ -11,7 +11,8 @@ export const metadata = buildMetadata({
   keywords: ['off-market real estate Ontario', 'pre-construction listings', 'exclusive resale properties', 'curated real estate opportunities'],
 });
 
-export const dynamic = 'force-dynamic';
+// ISR — listings index regenerates hourly; static HTML on first crawl.
+export const revalidate = 3600;
 
 export default async function ListingsPage() {
   // Fetch dynamic listings from Firebase

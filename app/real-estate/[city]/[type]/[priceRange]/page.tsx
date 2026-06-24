@@ -14,6 +14,7 @@ import { MarketDataService } from '../../../../../services/MarketDataService';
 import LeadForm from '../../../../../components/LeadForm';
 import JsonLd from '../../../../../components/JsonLd';
 import { buildMetadata } from '../../../../../lib/buildMetadata';
+import { getCityProof } from '../../../../../lib/socialProof';
 
 // ISR — every matrix cell page regenerates at most once per hour. Market
 // snapshot numbers stay fresh; build time stays sane for ~800 pages.
@@ -74,6 +75,28 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
 
   const snap = await MarketDataService.getSnapshot(params.city, params.type, params.priceRange);
   const sourceLabel = await MarketDataService.getSourceLabel(params.city, params.type);
+  const proof = getCityProof(params.city);
+
+  // Direct-answer copy for AEO. Google AI Overviews + Perplexity pull from
+  // visible H2/H3 → paragraph patterns, not from accordions or JSON-LD alone.
+  const currentYear = new Date().getFullYear();
+  const trendUp = snap.yoyChangePct >= 0;
+  const marketCondition =
+    snap.daysOnMarket < 21 && trendUp ? 'seller'
+    : snap.daysOnMarket > 35 && !trendUp ? 'buyer'
+    : 'balanced';
+  const marketVerdict =
+    marketCondition === 'seller'
+      ? `${snap.cityName} is currently a seller's market for ${snap.typeLabel.toLowerCase()}s in this band.`
+      : marketCondition === 'buyer'
+      ? `${snap.cityName} is currently a buyer's market for ${snap.typeLabel.toLowerCase()}s in this band.`
+      : `${snap.cityName} is currently a balanced market for ${snap.typeLabel.toLowerCase()}s in this band.`;
+  const marketReason =
+    marketCondition === 'seller'
+      ? `Active inventory is moving in only ${snap.daysOnMarket} days on market with prices up ${snap.yoyChangePct.toFixed(1)}% year-over-year. Expect competition, escalation clauses, and unconditional offers on well-priced product.`
+      : marketCondition === 'buyer'
+      ? `Listings are sitting ${snap.daysOnMarket} days on average and prices are ${Math.abs(snap.yoyChangePct).toFixed(1)}% lower year-over-year. Buyers have negotiating leverage on price, closing date, and condition periods.`
+      : `Inventory is turning over in ${snap.daysOnMarket} days with prices ${trendUp ? 'up' : 'down'} ${Math.abs(snap.yoyChangePct).toFixed(1)}% year-over-year. Neither side has decisive leverage right now.`;
 
   const priceK = (n: number) =>
     n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(2)}M` : `$${Math.round(n / 1000)}K`;
@@ -83,8 +106,6 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
   const otherRanges = PRICE_RANGES.filter((r) => r.slug !== range.slug);
   // Pick 6 other cities of similar tier for "Same band, other cities" block.
   const otherCities = CITIES.filter((c) => c.slug !== city.slug).slice(0, 6);
-
-  const trendUp = snap.yoyChangePct >= 0;
 
   // FAQ schema — drives AI Overviews / People Also Ask.
   const faqs = [
@@ -218,6 +239,51 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
               })}
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* === AEO ANSWER BLOCKS — direct H2 → paragraph answers Google's AI Overviews scrape === */}
+      <section className="py-16 px-6 bg-white border-b border-gray-100">
+        <div className="container mx-auto max-w-4xl space-y-12">
+          <div>
+            <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-slate-900 mb-4">
+              What is the average {type.label.toLowerCase()} price in {city.name} in {currentYear}?
+            </h2>
+            <p className="text-lg text-gray-700 leading-relaxed font-medium">
+              The benchmark price for a {type.label.toLowerCase()} in {city.name} in {currentYear} is approximately <strong className="text-slate-900">{priceK(snap.medianPrice)}</strong> based on the latest CREA MLS® HPI release. Within the {range.label.toLowerCase()} band there are currently {snap.activeListings} active listings, moving in an average of {snap.daysOnMarket} days on market. Prices are {trendUp ? 'up' : 'down'} <strong className="text-slate-900">{Math.abs(snap.yoyChangePct).toFixed(1)}%</strong> year-over-year.
+            </p>
+          </div>
+
+          <div>
+            <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-slate-900 mb-4">
+              Is {city.name} a buyer&apos;s or seller&apos;s market right now?
+            </h2>
+            <p className="text-lg text-gray-700 leading-relaxed font-medium">
+              <strong className="text-slate-900">{marketVerdict}</strong> {marketReason}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* === SOCIAL PROOF — per-city counter + testimonial === */}
+      <section className="py-12 px-6 bg-slate-900 text-white border-b border-slate-800">
+        <div className="container mx-auto max-w-5xl grid md:grid-cols-2 gap-8 items-center">
+          <div className="flex items-center gap-6">
+            <div className="bg-blue-500/20 border border-blue-400/30 rounded-2xl px-6 py-5">
+              <p className="text-[10px] font-black uppercase tracking-widest text-blue-300 mb-1">Families helped in {city.name}</p>
+              <p className="text-5xl font-black text-white tracking-tighter">{proof.familiesHelped}+</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Licensed Mortgage Brokerage</p>
+              <p className="text-base font-bold text-white">Pineapple Financial · LIC #12830</p>
+            </div>
+          </div>
+          <blockquote className="border-l-4 border-blue-400 pl-6 italic text-gray-300 leading-relaxed">
+            “{proof.testimonial.quote}”
+            <footer className="not-italic text-[10px] font-black uppercase tracking-widest text-blue-300 mt-3">
+              — {proof.testimonial.author}, {city.name}
+            </footer>
+          </blockquote>
         </div>
       </section>
 
@@ -361,24 +427,58 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
         </div>
       </section>
 
-      {/* === LEAD CAPTURE === */}
+      {/* === DUAL CTA — listings capture (primary) + mortgage pre-approval (secondary) === */}
       <section id="request" className="py-20 px-6 bg-white">
-        <div className="container mx-auto max-w-3xl">
-          <div className="bg-slate-900 text-white rounded-[2.5rem] p-8 md:p-12 shadow-2xl text-center">
-            <HomeIcon size={32} className="text-blue-400 mb-4 mx-auto" />
-            <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tight mb-3 leading-tight">
-              Get every {type.label.toLowerCase()} in {city.name} {range.label.toLowerCase()}.
-            </h2>
-            <p className="text-gray-400 text-base md:text-lg mb-8">
-              A licensed advisor sends you the active list within 1 business hour — no obligation, no spam.
-            </p>
-            <div className="text-left max-w-lg mx-auto bg-white p-2 rounded-[2.5rem] shadow-xl border border-gray-100">
-              <LeadForm
-                type="Realtor"
-                title={`${type.plural} in ${city.name} ${range.label}`}
-                subtitle={`Median ${priceK(snap.medianPrice)} · ${snap.activeListings} active`}
-                ctaText="Send Me the List"
-              />
+        <div className="container mx-auto max-w-6xl">
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* PRIMARY: see active listings (matches buyer-intent ad copy) */}
+            <div className="bg-slate-900 text-white rounded-[2.5rem] p-8 md:p-10 shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/15 rounded-full blur-[80px] pointer-events-none -mr-16 -mt-16" />
+              <div className="relative">
+                <div className="inline-flex items-center gap-2 bg-blue-500/15 border border-blue-400/30 text-blue-300 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-[0.3em] mb-5">
+                  Step 1 · See Inventory
+                </div>
+                <HomeIcon size={32} className="text-blue-400 mb-4" />
+                <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight mb-3 leading-tight">
+                  See every active {type.label.toLowerCase()} in {city.name} {range.label.toLowerCase()}.
+                </h2>
+                <p className="text-gray-400 text-sm md:text-base mb-6">
+                  {snap.activeListings} active listings · median {priceK(snap.medianPrice)}. A licensed {city.name} advisor sends the live list within 1 business hour.
+                </p>
+                <div className="bg-white p-2 rounded-[2rem] shadow-xl">
+                  <LeadForm
+                    type="Realtor"
+                    title={`${type.plural} in ${city.name} ${range.label}`}
+                    subtitle={`Median ${priceK(snap.medianPrice)} · ${snap.activeListings} active`}
+                    ctaText="Send Me the List"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* SECONDARY: pre-approval (matches mortgage-intent ad copy + raises page intent diversity for QS) */}
+            <div className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-[2.5rem] p-8 md:p-10 shadow-2xl relative overflow-hidden flex flex-col">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-[80px] pointer-events-none -mr-16 -mt-16" />
+              <div className="relative flex flex-col flex-1">
+                <div className="inline-flex items-center gap-2 bg-white/15 border border-white/30 text-white px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-[0.3em] mb-5">
+                  Step 2 · Lock in financing
+                </div>
+                <ShieldCheck size={32} className="text-white mb-4" />
+                <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight mb-3 leading-tight">
+                  Get pre-approved for a {priceK(Math.round(snap.medianPrice * 0.8))} mortgage.
+                </h2>
+                <p className="text-blue-100 text-sm md:text-base mb-6">
+                  Based on {priceK(snap.medianPrice)} median list × 20% down. Compare offers from 50+ Canadian lenders. No hard credit check. Pre-approval letter within 1 business hour — same letter sellers see in multi-offers.
+                </p>
+                <div className="mt-auto space-y-3">
+                  <a href="/apply" className="block w-full bg-white text-slate-900 hover:bg-gray-100 text-center py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition shadow-lg flex items-center justify-center gap-2">
+                    Get Pre-Approved <ArrowRight size={16} />
+                  </a>
+                  <a href="tel:+14372416392" className="block w-full bg-slate-900/40 backdrop-blur border border-white/20 text-white hover:bg-slate-900/60 text-center py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition flex items-center justify-center gap-2">
+                    <Phone size={14} /> Call a Broker Now
+                  </a>
+                </div>
+              </div>
             </div>
           </div>
         </div>
