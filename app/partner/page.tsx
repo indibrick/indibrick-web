@@ -11,8 +11,17 @@ import {
   ChevronLeft, AlertCircle, Shield, Landmark, ArrowUpRight, Lock, Tag, Gauge, Bot, ListChecks, Edit2, Save, ArrowRight, Sparkles
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { doc, getDoc, updateDoc, collection, getDocs, query, where, addDoc, arrayUnion } from 'firebase/firestore'; 
+import { doc, getDoc, updateDoc, collection, getDocs, query, where, addDoc, arrayUnion, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firebase';
+
+// Caps the admin pipeline query so a fat referrals collection (after a CSV
+// import etc.) doesn't tank the dashboard. 500 rows covers any practical
+// working window; anything older surfaces via search/filter when needed.
+const ADMIN_PIPELINE_LIMIT = 500;
+
+// Global style that hides the public-site nav/footer when the portal is on
+// screen. Hoisted to module scope so React doesn't re-emit it on every render.
+const PORTAL_CHROME_HIDER = `nav:not(.portal-nav), footer, [class*="fixed"][class*="bottom-"]:not(.portal-nav) { display: none !important; }`;
 
 // Referral source labels — drives compensation: who (if anyone) gets paid out on a file.
 const REFERRAL_SOURCES = ['Realtor Partner', 'Other Partner', 'Self-Generated', 'Web Lead'];
@@ -201,7 +210,12 @@ export default function PartnerCRM() {
         
         let activePipeline: any[] = [];
         if (currentRole === 'admin') {
-            const snap = await getDocs(collection(db, 'referrals'));
+            const adminQ = query(
+                collection(db, 'referrals'),
+                orderBy('referralDate', 'desc'),
+                limit(ADMIN_PIPELINE_LIMIT),
+            );
+            const snap = await getDocs(adminQ);
             activePipeline = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         } else {
             const profile = { uid: user.uid, role: currentRole, displayName: loadedFullName };
@@ -265,8 +279,12 @@ export default function PartnerCRM() {
           const deal = allReferrals.find(d => d.id === newTask.referralId);
           if (deal) clientName = deal.clientName;
       }
+      // Optimistic: append the new task locally so the calendar updates
+      // immediately. The full data refetch is unnecessary for a single task.
+      const tempTask: Task = { id: `tmp-${Date.now()}`, referralId: newTask.referralId, clientName, assigneeId: user.uid, dueDate: newTask.dueDate, description: newTask.description, status: 'Pending' } as any;
+      setAllTasks(prev => [...prev, tempTask]);
       await fetch('/api/partner/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ referralId: newTask.referralId, clientName: clientName, assigneeId: user.uid, dueDate: newTask.dueDate, description: newTask.description, status: 'Pending' }) });
-      setShowNewTaskForm(false); setNewTask({ description: '', dueDate: '', referralId: 'general' }); loadProfileAndData();
+      setShowNewTaskForm(false); setNewTask({ description: '', dueDate: '', referralId: 'general' });
   };
 
   const handleAnalyzeDeal = async (e: React.FormEvent) => {
@@ -316,7 +334,25 @@ export default function PartnerCRM() {
       }
       setShowNewReferralForm(false);
       setNewClient({ name: '', phone: '', email: '', service: 'General Inquiry', message: '', assignedTo: 'ADMIN_INBOX', referralSource: 'Self-Generated' });
-      loadProfileAndData();
+
+      // Optimistic: prepend the new lead to local state instead of re-fetching
+      // the whole pipeline. Drops the perceived save latency from seconds to
+      // instant on accounts with hundreds of referrals.
+      if (result.id) {
+          const optimisticDeal = {
+              id: result.id,
+              ...payload,
+              clientName: newClient.name,
+              clientPhone: newClient.phone,
+              clientEmail: newClient.email,
+              serviceNeeded: newClient.service,
+              status: 'New Web Lead',
+              referralDate: new Date().toISOString(),
+              referrerId: user.uid,
+              referrerName: fullName,
+          };
+          setAllReferrals(prev => [optimisticDeal, ...prev]);
+      }
     } catch (err: any) {
       alert(err.message || 'Failed to inject lead. Please try again.');
     } finally {
@@ -368,8 +404,12 @@ export default function PartnerCRM() {
              notifyParticipants(partner.email, `IndiBrick CRM: Lead Assigned To You`, `<p>You have been assigned ${selectedDeal.clientName} by ${fullName}. A 5-touch follow-up cadence has been scheduled in your calendar.</p>`);
          }
       }
-      setSelectedDeal(null); setTargetPartnerId(''); loadProfileAndData();
-      
+      // Optimistic: patch the deal locally instead of reloading the whole
+      // pipeline after a route change.
+      const routedAgentId = targetPartnerId === user.uid ? user.uid : targetPartnerId;
+      setAllReferrals(prev => prev.map(r => r.id === selectedDeal.id ? { ...r, assignedAgentId: routedAgentId, assignedAgentName: routedName } : r));
+      setSelectedDeal(null); setTargetPartnerId('');
+
     } else if (logType === 'task') {
       const tempTask: Task = { id: `tmp-${Date.now()}`, referralId: selectedDeal.id, clientName: selectedDeal.clientName, assigneeId: user.uid, dueDate: taskDate, description: logInput, status: 'Pending' } as any;
       setAllTasks(prev => [...prev, tempTask]);
@@ -614,7 +654,10 @@ export default function PartnerCRM() {
 
   const handleDeleteLead = async (id: string) => {
     if (window.confirm("CRITICAL WARNING: Are you sure you want to permanently delete this lead?")) {
-      await CRMService.deleteReferral(id); setSelectedDeal(null); loadProfileAndData();
+      await CRMService.deleteReferral(id);
+      setSelectedDeal(null);
+      // Optimistic: drop the deal from local state instead of reloading.
+      setAllReferrals(prev => prev.filter(r => r.id !== id));
     }
   };
 
@@ -882,7 +925,6 @@ export default function PartnerCRM() {
         const docRef = await addDoc(collection(db, 'borrow_direct_deals'), payload);
         setBdDeal({ id: docRef.id, ...payload });
         await CRMService.logActivity(selectedDeal.id, { type: 'note', author: 'System Admin', content: `🛡️ Pushed to BorrowDirect Marketplace (Loan: $${payload.loanAmount}, LTV: ${payload.ltv}%)`, timestamp: new Date().toISOString() });
-        loadProfileAndData();
      } catch (err) { alert("Failed to publish to marketplace."); } finally { setIsPublishing(false); }
   };
 
@@ -910,12 +952,24 @@ export default function PartnerCRM() {
       return { activeValue, activeCount, fundedValueYTD, fundedCommissionYTD, fundedCount, inflightCommission, avgDeal: fundedCount ? fundedValueYTD / fundedCount : 0 };
   }, [allReferrals]);
 
+  // Bucket tasks by date once per allTasks change so the calendar's per-day
+  // lookup is O(1) instead of an O(N) filter per cell × 31 cells.
+  const tasksByDate = useMemo(() => {
+      const map = new Map<string, Task[]>();
+      allTasks.forEach(t => {
+          if (!t.dueDate) return;
+          const arr = map.get(t.dueDate);
+          if (arr) arr.push(t); else map.set(t.dueDate, [t]);
+      });
+      return map;
+  }, [allTasks]);
+
   if (loading || dataLoading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" size={40}/></div>;
-  const todaysTasks = allTasks.filter(t => t.dueDate === todayDateString && t.status !== 'Completed');
+  const todaysTasks = (tasksByDate.get(todayDateString) || []).filter(t => t.status !== 'Completed');
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex font-sans text-slate-900 pb-20 md:pb-0 pt-24">
-      <style dangerouslySetInnerHTML={{__html: `nav:not(.portal-nav), footer, [class*="fixed"][class*="bottom-"]:not(.portal-nav) { display: none !important; }`}} />
+      <style dangerouslySetInnerHTML={{__html: PORTAL_CHROME_HIDER}} />
 
       {/* DESKTOP SIDEBAR */}
       <aside className="hidden md:flex w-64 bg-[#0B0F19] text-white flex-col fixed h-[calc(100vh-6rem)] top-24 z-20 shadow-2xl">
@@ -991,7 +1045,7 @@ export default function PartnerCRM() {
                     {calendarBlanks.map(blank => <div key={`blank-${blank}`} className="bg-white min-h-[80px] md:min-h-[120px]"></div>)}
                     {calendarDays.map(day => {
                        const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                       const dayTasks = allTasks.filter(t => t.dueDate === dateStr);
+                       const dayTasks = tasksByDate.get(dateStr) || [];
                        const isToday = todayDateString === dateStr;
 
                        return (
@@ -1357,33 +1411,8 @@ export default function PartnerCRM() {
                  )}
               </div>
 
-              {/* RIGHT: STATS & TASKS */}
+              {/* RIGHT: TASKS */}
               <div className="xl:col-span-4 space-y-4 md:space-y-6 hidden lg:block">
-                 {/* Conversion + breached SLA call-outs (more actionable than vanity YTD) */}
-                 <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
-                    <h3 className="font-black uppercase tracking-tight text-sm mb-4 flex items-center gap-2 text-slate-900"><AlertCircle size={16} className="text-red-500"/> Needs Attention</h3>
-                    {(() => {
-                        const breaches = allReferrals.filter(r => !FUNDED_STATUSES.includes(r.status) && !LOST_STATUSES.includes(r.status) && getSLAHealth(r).callSLA === 'breached');
-                        if (breaches.length === 0) return <p className="text-xs text-gray-400 font-medium bg-gray-50 p-3 rounded-xl text-center border border-gray-100">All SLAs healthy. 🔥</p>;
-                        return (
-                            <div className="space-y-2">
-                                {breaches.slice(0,5).map(r => (
-                                    <div key={r.id} onClick={() => handleOpenDealModal(r)} className="p-3 bg-red-50 border border-red-100 rounded-xl flex justify-between items-center cursor-pointer hover:border-red-400 transition">
-                                        <div className="min-w-0">
-                                            <p className="text-[11px] font-black text-slate-900 truncate">{r.clientName}</p>
-                                            <p className="text-[9px] font-bold text-red-700 uppercase tracking-widest">{Math.floor(getSLAHealth(r).hoursSinceCreation)}h since intake</p>
-                                        </div>
-                                        {r.clientPhone && (
-                                            <a href={`tel:${r.clientPhone}`} onClick={e => e.stopPropagation()} className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-[9px] font-black uppercase flex items-center gap-1 shrink-0"><PhoneCall size={10}/> Call</a>
-                                        )}
-                                    </div>
-                                ))}
-                                {breaches.length > 5 && <p className="text-[10px] text-gray-500 font-bold text-center pt-1">+{breaches.length - 5} more SLA breaches</p>}
-                            </div>
-                        );
-                    })()}
-                 </div>
-
                  <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
                      <h3 className="font-black uppercase tracking-tight text-sm mb-4 flex items-center gap-2 text-slate-900"><CheckCircle size={16} className="text-blue-600"/> Today's Action Items</h3>
                      {todaysTasks.length === 0 ? (

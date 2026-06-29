@@ -77,6 +77,7 @@ export default function AdminPage() {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [adminSecretKey, setAdminSecretKey] = useState('');
+  const [isDeduping, setIsDeduping] = useState(false);
 
   // --- INIT / ADMIN GATE ---
   // Verifies the signed-in user has role 'admin' in the users collection. Runs on login
@@ -409,6 +410,51 @@ export default function AdminPage() {
     }
   };
 
+  // --- CSV DEDUPE HANDLER ---
+  // Preview-then-confirm flow so the admin always sees the dupe count before
+  // anything gets deleted. Scoped to CSV-imported leads only.
+  const handleDedupeCsv = async () => {
+    if (!adminSecretKey) {
+      alert('Enter the Admin Secret Key first.');
+      return;
+    }
+    setIsDeduping(true);
+    try {
+      const previewRes = await fetch('/api/admin/dedupe-leads?preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminKey: adminSecretKey }),
+      });
+      const previewData = await previewRes.json();
+      if (!previewRes.ok) throw new Error(previewData.error || 'Preview failed');
+
+      if (previewData.referralsToDelete === 0) {
+        alert('No duplicates found in CSV-imported leads. Pipeline is clean.');
+        return;
+      }
+
+      const confirmed = window.confirm(
+        `${previewData.message}\n\nThis keeps the OLDEST record in each duplicate group. Proceed?`,
+      );
+      if (!confirmed) return;
+
+      const res = await fetch('/api/admin/dedupe-leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminKey: adminSecretKey }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      alert(`Done: ${data.message}`);
+      refreshLeads();
+      loadAllData();
+    } catch (err: any) {
+      alert(`Dedupe Failed: ${err.message}`);
+    } finally {
+      setIsDeduping(false);
+    }
+  };
+
   // --- CSV IMPORT HANDLER ---
   const handleCsvImport = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -650,6 +696,22 @@ export default function AdminPage() {
                       {isImporting ? 'Importing...' : 'Upload CSV'}
                    </button>
                 </form>
+
+                <div className="mt-4 pt-4 border-t border-gray-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                   <div className="flex-1 min-w-0">
+                      <p className="text-xs font-black text-slate-900 mb-1">Already imported the same CSV twice?</p>
+                      <p className="text-[11px] text-gray-500">Scans CSV-imported leads, groups by phone + email, keeps the oldest, deletes the rest. Previews the count before deleting.</p>
+                   </div>
+                   <button
+                      type="button"
+                      onClick={handleDedupeCsv}
+                      disabled={isDeduping || !adminSecretKey}
+                      title={!adminSecretKey ? 'Enter the Admin Secret Key above first' : 'Find and remove duplicate CSV-imported leads'}
+                      className="shrink-0 bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 px-5 py-2 rounded-lg font-bold uppercase text-xs disabled:opacity-50 transition flex items-center gap-2"
+                   >
+                      {isDeduping ? 'Cleaning…' : 'Clean Duplicates'}
+                   </button>
+                </div>
              </div>
 
              {/* EXISTING LEADS TABLE */}
