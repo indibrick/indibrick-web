@@ -150,27 +150,39 @@ function fetchMockSnapshot(citySlug: string, typeSlug: string, priceSlug: string
   const yoy = pick(`${citySlug}|${typeSlug}|${priceSlug}|yoy`, -5, 9);
   const yoyChangePct = Math.round(yoy * 10) / 10;
 
-  // Six-month trend ending this month — drift the median by ±3% / month.
+  // Six-month trend ending this month — drift the median realistically (±4%/mo,
+  // skewed slightly negative so the chart reads like the cooling 2026 market
+  // rather than a flat line that looks fake).
   const now = new Date();
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const priceTrend = Array.from({ length: 6 }).map((_, i) => {
     const m = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-    const drift = (pick(`${citySlug}|${typeSlug}|${priceSlug}|trend${i}`, -0.03, 0.03)) ;
+    const monthLabel = `${months[m.getMonth()]} ${m.getFullYear()}`;
+    // Per-month drift between -4.0% and +3.0% to give the chart genuine shape.
+    const drift = pick(`${citySlug}|${typeSlug}|${priceSlug}|trend|${monthLabel}`, -0.04, 0.03);
     return {
-      month: `${months[m.getMonth()]} ${m.getFullYear()}`,
+      month: monthLabel,
       price: Math.round(medianPrice * (1 + drift) / 1000) * 1000,
     };
   });
 
-  // Three comparable listings using real neighborhood names from cityData.
+  // Three comparable listings using REAL neighborhood names from cityData. Each
+  // comparable derives its price/sqft/beds from a seed keyed to its neighborhood
+  // name (not just the cell), so two different neighborhoods in the same city
+  // produce visibly different comparables instead of identical templates.
   const nbrs = city.neighborhoods.slice(0, 6);
-  const beds = type.slug === 'condo' ? 2 : type.slug === 'townhouse' ? 3 : 4;
   const baths = type.slug === 'condo' ? 2 : 3;
   const sqftBase = type.slug === 'condo' ? 720 : type.slug === 'townhouse' ? 1500 : 2200;
   const comparables: ComparableListing[] = [0, 1, 2].map((i) => {
     const nbr = nbrs[i % nbrs.length] || city.name;
-    const sqftJitter = pick(`${citySlug}|${typeSlug}|${priceSlug}|sqft${i}`, -150, 200);
-    const priceJitter = pick(`${citySlug}|${typeSlug}|${priceSlug}|p${i}`, -0.08, 0.08);
+    // Each comparable carries its own per-neighborhood seed.
+    const compSeed = `${nbr}|${citySlug}|${typeSlug}|${priceSlug}`;
+    const sqftJitter = pick(`${compSeed}|sqft`, -180, 240);
+    const priceJitter = pick(`${compSeed}|price`, -0.09, 0.10);
+    // Vary beds within the type's realistic range (condo 1-3, town 2-4, det 3-5).
+    const bedsLo = type.slug === 'condo' ? 1 : type.slug === 'townhouse' ? 2 : 3;
+    const bedsHi = type.slug === 'condo' ? 3 : type.slug === 'townhouse' ? 4 : 5;
+    const beds = Math.round(pick(`${compSeed}|beds`, bedsLo, bedsHi));
     return {
       address: `${nbr}, ${city.name}`,
       price: Math.round(medianPrice * (1 + priceJitter) / 1000) * 1000,

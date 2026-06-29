@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Inter } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
+import AdaptiveNav from "../components/AdaptiveNav";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import Breadcrumbs from "../components/Breadcrumbs";
@@ -134,7 +136,14 @@ fbq('track', 'PageView');`}
         <Providers>
           <div className="flex flex-col min-h-screen">
             
-            <Header />
+            {/* AdaptiveNav reads URL search params to swap to a stripped-down
+                nav for paid traffic. Wrapped in Suspense so the rest of the
+                page can still prerender statically — without Suspense, the
+                useSearchParams() inside AdaptiveNav forces every page into
+                dynamic rendering. <Header /> is the prerendered fallback. */}
+            <Suspense fallback={<Header />}>
+              <AdaptiveNav />
+            </Suspense>
             
             <main className="flex-grow">
               <Breadcrumbs />

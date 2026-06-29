@@ -15,6 +15,7 @@ import LeadForm from '../../../../../components/LeadForm';
 import JsonLd from '../../../../../components/JsonLd';
 import { buildMetadata } from '../../../../../lib/buildMetadata';
 import { getCityProof } from '../../../../../lib/socialProof';
+import { getLiveRates } from '../../../../../lib/getLiveRates';
 
 // ISR — every matrix cell page regenerates at most once per hour. Market
 // snapshot numbers stay fresh; build time stays sane for ~800 pages.
@@ -76,6 +77,7 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
   const snap = await MarketDataService.getSnapshot(params.city, params.type, params.priceRange);
   const sourceLabel = await MarketDataService.getSourceLabel(params.city, params.type);
   const proof = getCityProof(params.city);
+  const liveRates = await getLiveRates();
 
   // Direct-answer copy for AEO. Google AI Overviews + Perplexity pull from
   // visible H2/H3 → paragraph patterns, not from accordions or JSON-LD alone.
@@ -107,6 +109,17 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
   // Pick 6 other cities of similar tier for "Same band, other cities" block.
   const otherCities = CITIES.filter((c) => c.slug !== city.slug).slice(0, 6);
 
+  // Proper monthly-payment math used in the FAQ. 25-year amortization on the
+  // 80%-LTV mortgage at the qualifying rate. The previous version round-tripped
+  // through toLocaleString() and produced "$NaN" — caught by the audit.
+  const mortgageAmount = Math.round(snap.medianPrice * 0.8);
+  const qualifyingAnnualRate = 0.0545;
+  const qualifyingMonthlyRate = qualifyingAnnualRate / 12;
+  const monthlyPayment = Math.round(
+    (mortgageAmount * qualifyingMonthlyRate) /
+    (1 - Math.pow(1 + qualifyingMonthlyRate, -300)),
+  );
+
   // FAQ schema — drives AI Overviews / People Also Ask.
   const faqs = [
     {
@@ -127,7 +140,7 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
     },
     {
       q: `What mortgage do I need to buy a ${type.label.toLowerCase()} at this price in ${city.name}?`,
-      a: `On a ${priceK(snap.medianPrice)} purchase with 20% down, you'd carry a mortgage of about ${priceK(snap.medianPrice * 0.8)}. At today's variable rates (~5.45% qualifying), that's roughly $${Math.round((snap.medianPrice * 0.8 * 0.006).toLocaleString())} / month before taxes and insurance. Use the IndiBrick affordability calculator to model your specific scenario.`,
+      a: `On a ${priceK(snap.medianPrice)} purchase with 20% down, you'd carry a mortgage of about ${priceK(mortgageAmount)}. At today's qualifying rate (~5.45%) on a 25-year amortization, that's roughly $${monthlyPayment.toLocaleString('en-CA')} / month before taxes and insurance. Use the IndiBrick affordability calculator to model your specific scenario.`,
     },
   ];
 
@@ -190,6 +203,16 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-indigo-400">{range.label}</span>
           </h1>
 
+          {/* Live-rate hook — single trust signal directly under the H1. Pulled
+              from Firestore site_settings/mortgage_rates with safe defaults. */}
+          <div className="inline-flex items-center gap-2 mb-5 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-200 text-[11px] md:text-xs font-bold uppercase tracking-widest">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+            </span>
+            Today: 5-yr fixed from {liveRates.insured_fixed_5yr}% · 5-yr variable from {liveRates.insured_variable_5yr}%
+          </div>
+
           <p className="text-base md:text-lg text-gray-300 max-w-3xl font-medium mb-8">
             {type.blurb} Median list price in {city.name} this band: <strong className="text-white">{priceK(snap.medianPrice)}</strong> · <strong className="text-white">{snap.activeListings}</strong> active · avg <strong className="text-white">{snap.daysOnMarket}</strong> days on market.
           </p>
@@ -202,6 +225,29 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
               <Phone size={16} /> Call Now
             </a>
           </div>
+        </div>
+      </section>
+
+      {/* === MOBILE INLINE LEAD FORM (above stats per audit 2B) === */}
+      {/* On mobile the lead form is the first thing after the hero so paid
+          traffic doesn't have to scroll past the stats grid to convert. */}
+      <section className="md:hidden px-6 -mt-6 mb-6 relative z-20">
+        <div className="bg-white border border-gray-200 rounded-[2rem] shadow-xl p-5">
+          <div className="inline-flex items-center gap-2 bg-blue-500/10 text-blue-700 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.3em] mb-3">
+            Get the live list
+          </div>
+          <h2 className="text-lg font-black tracking-tight text-slate-900 mb-1 leading-tight">
+            {snap.activeListings} active · median {priceK(snap.medianPrice)}
+          </h2>
+          <p className="text-xs text-gray-600 mb-3">
+            Sent within 1 business hour with today's {liveRates.insured_fixed_5yr}% 5-yr fixed rate.
+          </p>
+          <LeadForm
+            type="Realtor"
+            title={`${type.plural} in ${city.name} ${range.label}`}
+            subtitle={`${snap.activeListings} active · median ${priceK(snap.medianPrice)}`}
+            ctaText="Get Live MLS List + Rate"
+          />
         </div>
       </section>
 
@@ -440,17 +486,17 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
                 </div>
                 <HomeIcon size={32} className="text-blue-400 mb-4" />
                 <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight mb-3 leading-tight">
-                  See every active {type.label.toLowerCase()} in {city.name} {range.label.toLowerCase()}.
+                  Get the Live List — {snap.activeListings} active, median {priceK(snap.medianPrice)}.
                 </h2>
                 <p className="text-gray-400 text-sm md:text-base mb-6">
-                  {snap.activeListings} active listings · median {priceK(snap.medianPrice)}. A licensed {city.name} advisor sends the live list within 1 business hour.
+                  Live MLS inventory + today's rate ({liveRates.insured_fixed_5yr}% 5-yr fixed) sent by a licensed {city.name} advisor within 1 business hour.
                 </p>
                 <div className="bg-white p-2 rounded-[2rem] shadow-xl">
                   <LeadForm
                     type="Realtor"
                     title={`${type.plural} in ${city.name} ${range.label}`}
-                    subtitle={`Median ${priceK(snap.medianPrice)} · ${snap.activeListings} active`}
-                    ctaText="Send Me the List"
+                    subtitle={`Median ${priceK(snap.medianPrice)} · ${snap.activeListings} active · ${liveRates.insured_fixed_5yr}% 5-yr fixed`}
+                    ctaText="Get Live MLS List + Rate"
                   />
                 </div>
               </div>
@@ -483,6 +529,45 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
           </div>
         </div>
       </section>
+
+      {/* === DESKTOP STICKY SIDEBAR CTA (audit 2B) === */}
+      {/* Fixed bottom-right CTA card for desktop. Always-on conversion anchor
+          for paid traffic so the form path is one click from any scroll depth. */}
+      <aside className="hidden md:block fixed bottom-6 right-6 z-30 w-72 bg-white border border-gray-200 rounded-[2rem] shadow-2xl p-5">
+        <div className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.3em] mb-3">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75 animate-ping" />
+            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+          </span>
+          Live · {liveRates.insured_fixed_5yr}% 5-yr fixed
+        </div>
+        <p className="text-sm font-black text-slate-900 leading-snug mb-1">
+          {snap.activeListings} active · {priceK(snap.medianPrice)} median
+        </p>
+        <p className="text-[11px] text-gray-600 mb-3 leading-snug">
+          {city.name} {type.label.toLowerCase()}s — sent within 1 hr.
+        </p>
+        <a
+          href="#request"
+          className="block w-full text-center bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl font-black uppercase tracking-widest text-[10px] transition shadow-lg shadow-blue-500/30"
+        >
+          Get Live MLS List + Rate <ArrowRight size={12} className="inline-block ml-1" />
+        </a>
+      </aside>
+
+      {/* === MOBILE STICKY CTA BAR === */}
+      {/* Always-visible Apply Now on mobile. Single CTA — no Call button per
+          spec, since the form path converts higher than the click-to-call. */}
+      <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-slate-900/95 backdrop-blur border-t border-white/10 px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.35)]">
+        <a
+          href="/apply"
+          className="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-500 text-white px-6 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs transition shadow-lg shadow-blue-500/40"
+        >
+          Apply Now · {liveRates.insured_fixed_5yr}% 5-yr Fixed <ArrowRight size={14} />
+        </a>
+      </div>
+      {/* Reserve space so the bar doesn't cover footer content on mobile. */}
+      <div className="md:hidden h-20" aria-hidden="true" />
     </div>
   );
 }
