@@ -56,20 +56,55 @@ export const metaLeadReceiver = onRequest(
                   continue;
                 }
 
-                // B. Parse Meta's array format into a clean object (FIXED FOR INSTAGRAM CRASH)
-                const formattedLead: any = {};
-                if (leadData.field_data) {
+                // B. Parse Meta's field_data array dynamically. Standard Meta
+                //    forms ship `full_name` / `first_name` / `last_name` /
+                //    `phone_number` / `email`. Custom forms can name fields
+                //    anything (e.g. `client_name`, `mobile`, `your_email`).
+                //    Substring matching catches both. We capture first/last
+                //    separately and assemble at the end so field-order in the
+                //    array doesn't accidentally reverse the name.
+                let fullName = '';
+                let firstName = '';
+                let lastName = '';
+                let clientPhone = '';
+                let clientEmail = '';
+                const rawFields: Record<string, string> = {};
+
+                if (Array.isArray(leadData.field_data)) {
                   leadData.field_data.forEach((field: any) => {
-                    // Safely check if values array exists and has at least one item before grabbing index [0]
-                    formattedLead[field.name] = (field.values && field.values.length > 0) ? field.values[0] : '';
+                    const rawName = String(field?.name || '').trim();
+                    if (!rawName) return;
+                    const value = (field.values && field.values.length > 0) ? String(field.values[0]).trim() : '';
+                    rawFields[rawName] = value;
+                    if (!value) return;
+
+                    const lower = rawName.toLowerCase();
+                    if (lower === 'full_name' || lower.includes('fullname')) {
+                      fullName = value;
+                    } else if (lower.includes('first') && lower.includes('name')) {
+                      firstName = value;
+                    } else if (lower.includes('last') && lower.includes('name')) {
+                      lastName = value;
+                    } else if (lower.includes('phone') || lower.includes('mobile')) {
+                      clientPhone = value;
+                    } else if (lower.includes('email')) {
+                      clientEmail = value;
+                    } else if (lower.includes('name') && !fullName) {
+                      // Custom name field — adopt as the full name only if we
+                      // haven't seen a more specific one already.
+                      fullName = value;
+                    }
                   });
                 }
 
-                // Cleanly map the name fields
-                const clientName = formattedLead.full_name || (formattedLead.first_name ? formattedLead.first_name + ' ' + formattedLead.last_name : 'Meta Test Lead');
-                const clientPhone = formattedLead.phone_number || '';
-                const clientEmail = formattedLead.email || '';
+                const assembledName = [firstName, lastName].filter(Boolean).join(' ').trim();
+                const clientName = fullName || assembledName || 'META TEST LEAD';
                 const timestamp = new Date().toISOString();
+
+                // Test-lead detection: Meta fires synthetic test payloads from
+                // the Lead Ads Testing Tool. Mark them so the CRM can filter,
+                // and suppress the email notification so we don't spam ourselves.
+                const isTest = clientName === 'META TEST LEAD' || clientName.toLowerCase().includes('test');
 
                 // C. INJECT DIRECTLY INTO INDIBRICK CRM
                 await db.collection("referrals").add({
@@ -84,10 +119,19 @@ export const metaLeadReceiver = onRequest(
                   clientEmail: clientEmail,
                   referralDate: timestamp,
                   notes: `System: Auto-ingested from Meta Lead Ad. Form ID: ${formId}`,
-                  type: "Social Inbound"
+                  type: "Social Inbound",
+                  formId,
+                  isTest,
+                  rawFields,
                 });
 
-                // D. TRIGGER SPEED-TO-LEAD EMAIL NOTIFICATION
+                // D. SPEED-TO-LEAD EMAIL NOTIFICATION
+                // Suppressed for test leads so the Meta Testing Tool doesn't
+                // page us every time it fires a probe.
+                if (isTest) {
+                  console.log(`🧪 Skipping email for test lead: ${clientName}`);
+                  continue;
+                }
                 await db.collection("mail").add({
                   // REMINDER: Change this to your new admin email address!
                   to: ["indibrick@gmail.com"],
