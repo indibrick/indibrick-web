@@ -19,10 +19,16 @@ function normEmail(raw: string): string {
   return (raw || '').trim().toLowerCase();
 }
 
-// Only touches CSV-imported records — organic web leads and partner-injected
-// referrals are left alone.
+// CSV-only scope: leaves organic web leads and partner-injected referrals alone.
 function isCsvImported(d: any): boolean {
   return d?.referrerId === 'CSV_IMPORT' || d?.type === 'CSV Upload';
+}
+
+// Cross-source scope: every referral is in play. Used when a CSV upload
+// duplicated into both CSV-tagged AND web-inbound records, so the dedupe
+// has to match across origin tags.
+function isAnyReferral(_d: any): boolean {
+  return true;
 }
 
 async function deleteInChunks(refs: FirebaseFirestore.DocumentReference[]) {
@@ -41,6 +47,10 @@ export async function POST(request: Request) {
     const { adminKey } = body || {};
     const url = new URL(request.url);
     const preview = url.searchParams.has('preview');
+    // When ?all=1, scan every referral regardless of referrerId — needed when
+    // CSV uploads also created duplicate "web inbound" referrals.
+    const scopeAll = url.searchParams.get('all') === '1';
+    const inScope = scopeAll ? isAnyReferral : isCsvImported;
 
     if (adminKey !== process.env.ADMIN_SECRET_KEY) {
       return NextResponse.json({ error: 'Unauthorized: Invalid Admin Key' }, { status: 401 });
@@ -56,7 +66,7 @@ export async function POST(request: Request) {
 
     referralsSnap.forEach((doc) => {
       const d = doc.data() as any;
-      if (!isCsvImported(d)) return;
+      if (!inScope(d)) return;
       const p = normPhone(d.clientPhone || '');
       const e = normEmail(d.clientEmail || '');
       if (!p || !e) return; // require BOTH per chosen dedupe policy

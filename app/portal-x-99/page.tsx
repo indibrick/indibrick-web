@@ -78,6 +78,9 @@ export default function AdminPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [adminSecretKey, setAdminSecretKey] = useState('');
   const [isDeduping, setIsDeduping] = useState(false);
+  // When true, dedupe scans every referral regardless of source (catches the
+  // case where a CSV upload duplicated as web-inbound entries too).
+  const [dedupeAllSources, setDedupeAllSources] = useState(false);
 
   // --- INIT / ADMIN GATE ---
   // Verifies the signed-in user has role 'admin' in the users collection. Runs on login
@@ -412,7 +415,9 @@ export default function AdminPage() {
 
   // --- CSV DEDUPE HANDLER ---
   // Preview-then-confirm flow so the admin always sees the dupe count before
-  // anything gets deleted. Scoped to CSV-imported leads only.
+  // anything gets deleted. Scope is CSV-only by default; the "all sources"
+  // checkbox switches to cross-source matching (catches CSV uploads that
+  // re-entered as web-inbound dupes).
   const handleDedupeCsv = async () => {
     if (!adminSecretKey) {
       alert('Enter the Admin Secret Key first.');
@@ -420,7 +425,8 @@ export default function AdminPage() {
     }
     setIsDeduping(true);
     try {
-      const previewRes = await fetch('/api/admin/dedupe-leads?preview', {
+      const scopeQS = dedupeAllSources ? '&all=1' : '';
+      const previewRes = await fetch(`/api/admin/dedupe-leads?preview${scopeQS}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminKey: adminSecretKey }),
@@ -429,16 +435,19 @@ export default function AdminPage() {
       if (!previewRes.ok) throw new Error(previewData.error || 'Preview failed');
 
       if (previewData.referralsToDelete === 0) {
-        alert('No duplicates found in CSV-imported leads. Pipeline is clean.');
+        alert(dedupeAllSources
+          ? 'No duplicates found across any source. Pipeline is clean.'
+          : 'No duplicates found in CSV-imported leads. (Tick "Include web-inbound dupes" to widen the search.)');
         return;
       }
 
       const confirmed = window.confirm(
-        `${previewData.message}\n\nThis keeps the OLDEST record in each duplicate group. Proceed?`,
+        `${previewData.message}\n\nScope: ${dedupeAllSources ? 'ALL sources (CSV + web)' : 'CSV-imported only'}.\nThis keeps the OLDEST record in each duplicate group. Proceed?`,
       );
       if (!confirmed) return;
 
-      const res = await fetch('/api/admin/dedupe-leads', {
+      const runQS = dedupeAllSources ? '?all=1' : '';
+      const res = await fetch(`/api/admin/dedupe-leads${runQS}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ adminKey: adminSecretKey }),
@@ -700,13 +709,22 @@ export default function AdminPage() {
                 <div className="mt-4 pt-4 border-t border-gray-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
                    <div className="flex-1 min-w-0">
                       <p className="text-xs font-black text-slate-900 mb-1">Already imported the same CSV twice?</p>
-                      <p className="text-[11px] text-gray-500">Scans CSV-imported leads, groups by phone + email, keeps the oldest, deletes the rest. Previews the count before deleting.</p>
+                      <p className="text-[11px] text-gray-500">Groups by phone + email, keeps the oldest in each group, deletes the rest. Previews the count before deleting.</p>
+                      <label className="mt-2 inline-flex items-center gap-2 cursor-pointer select-none">
+                         <input
+                            type="checkbox"
+                            checked={dedupeAllSources}
+                            onChange={(e) => setDedupeAllSources(e.target.checked)}
+                            className="h-3.5 w-3.5 rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer"
+                         />
+                         <span className="text-[11px] font-bold text-slate-700">Include web-inbound dupes (match across all sources)</span>
+                      </label>
                    </div>
                    <button
                       type="button"
                       onClick={handleDedupeCsv}
                       disabled={isDeduping || !adminSecretKey}
-                      title={!adminSecretKey ? 'Enter the Admin Secret Key above first' : 'Find and remove duplicate CSV-imported leads'}
+                      title={!adminSecretKey ? 'Enter the Admin Secret Key above first' : 'Find and remove duplicate leads'}
                       className="shrink-0 bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 px-5 py-2 rounded-lg font-bold uppercase text-xs disabled:opacity-50 transition flex items-center gap-2"
                    >
                       {isDeduping ? 'Cleaning…' : 'Clean Duplicates'}

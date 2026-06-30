@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useAdmin } from '../../AdminContext';
 import { CRMService } from '../../services/CRMService';
 import { Referral, Task, ActivityLog } from '../../types';
@@ -17,6 +17,34 @@ import { db } from '../../firebase';
 // Global style that hides the public-site nav/footer when the portal is on
 // screen. Hoisted to module scope so React doesn't re-emit it on every render.
 const PORTAL_CHROME_HIDER = `nav:not(.portal-nav), footer, [class*="fixed"][class*="bottom-"]:not(.portal-nav) { display: none !important; }`;
+
+// Module-scope helpers + constants. Hoisting them out of the component lets
+// the memoized DealListCard reference stable identities — so React.memo can
+// short-circuit re-renders when the parent re-renders for unrelated state
+// (e.g. typing in a note inside the open deal modal).
+const FUNDED_STATUSES = ['Funded', 'Closed', 'Firm Sale', 'Firm / Conditional', 'Funded / Paid'];
+const LOST_STATUSES = ['Declined', 'Lost', 'Cancelled'];
+
+function formatCurrency(n: number) {
+    if (!n || isNaN(n)) return '$0';
+    if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
+    if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
+    return `$${n.toLocaleString()}`;
+}
+
+function stageAgeStyle(days: number) {
+    if (days <= 2) return 'bg-green-50 text-green-700 border-green-200';
+    if (days <= 6) return 'bg-amber-50 text-amber-700 border-amber-200';
+    return 'bg-red-50 text-red-700 border-red-200';
+}
+
+// Browser-level paint/layout skip for off-screen cards. Combined with
+// React.memo on the card itself, this turns a 981-card list into something
+// the browser only paints ~15 of at any moment.
+const CARD_VIRTUAL_STYLE: React.CSSProperties = {
+    contentVisibility: 'auto',
+    containIntrinsicSize: '0 200px',
+};
 
 // Referral source labels — drives compensation: who (if anyone) gets paid out on a file.
 const REFERRAL_SOURCES = ['Realtor Partner', 'Other Partner', 'Self-Generated', 'Web Lead'];
@@ -598,16 +626,6 @@ export default function PartnerCRM() {
      setAllReferrals(prev => prev.map(r => r.id === selectedDeal.id ? { ...r, loanAmount, expectedCommission } : r));
   };
 
-  const formatCurrency = (n: number) => {
-      if (!n || isNaN(n)) return '$0';
-      if (n >= 1_000_000) return `$${(n/1_000_000).toFixed(2)}M`;
-      if (n >= 1_000) return `$${(n/1_000).toFixed(0)}K`;
-      return `$${n.toLocaleString()}`;
-  };
-
-  const FUNDED_STATUSES = ['Funded', 'Closed', 'Firm Sale', 'Firm / Conditional', 'Funded / Paid'];
-  const LOST_STATUSES = ['Declined', 'Lost', 'Cancelled'];
-
   const handleAddParticipant = async (e: React.ChangeEvent<HTMLSelectElement>) => {
       const pUid = e.target.value;
       if (!pUid || !selectedDeal) return;
@@ -654,7 +672,10 @@ export default function PartnerCRM() {
     }
   };
 
-  const handleOpenDealModal = async (deal: any) => {
+  // useCallback so the function reference is stable across renders. Without
+  // this, every keystroke in the open deal modal would hand each DealListCard
+  // a new onOpen prop and defeat React.memo.
+  const handleOpenDealModal = useCallback(async (deal: any) => {
       setSelectedDeal(deal);
       // Default to Log Call: it's the highest-leverage action and the only one that advances the touch-SLA counter
       setLogType('log_call');
@@ -667,7 +688,7 @@ export default function PartnerCRM() {
               setSelectedDeal(prev => prev?.id === deal.id ? { ...prev, vault: freshData.vault } : prev);
           }
       } catch(e) {}
-  };
+  }, []);
 
   const handleDownloadVaultDoc = async (vDoc: any) => {
       if (vDoc?.downloadUrl) { window.open(vDoc.downloadUrl, '_blank', 'noopener,noreferrer'); return; }
@@ -876,12 +897,6 @@ export default function PartnerCRM() {
       const since = deal.stageEnteredAt || deal.referralDate;
       if (!since) return 0;
       return Math.floor((Date.now() - new Date(since).getTime()) / (1000 * 60 * 60 * 24));
-  };
-
-  const stageAgeStyle = (days: number) => {
-      if (days <= 2) return 'bg-green-50 text-green-700 border-green-200';
-      if (days <= 6) return 'bg-amber-50 text-amber-700 border-amber-200';
-      return 'bg-red-50 text-red-700 border-red-200';
   };
 
   // Memoized — called multiple times per render (list + kanban + empty-state check)
@@ -1330,7 +1345,7 @@ export default function PartnerCRM() {
                                             const days = meta?.days ?? 0;
                                             const sla = meta?.sla ?? { callCount: 0, callSLA: 'pending', subSLA: 'pending', hoursSinceCreation: 0 };
                                             return (
-                                                <div key={deal.id} onClick={() => handleOpenDealModal(deal)} className="bg-white rounded-xl p-3 border border-gray-200 shadow-sm hover:border-black cursor-pointer transition group">
+                                                <div key={deal.id} onClick={() => handleOpenDealModal(deal)} style={CARD_VIRTUAL_STYLE} className="bg-white rounded-xl p-3 border border-gray-200 shadow-sm hover:border-black cursor-pointer transition group">
                                                     <div className="flex justify-between items-start gap-2 mb-2">
                                                         <h5 className="text-xs font-black text-slate-900 group-hover:text-blue-600 transition truncate">{deal.clientName}</h5>
                                                         {Number(deal.loanAmount) > 0 && <span className="text-[9px] font-black text-slate-700 shrink-0">{formatCurrency(Number(deal.loanAmount))}</span>}
@@ -1353,106 +1368,14 @@ export default function PartnerCRM() {
                     </div>
                  ) : (
                  <div className="space-y-3 md:space-y-4">
-                     {filteredDeals.map((deal) => {
-                        // All per-card meta comes from the precomputed map so
-                        // the card render is a single Map.get() instead of
-                        // four function calls + an array scan per deal.
-                        const meta = dealMeta.get(deal.id);
-                        const progress = meta?.progress ?? 10;
-                        const isWon = meta?.isWon ?? false;
-                        const activeTask = meta?.activeTask;
-                        const sla = meta?.sla ?? { callCount: 0, callSLA: 'pending', subSLA: 'pending', hoursSinceCreation: 0 };
-                        
-                        return (
-                         <div key={deal.id} onClick={() => handleOpenDealModal(deal)} className="group bg-white rounded-2xl p-4 md:p-5 border border-gray-200 shadow-sm hover:border-black transition-all cursor-pointer relative overflow-hidden">
-                             {deal.dealCategory === 'active' && <div className="absolute top-0 left-0 w-1 h-full bg-green-500"></div>}
-
-                             <div className="flex flex-col sm:flex-row justify-between items-start mb-4 gap-3 md:gap-4">
-                                 <div className="flex gap-3 md:gap-4 items-center">
-                                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-base shrink-0 ${deal.dealCategory === 'active' ? 'bg-green-50 text-green-600' : 'bg-slate-50 text-slate-600'}`}>
-                                         {deal.clientName.charAt(0)}
-                                     </div>
-                                     <div>
-                                         <h3 className="text-base md:text-lg font-black text-slate-900 group-hover:text-blue-600 transition tracking-tight">{deal.clientName}</h3>
-                                         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                                             {deal.leadTag && <span className="px-2 py-0.5 rounded text-[8px] md:text-[9px] font-black uppercase tracking-widest bg-purple-100 text-purple-700 border border-purple-200">{deal.leadTag}</span>}
-                                             {(deal.referralPartnerId || deal.referralSource === 'Realtor Partner' || deal.referralSource === 'Other Partner') && <span className="px-2 py-0.5 rounded text-[8px] md:text-[9px] font-black uppercase tracking-widest bg-amber-100 text-amber-700 border border-amber-200" title="Compensation payout owed">💰 {deal.referralPartnerName || deal.referralSource}</span>}
-                                             <span className="text-[10px] md:text-xs text-gray-500 font-bold">{deal.serviceNeeded || deal.serviceRequested || deal.type || 'New Lead'}</span>
-                                         </div>
-                                     </div>
-                                 </div>
-                                 <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-0 border-gray-50 pt-3 sm:pt-0">
-                                     {/* SLA Gauges */}
-                                     <div className="flex gap-2">
-                                        {sla.callSLA === 'breached' && !isWon && <span className="bg-red-100 text-red-600 px-2 py-1 rounded text-[8px] font-black uppercase flex items-center gap-1 animate-pulse"><AlertCircle size={10}/> Call SLA</span>}
-                                        {sla.subSLA === 'breached' && !isWon && <span className="bg-orange-100 text-orange-600 px-2 py-1 rounded text-[8px] font-black uppercase flex items-center gap-1"><Clock size={10}/> Submit SLA</span>}
-                                     </div>
-                                     <div className="text-right flex flex-col items-end gap-1">
-                                         <p className="text-[8px] text-gray-400 uppercase font-black tracking-widest hidden sm:block">Status</p>
-                                         <span className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest border ${isWon ? 'bg-green-50 text-green-700 border-green-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>{deal.status}</span>
-                                         {!isWon && !LOST_STATUSES.includes(deal.status) && (() => {
-                                            const days = getDaysInStage(deal);
-                                            return (
-                                                <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border ${stageAgeStyle(days)}`}>
-                                                    {days === 0 ? 'New today' : `${days}d in stage`}
-                                                </span>
-                                            );
-                                         })()}
-                                     </div>
-                                 </div>
-                             </div>
-
-                             <div className="mb-3 hidden md:flex items-center gap-3 flex-wrap">
-                                {Number(deal.loanAmount) > 0 && (
-                                    <span className="bg-slate-900 text-white px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest flex items-center gap-1">
-                                        <Wallet size={10}/> {formatCurrency(Number(deal.loanAmount))}
-                                    </span>
-                                )}
-                                {(() => {
-                                    const required = (deal.requiredDocuments || []).length;
-                                    const uploaded = (deal.vault || []).length;
-                                    if (required === 0 && uploaded === 0) return null;
-                                    const complete = required > 0 && uploaded >= required;
-                                    return (
-                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest flex items-center gap-1 border ${complete ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-                                            <FileText size={10}/> Docs {uploaded}/{required || uploaded}
-                                        </span>
-                                    );
-                                })()}
-                             </div>
-
-                             <div className="mb-4 hidden md:block">
-                                 <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                                     <div className="h-full bg-slate-900 rounded-full transition-all" style={{ width: `${progress}%` }}></div>
-                                 </div>
-                             </div>
-
-                             <div className="pt-2 md:pt-3 border-t border-gray-50 flex justify-between items-center">
-                                 <div className="flex items-center gap-4">
-                                    <div className="flex items-center gap-1 text-[10px] font-bold text-gray-500">
-                                        <PhoneCall size={12} className={sla.callCount >= 5 ? 'text-green-500' : 'text-orange-500'}/> Touches: {sla.callCount}/5
-                                    </div>
-                                    <div className="text-[10px] font-bold text-gray-500 hidden sm:block">
-                                        <User size={12} className="inline mr-1"/> Assigned: {deal.assignedAgentName === 'Admin Triage' ? 'HQ' : deal.assignedAgentName}
-                                    </div>
-                                 </div>
-                                 <div className="flex items-center gap-2">
-                                    {deal.clientPhone && (
-                                        <a href={`tel:${deal.clientPhone}`} onClick={(e) => e.stopPropagation()} className="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm" title={`Call ${deal.clientPhone}`}>
-                                            <PhoneCall size={10}/> Call
-                                        </a>
-                                    )}
-                                    {deal.clientPhone && (
-                                        <a href={`sms:${deal.clientPhone}`} onClick={(e) => e.stopPropagation()} className="bg-slate-900 hover:bg-black text-white px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm hidden md:inline-flex" title="Send SMS">
-                                            <Send size={10}/> SMS
-                                        </a>
-                                    )}
-                                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 group-hover:text-black transition flex items-center gap-1">Manage <ChevronRight size={10}/></span>
-                                 </div>
-                             </div>
-                         </div>
-                        );
-                     })}
+                     {filteredDeals.map((deal) => (
+                       <DealListCard
+                         key={deal.id}
+                         deal={deal}
+                         meta={dealMeta.get(deal.id)}
+                         onOpen={handleOpenDealModal}
+                       />
+                     ))}
 
                      {filteredDeals.length === 0 && (
                          <div className="text-center p-10 bg-white rounded-2xl border border-dashed border-gray-200">
@@ -2480,3 +2403,124 @@ export default function PartnerCRM() {
     </div>
   );
 }
+
+// Memoized list-view deal card. The parent re-renders on every keystroke in
+// the open deal modal (state lives on PartnerCRM). Without memoization, all
+// ~1000 cards would reconcile per keystroke — that's the typing lag the
+// user reported. React.memo + stable `deal`/`meta`/`onOpen` references means
+// each card render is a single shallow prop compare.
+//
+// content-visibility on the wrapper additionally lets the browser skip
+// paint/layout for off-screen cards.
+interface DealMeta {
+    sla: { callCount: number; callSLA: string; subSLA: string; hoursSinceCreation: number };
+    days: number;
+    progress: number;
+    isWon: boolean;
+    activeTask: any;
+}
+
+const DealListCard = React.memo(function DealListCard({
+    deal,
+    meta,
+    onOpen,
+}: {
+    deal: any;
+    meta: DealMeta | undefined;
+    onOpen: (deal: any) => void;
+}) {
+    const progress = meta?.progress ?? 10;
+    const isWon = meta?.isWon ?? false;
+    const sla = meta?.sla ?? { callCount: 0, callSLA: 'pending', subSLA: 'pending', hoursSinceCreation: 0 };
+    const days = meta?.days ?? 0;
+
+    return (
+        <div
+            onClick={() => onOpen(deal)}
+            style={CARD_VIRTUAL_STYLE}
+            className="group bg-white rounded-2xl p-4 md:p-5 border border-gray-200 shadow-sm hover:border-black transition-all cursor-pointer relative overflow-hidden"
+        >
+            {deal.dealCategory === 'active' && <div className="absolute top-0 left-0 w-1 h-full bg-green-500"></div>}
+
+            <div className="flex flex-col sm:flex-row justify-between items-start mb-4 gap-3 md:gap-4">
+                <div className="flex gap-3 md:gap-4 items-center">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-base shrink-0 ${deal.dealCategory === 'active' ? 'bg-green-50 text-green-600' : 'bg-slate-50 text-slate-600'}`}>
+                        {deal.clientName.charAt(0)}
+                    </div>
+                    <div>
+                        <h3 className="text-base md:text-lg font-black text-slate-900 group-hover:text-blue-600 transition tracking-tight">{deal.clientName}</h3>
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            {deal.leadTag && <span className="px-2 py-0.5 rounded text-[8px] md:text-[9px] font-black uppercase tracking-widest bg-purple-100 text-purple-700 border border-purple-200">{deal.leadTag}</span>}
+                            {(deal.referralPartnerId || deal.referralSource === 'Realtor Partner' || deal.referralSource === 'Other Partner') && <span className="px-2 py-0.5 rounded text-[8px] md:text-[9px] font-black uppercase tracking-widest bg-amber-100 text-amber-700 border border-amber-200" title="Compensation payout owed">💰 {deal.referralPartnerName || deal.referralSource}</span>}
+                            <span className="text-[10px] md:text-xs text-gray-500 font-bold">{deal.serviceNeeded || deal.serviceRequested || deal.type || 'New Lead'}</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-0 border-gray-50 pt-3 sm:pt-0">
+                    <div className="flex gap-2">
+                        {sla.callSLA === 'breached' && !isWon && <span className="bg-red-100 text-red-600 px-2 py-1 rounded text-[8px] font-black uppercase flex items-center gap-1 animate-pulse"><AlertCircle size={10}/> Call SLA</span>}
+                        {sla.subSLA === 'breached' && !isWon && <span className="bg-orange-100 text-orange-600 px-2 py-1 rounded text-[8px] font-black uppercase flex items-center gap-1"><Clock size={10}/> Submit SLA</span>}
+                    </div>
+                    <div className="text-right flex flex-col items-end gap-1">
+                        <p className="text-[8px] text-gray-400 uppercase font-black tracking-widest hidden sm:block">Status</p>
+                        <span className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest border ${isWon ? 'bg-green-50 text-green-700 border-green-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>{deal.status}</span>
+                        {!isWon && !LOST_STATUSES.includes(deal.status) && (
+                            <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border ${stageAgeStyle(days)}`}>
+                                {days === 0 ? 'New today' : `${days}d in stage`}
+                            </span>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            <div className="mb-3 hidden md:flex items-center gap-3 flex-wrap">
+                {Number(deal.loanAmount) > 0 && (
+                    <span className="bg-slate-900 text-white px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest flex items-center gap-1">
+                        <Wallet size={10}/> {formatCurrency(Number(deal.loanAmount))}
+                    </span>
+                )}
+                {(() => {
+                    const required = (deal.requiredDocuments || []).length;
+                    const uploaded = (deal.vault || []).length;
+                    if (required === 0 && uploaded === 0) return null;
+                    const complete = required > 0 && uploaded >= required;
+                    return (
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest flex items-center gap-1 border ${complete ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                            <FileText size={10}/> Docs {uploaded}/{required || uploaded}
+                        </span>
+                    );
+                })()}
+            </div>
+
+            <div className="mb-4 hidden md:block">
+                <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                    <div className="h-full bg-slate-900 rounded-full transition-all" style={{ width: `${progress}%` }}></div>
+                </div>
+            </div>
+
+            <div className="pt-2 md:pt-3 border-t border-gray-50 flex justify-between items-center">
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1 text-[10px] font-bold text-gray-500">
+                        <PhoneCall size={12} className={sla.callCount >= 5 ? 'text-green-500' : 'text-orange-500'}/> Touches: {sla.callCount}/5
+                    </div>
+                    <div className="text-[10px] font-bold text-gray-500 hidden sm:block">
+                        <User size={12} className="inline mr-1"/> Assigned: {deal.assignedAgentName === 'Admin Triage' ? 'HQ' : deal.assignedAgentName}
+                    </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    {deal.clientPhone && (
+                        <a href={`tel:${deal.clientPhone}`} onClick={(e) => e.stopPropagation()} className="bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm" title={`Call ${deal.clientPhone}`}>
+                            <PhoneCall size={10}/> Call
+                        </a>
+                    )}
+                    {deal.clientPhone && (
+                        <a href={`sms:${deal.clientPhone}`} onClick={(e) => e.stopPropagation()} className="bg-slate-900 hover:bg-black text-white px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm hidden md:inline-flex" title="Send SMS">
+                            <Send size={10}/> SMS
+                        </a>
+                    )}
+                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 group-hover:text-black transition flex items-center gap-1">Manage <ChevronRight size={10}/></span>
+                </div>
+            </div>
+        </div>
+    );
+});
