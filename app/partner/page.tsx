@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue } from 'react';
 import { useAdmin } from '../../AdminContext';
 import { CRMService } from '../../services/CRMService';
 import { Referral, Task, ActivityLog } from '../../types';
@@ -172,6 +172,13 @@ export default function PartnerCRM() {
 
   // Kanban vs list view
   const [boardLayout, setBoardLayout] = useState<'list' | 'kanban'>('list');
+
+  // Render-cap so the initial paint isn't ~1000 React tree nodes. Search and
+  // filter still apply to the full pipeline; this only controls how many
+  // cards are mounted at once. Resets to PAGE_SIZE whenever filters change so
+  // the user always sees the top of the filtered list.
+  const PAGE_SIZE = 100;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   // --- UNIQUE ROLE PIPELINE STAGES ---
   const getPipelineStages = (role: string) => {
@@ -899,7 +906,12 @@ export default function PartnerCRM() {
       return Math.floor((Date.now() - new Date(since).getTime()) / (1000 * 60 * 60 * 24));
   };
 
-  // Memoized — called multiple times per render (list + kanban + empty-state check)
+  // Defer the search value so keystrokes update the input instantly while
+  // the (expensive) filter pass runs at a lower priority. Big perceived win
+  // on large pipelines — typing in the search box stays buttery even when
+  // the list behind it is still re-filtering.
+  const deferredSearch = useDeferredValue(searchQuery);
+
   const filteredDeals = useMemo(() => {
       let filtered = allReferrals;
       // "Mine" = deals I'm assigned to OR a participant/collaborator on
@@ -913,15 +925,21 @@ export default function PartnerCRM() {
       // Referral source filter: value is a partner UID (specific partner) or a generic source label
       if (filterReferralSource !== 'all') filtered = filtered.filter(r => r.referralPartnerId === filterReferralSource || r.referralSource === filterReferralSource);
 
-      if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase();
+      if (deferredSearch.trim()) {
+          const q = deferredSearch.toLowerCase();
           filtered = filtered.filter(r => r.clientName?.toLowerCase().includes(q) || r.clientEmail?.toLowerCase().includes(q) || r.clientPhone?.includes(q));
       }
       return [...filtered].sort((a, b) => {
           if (sortOrder === 'newest') return new Date(b.referralDate).getTime() - new Date(a.referralDate).getTime();
           return new Date(a.referralDate).getTime() - new Date(b.referralDate).getTime();
       });
-  }, [allReferrals, pipelineView, filterAssignee, filterTag, filterStatus, filterReferralSource, searchQuery, sortOrder, partnerRole, user?.uid]);
+  }, [allReferrals, pipelineView, filterAssignee, filterTag, filterStatus, filterReferralSource, deferredSearch, sortOrder, partnerRole, user?.uid]);
+
+  // Reset the visible window back to the top whenever a filter changes so
+  // the user always sees the first PAGE_SIZE cards of the new result set.
+  useEffect(() => {
+      setVisibleCount(PAGE_SIZE);
+  }, [pipelineView, filterAssignee, filterTag, filterStatus, filterReferralSource, deferredSearch, sortOrder]);
 
 
   const publishToBorrowDirect = async () => {
@@ -996,28 +1014,33 @@ export default function PartnerCRM() {
       return map;
   }, [filteredDeals, PIPELINE_STAGES]);
 
-  // Precompute the meta each card needs (SLA, daysInStage, progress, isWon,
-  // activeTask). Doing this once means the card render is a cheap lookup
-  // instead of recomputing the same numbers for every paint.
-  const TERMINAL_WIN = new Set(['Closed', 'Funded', 'Firm Sale', 'Firm / Conditional']);
+  // Precompute meta against the FULL allReferrals set — not filteredDeals.
+  // If we keyed on filteredDeals, every meta entry would become a new object
+  // reference on every filter/search keystroke, defeating React.memo on the
+  // DealListCard. Keying on allReferrals means a deal's meta object stays
+  // referentially stable across filter changes — so unaffected cards skip
+  // re-render entirely.
   const dealMeta = useMemo(() => {
-      const map = new Map<string, { sla: ReturnType<typeof getSLAHealth>; days: number; progress: number; isWon: boolean; activeTask: Task | undefined }>();
+      const map = new Map<string, { sla: { callCount: number; callSLA: string; subSLA: string; hoursSinceCreation: number }; days: number; progress: number; isWon: boolean; activeTask: Task | undefined }>();
       const now = Date.now();
-      filteredDeals.forEach(deal => {
+      const SUBMITTED_STATES = ['Underwriting', 'Approved', 'Funded', 'Firm Sale', 'Firm / Conditional'];
+      const TERMINAL_WIN = new Set(['Closed', 'Funded', 'Firm Sale', 'Firm / Conditional']);
+      const TERMINAL_LOSS = new Set(['Declined', 'Lost', 'Cancelled']);
+      const stagesLen = PIPELINE_STAGES.length;
+      allReferrals.forEach(deal => {
           const hoursSinceCreation = (now - new Date(deal.referralDate || now).getTime()) / 3600000;
           const callCount = deal.callCount || 0;
           const callSLA = callCount > 0 ? 'passed' : (hoursSinceCreation > 12 ? 'breached' : 'pending');
-          const submitted = ['Underwriting', 'Approved', 'Funded', 'Firm Sale', 'Firm / Conditional'].includes(deal.status);
-          const subSLA = submitted ? 'passed' : (hoursSinceCreation > 48 ? 'breached' : 'pending');
+          const subSLA = SUBMITTED_STATES.includes(deal.status) ? 'passed' : (hoursSinceCreation > 48 ? 'breached' : 'pending');
           const since = deal.stageEnteredAt || deal.referralDate;
           const days = since ? Math.floor((now - new Date(since).getTime()) / 86400000) : 0;
           const idx = PIPELINE_STAGES.indexOf(deal.status);
-          const progress = ['Declined', 'Lost', 'Cancelled'].includes(deal.status)
+          const progress = TERMINAL_LOSS.has(deal.status)
               ? 100
-              : (idx === -1 ? 10 : Math.max(10, (idx / (PIPELINE_STAGES.length - 1)) * 100));
+              : (idx === -1 ? 10 : Math.max(10, (idx / (stagesLen - 1)) * 100));
           const activeTask = (tasksByReferralId.get(deal.id) || []).find(t => t.status !== 'Completed');
           map.set(deal.id, {
-              sla: { callCount, callSLA, subSLA, hoursSinceCreation } as any,
+              sla: { callCount, callSLA, subSLA, hoursSinceCreation },
               days,
               progress,
               isWon: TERMINAL_WIN.has(deal.status),
@@ -1025,7 +1048,7 @@ export default function PartnerCRM() {
           });
       });
       return map;
-  }, [filteredDeals, tasksByReferralId, PIPELINE_STAGES]);
+  }, [allReferrals, tasksByReferralId, PIPELINE_STAGES]);
 
   if (loading || dataLoading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" size={40}/></div>;
   const todaysTasks = (tasksByDate.get(todayDateString) || []).filter(t => t.status !== 'Completed');
@@ -1368,7 +1391,7 @@ export default function PartnerCRM() {
                     </div>
                  ) : (
                  <div className="space-y-3 md:space-y-4">
-                     {filteredDeals.map((deal) => (
+                     {filteredDeals.slice(0, visibleCount).map((deal) => (
                        <DealListCard
                          key={deal.id}
                          deal={deal}
@@ -1376,6 +1399,30 @@ export default function PartnerCRM() {
                          onOpen={handleOpenDealModal}
                        />
                      ))}
+
+                     {visibleCount < filteredDeals.length && (
+                         <div className="flex flex-col items-center gap-3 pt-4 pb-2">
+                             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                                 Showing {visibleCount} of {filteredDeals.length}
+                             </p>
+                             <div className="flex gap-2">
+                                 <button
+                                     type="button"
+                                     onClick={() => setVisibleCount(c => Math.min(c + PAGE_SIZE, filteredDeals.length))}
+                                     className="bg-slate-900 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition"
+                                 >
+                                     Show {Math.min(PAGE_SIZE, filteredDeals.length - visibleCount)} more
+                                 </button>
+                                 <button
+                                     type="button"
+                                     onClick={() => setVisibleCount(filteredDeals.length)}
+                                     className="bg-white border border-gray-200 text-slate-700 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:border-black transition"
+                                 >
+                                     Show all ({filteredDeals.length - visibleCount} remaining)
+                                 </button>
+                             </div>
+                         </div>
+                     )}
 
                      {filteredDeals.length === 0 && (
                          <div className="text-center p-10 bg-white rounded-2xl border border-dashed border-gray-200">
