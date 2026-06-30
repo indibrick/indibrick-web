@@ -11,13 +11,8 @@ import {
   ChevronLeft, AlertCircle, Shield, Landmark, ArrowUpRight, Lock, Tag, Gauge, Bot, ListChecks, Edit2, Save, ArrowRight, Sparkles
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { doc, getDoc, updateDoc, collection, getDocs, query, where, addDoc, arrayUnion, orderBy, limit } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, getDocs, query, where, addDoc, arrayUnion, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';
-
-// Caps the admin pipeline query so a fat referrals collection (after a CSV
-// import etc.) doesn't tank the dashboard. 500 rows covers any practical
-// working window; anything older surfaces via search/filter when needed.
-const ADMIN_PIPELINE_LIMIT = 500;
 
 // Global style that hides the public-site nav/footer when the portal is on
 // screen. Hoisted to module scope so React doesn't re-emit it on every render.
@@ -210,11 +205,9 @@ export default function PartnerCRM() {
         
         let activePipeline: any[] = [];
         if (currentRole === 'admin') {
-            const adminQ = query(
-                collection(db, 'referrals'),
-                orderBy('referralDate', 'desc'),
-                limit(ADMIN_PIPELINE_LIMIT),
-            );
+            // No row cap per spec — admin sees the entire pipeline. Sort
+            // newest-first server-side so the working set is at the top.
+            const adminQ = query(collection(db, 'referrals'), orderBy('referralDate', 'desc'));
             const snap = await getDocs(adminQ);
             activePipeline = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         } else {
@@ -915,7 +908,6 @@ export default function PartnerCRM() {
       });
   }, [allReferrals, pipelineView, filterAssignee, filterTag, filterStatus, filterReferralSource, searchQuery, sortOrder, partnerRole, user?.uid]);
 
-  const getFilteredDeals = () => filteredDeals;
 
   const publishToBorrowDirect = async () => {
      if(!bdForm.loanAmount || !bdForm.ltv || !bdForm.aiSummary) return alert("Please fill all fields and provide summary.");
@@ -963,6 +955,62 @@ export default function PartnerCRM() {
       });
       return map;
   }, [allTasks]);
+
+  // Bucket tasks by referralId so the deal-card render doesn't do an
+  // allTasks.find() per deal. With hundreds of deals × hundreds of tasks
+  // that's the biggest hidden cost in the list paint.
+  const tasksByReferralId = useMemo(() => {
+      const map = new Map<string, Task[]>();
+      allTasks.forEach(t => {
+          if (!t.referralId || t.referralId === 'general') return;
+          const arr = map.get(t.referralId);
+          if (arr) arr.push(t); else map.set(t.referralId, [t]);
+      });
+      return map;
+  }, [allTasks]);
+
+  // Bucket the filtered deals by pipeline stage for the kanban view. Was
+  // O(N × stages) per render — re-filtering the full list once per column.
+  const dealsByStage = useMemo(() => {
+      const map = new Map<string, any[]>();
+      PIPELINE_STAGES.forEach(s => map.set(s, []));
+      filteredDeals.forEach(d => {
+          const arr = map.get(d.status);
+          if (arr) arr.push(d);
+      });
+      return map;
+  }, [filteredDeals, PIPELINE_STAGES]);
+
+  // Precompute the meta each card needs (SLA, daysInStage, progress, isWon,
+  // activeTask). Doing this once means the card render is a cheap lookup
+  // instead of recomputing the same numbers for every paint.
+  const TERMINAL_WIN = new Set(['Closed', 'Funded', 'Firm Sale', 'Firm / Conditional']);
+  const dealMeta = useMemo(() => {
+      const map = new Map<string, { sla: ReturnType<typeof getSLAHealth>; days: number; progress: number; isWon: boolean; activeTask: Task | undefined }>();
+      const now = Date.now();
+      filteredDeals.forEach(deal => {
+          const hoursSinceCreation = (now - new Date(deal.referralDate || now).getTime()) / 3600000;
+          const callCount = deal.callCount || 0;
+          const callSLA = callCount > 0 ? 'passed' : (hoursSinceCreation > 12 ? 'breached' : 'pending');
+          const submitted = ['Underwriting', 'Approved', 'Funded', 'Firm Sale', 'Firm / Conditional'].includes(deal.status);
+          const subSLA = submitted ? 'passed' : (hoursSinceCreation > 48 ? 'breached' : 'pending');
+          const since = deal.stageEnteredAt || deal.referralDate;
+          const days = since ? Math.floor((now - new Date(since).getTime()) / 86400000) : 0;
+          const idx = PIPELINE_STAGES.indexOf(deal.status);
+          const progress = ['Declined', 'Lost', 'Cancelled'].includes(deal.status)
+              ? 100
+              : (idx === -1 ? 10 : Math.max(10, (idx / (PIPELINE_STAGES.length - 1)) * 100));
+          const activeTask = (tasksByReferralId.get(deal.id) || []).find(t => t.status !== 'Completed');
+          map.set(deal.id, {
+              sla: { callCount, callSLA, subSLA, hoursSinceCreation } as any,
+              days,
+              progress,
+              isWon: TERMINAL_WIN.has(deal.status),
+              activeTask,
+          });
+      });
+      return map;
+  }, [filteredDeals, tasksByReferralId, PIPELINE_STAGES]);
 
   if (loading || dataLoading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" size={40}/></div>;
   const todaysTasks = (tasksByDate.get(todayDateString) || []).filter(t => t.status !== 'Completed');
@@ -1260,7 +1308,7 @@ export default function PartnerCRM() {
                  {boardLayout === 'kanban' ? (
                     <div className="flex gap-3 overflow-x-auto pb-4 -mx-1 px-1 snap-x">
                         {PIPELINE_STAGES.map(stage => {
-                            const stageDeals = getFilteredDeals().filter(d => d.status === stage);
+                            const stageDeals = dealsByStage.get(stage) || [];
                             const stageValue = stageDeals.reduce((acc, d) => acc + Number(d.loanAmount || 0), 0);
                             const isTerminal = ['Declined','Lost','Cancelled','Funded','Closed','Firm Sale','Firm / Conditional','Funded / Paid'].includes(stage);
                             return (
@@ -1278,8 +1326,9 @@ export default function PartnerCRM() {
                                                 <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Empty</p>
                                             </div>
                                         ) : stageDeals.map(deal => {
-                                            const days = getDaysInStage(deal);
-                                            const sla = getSLAHealth(deal);
+                                            const meta = dealMeta.get(deal.id);
+                                            const days = meta?.days ?? 0;
+                                            const sla = meta?.sla ?? { callCount: 0, callSLA: 'pending', subSLA: 'pending', hoursSinceCreation: 0 };
                                             return (
                                                 <div key={deal.id} onClick={() => handleOpenDealModal(deal)} className="bg-white rounded-xl p-3 border border-gray-200 shadow-sm hover:border-black cursor-pointer transition group">
                                                     <div className="flex justify-between items-start gap-2 mb-2">
@@ -1304,11 +1353,15 @@ export default function PartnerCRM() {
                     </div>
                  ) : (
                  <div className="space-y-3 md:space-y-4">
-                     {getFilteredDeals().map((deal) => {
-                        const progress = getStageProgress(deal.status);
-                        const isWon = ['Closed', 'Funded', 'Firm Sale', 'Firm / Conditional'].includes(deal.status);
-                        const activeTask = allTasks.find(t => t.referralId === deal.id && t.status !== 'Completed');
-                        const sla = getSLAHealth(deal);
+                     {filteredDeals.map((deal) => {
+                        // All per-card meta comes from the precomputed map so
+                        // the card render is a single Map.get() instead of
+                        // four function calls + an array scan per deal.
+                        const meta = dealMeta.get(deal.id);
+                        const progress = meta?.progress ?? 10;
+                        const isWon = meta?.isWon ?? false;
+                        const activeTask = meta?.activeTask;
+                        const sla = meta?.sla ?? { callCount: 0, callSLA: 'pending', subSLA: 'pending', hoursSinceCreation: 0 };
                         
                         return (
                          <div key={deal.id} onClick={() => handleOpenDealModal(deal)} className="group bg-white rounded-2xl p-4 md:p-5 border border-gray-200 shadow-sm hover:border-black transition-all cursor-pointer relative overflow-hidden">
@@ -1401,7 +1454,7 @@ export default function PartnerCRM() {
                         );
                      })}
 
-                     {getFilteredDeals().length === 0 && (
+                     {filteredDeals.length === 0 && (
                          <div className="text-center p-10 bg-white rounded-2xl border border-dashed border-gray-200">
                              <Target className="mx-auto text-gray-300 mb-3" size={32} />
                              <p className="text-gray-500 font-bold text-sm mb-1">Pipeline Empty</p>
