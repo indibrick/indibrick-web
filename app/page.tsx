@@ -83,9 +83,16 @@ export default async function HomePage() {
             The Only Partner <br/>
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">You Need.</span>
           </h1>
-          
+
+          {/* Factual entity descriptor for LLMs + Google. Small on the page,
+              huge on the wire: this sentence is what gets lifted for
+              "who is IndiBrick" / "IndiBrick mortgage broker" queries. */}
+          <p className="text-sm md:text-base text-slate-500 max-w-3xl mx-auto font-medium tracking-tight mb-6">
+            IndiBrick — <span className="text-slate-700 font-bold">Ontario mortgage brokerage + real estate platform</span> · Mortgages via Pineapple Financial (<span className="text-slate-700 font-bold">FSRA #12830</span>) · Serving the GTA, Vaughan, Brampton and Niagara.
+          </p>
+
           <p className="text-lg md:text-xl text-slate-600 max-w-4xl mx-auto font-medium leading-relaxed mb-10 md:mb-12">
-            Stop coordinating between a Realtor, a Mortgage Broker, a Lawyer, and a Contractor. 
+            Stop coordinating between a Realtor, a Mortgage Broker, a Lawyer, and a Contractor.
             We consolidated the entire property lifecycle into <span className="text-slate-900 font-bold">one intelligent platform</span>.
           </p>
 

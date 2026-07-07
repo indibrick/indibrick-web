@@ -73,19 +73,96 @@ export default async function RootLayout({
 }>) {
   const cities = await CityService.getAllCities();
 
+  // Rich Organization schema — LLMs (ChatGPT/Perplexity/Claude) and Google's
+  // Knowledge Graph both weight license + address + sameAs heavily when
+  // deciding whether to cite a financial services entity. Kept minimal but
+  // factual — every field here has to be defensible.
   const organizationSchema = {
     '@context': 'https://schema.org',
-    '@type': 'FinancialService',
-    name: 'IndiBrick Financial',
+    '@type': ['FinancialService', 'LocalBusiness'],
+    '@id': 'https://indibrick.ca/#organization',
+    name: 'IndiBrick',
+    legalName: 'IndiBrick Financial',
+    alternateName: 'IndiBrick Financial',
     url: 'https://indibrick.ca',
     logo: 'https://indibrick.ca/logo.png',
-    contactPoint: {
-      '@type': 'ContactPoint',
-      telephone: '+1-437-241-6392', 
-      contactType: 'customer service',
-      areaServed: 'CA',
-      availableLanguage: 'en'
-    }
+    image: 'https://indibrick.ca/icon.png',
+    description: 'Ontario mortgage brokerage and real estate platform. Mortgages brokered through Pineapple Financial Inc. (FSRA #12830). Serving the GTA, Vaughan, Brampton, and Niagara.',
+    foundingDate: '2024',
+    founders: [
+      { '@type': 'Person', name: 'Mudit Chhura' },
+      { '@type': 'Person', name: 'Saad Shaikh' },
+    ],
+    address: {
+      '@type': 'PostalAddress',
+      addressLocality: 'Vaughan',
+      addressRegion: 'ON',
+      addressCountry: 'CA',
+    },
+    areaServed: [
+      { '@type': 'AdministrativeArea', name: 'Ontario' },
+      { '@type': 'City', name: 'Toronto' },
+      { '@type': 'City', name: 'Vaughan' },
+      { '@type': 'City', name: 'Brampton' },
+      { '@type': 'City', name: 'Mississauga' },
+      { '@type': 'City', name: 'Hamilton' },
+    ],
+    // FSRA license held by the brokerage IndiBrick submits deals through.
+    // Named as an Organization identifier so LLMs can disambiguate.
+    identifier: [
+      { '@type': 'PropertyValue', propertyID: 'FSRA', value: '12830' },
+    ],
+    hasCredential: {
+      '@type': 'EducationalOccupationalCredential',
+      credentialCategory: 'license',
+      name: 'FSRA Mortgage Brokerage License',
+      recognizedBy: {
+        '@type': 'Organization',
+        name: 'Financial Services Regulatory Authority of Ontario',
+      },
+      identifier: '12830',
+    },
+    parentOrganization: {
+      '@type': 'FinancialService',
+      name: 'Pineapple Financial Inc.',
+      identifier: 'FSRA #12830',
+    },
+    contactPoint: [
+      {
+        '@type': 'ContactPoint',
+        telephone: '+1-437-241-6392',
+        email: 'sales@indibrick.ca',
+        contactType: 'customer service',
+        areaServed: 'CA',
+        availableLanguage: 'en',
+      },
+    ],
+    email: 'sales@indibrick.ca',
+    telephone: '+1-437-241-6392',
+    priceRange: '$$',
+    // sameAs deliberately omitted for now — Knowledge Graph counts dead
+    // profile links as a trust hit. Add the real handles here once
+    // Instagram / LinkedIn / Facebook pages are live and verified.
+  };
+
+  // Site-wide WebSite schema — enables Google's Sitelinks Search Box +
+  // gives LLMs a canonical name → URL mapping.
+  const websiteSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    '@id': 'https://indibrick.ca/#website',
+    url: 'https://indibrick.ca',
+    name: 'IndiBrick',
+    publisher: { '@id': 'https://indibrick.ca/#organization' },
+    inLanguage: 'en-CA',
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: {
+        '@type': 'EntryPoint',
+        urlTemplate: 'https://indibrick.ca/blog?q={search_term_string}',
+      },
+      'query-input': 'required name=search_term_string',
+    },
   };
 
   return (
@@ -132,6 +209,7 @@ fbq('track', 'PageView');`}
         {/* --- END META PIXEL --- */}
 
         <JsonLd data={organizationSchema} />
+        <JsonLd data={websiteSchema} />
         
         <Providers>
           <div className="flex flex-col min-h-screen">

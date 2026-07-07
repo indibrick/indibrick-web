@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start -p 8080",
-    "lint": "next lint"
+    "lint": "next lint",
+    "enrich-neighborhoods": "tsx scripts/enrich-neighborhoods/index.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

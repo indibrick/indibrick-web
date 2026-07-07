@@ -10,17 +10,31 @@ interface LeadFormProps {
   type?: 'General' | 'Mortgage' | 'Realtor' | 'Legal' | 'Contractor' | 'Pre-Con' | 'Commercial' | 'Insurance' | 'Investment' | 'GeneralInsurance';
   title?: string;
   subtitle?: string;
-  ctaText?: string; 
+  ctaText?: string;
+  /**
+   * Per-form attribution tag. Included in the GA4 + Google Ads conversion
+   * event so we can measure which specific surface (broker landing,
+   * housing-index, guide, neighborhood, etc.) drove each lead. Falls back
+   * to the URL path when omitted.
+   */
+  sourcePage?: string;
 }
 
-const LeadForm: React.FC<LeadFormProps> = ({ 
-  type = 'General', 
-  title = 'Initiate Strategy', 
+const LeadForm: React.FC<LeadFormProps> = ({
+  type = 'General',
+  title = 'Initiate Strategy',
   subtitle = 'One form. One team. Complete 360° solution.',
-  ctaText = 'Submit Request' 
+  ctaText = 'Submit Request',
+  sourcePage,
 }) => {
   const currentPath = usePathname() || '';
-  const isCityPage = currentPath.includes('/mortgage-real-estate/') || currentPath.includes('/pre-construction-condos/');
+  // City auto-detection: pull the city slug from the URL when the form is
+  // embedded on a per-city surface. Extended to cover /mortgage-broker/{city}
+  // (added Jul 2026) so the 50 broker landings get proper city attribution.
+  const isCityPage =
+    currentPath.includes('/mortgage-real-estate/') ||
+    currentPath.includes('/pre-construction-condos/') ||
+    currentPath.includes('/mortgage-broker/');
   const pathCity = isCityPage ? currentPath.split('/')[2]?.replace(/-/g, ' ').toUpperCase() : '';
 
   const [formData, setFormData] = useState({
@@ -70,9 +84,16 @@ const LeadForm: React.FC<LeadFormProps> = ({
       
       // Tag the conversion with the landing-page URL so Google Ads Smart Bidding
       // can attribute spend to the specific pSEO cell that drove the lead.
+      // sourcePage adds granular per-surface attribution ("broker-toronto",
+      // "housing-index", "fthb-guide", etc.) so we can rank which surfaces
+      // convert best after deploy.
       trackLeadConversion({
         formType: type,
-        extra: { service: formData.serviceNeeded, city: formData.city },
+        extra: {
+          service: formData.serviceNeeded,
+          city: formData.city,
+          sourcePage: sourcePage || currentPath,
+        },
       });
 
       // Universal Redirect: Reliable and clean.

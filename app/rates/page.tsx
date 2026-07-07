@@ -46,8 +46,11 @@ const DEFAULT_RATES = {
   private_1st: '6.99',
   second_mortgage: '8.99',
 
-  // Compliance & Urgency
-  lastUpdated: 'April 3, 2026'
+  // Filled in the client-side effect after mount — a build-time literal
+  // would go stale, but computing `new Date()` at module scope in a
+  // 'use client' file causes hydration mismatch (server renders one day,
+  // client renders another across UTC midnight or timezone drift).
+  lastUpdated: '',
 };
 
 const BENCHMARKS = {
@@ -74,17 +77,29 @@ export default function RatesPage() {
   const [qResultRate, setQResultRate] = useState('');
   const [formTab, setFormTab] = useState<'standard' | 'ai'>('standard');
 
-  // Fetch Live Rates
+  // Fetch Live Rates. Also stamps today's date on lastUpdated post-mount so
+  // the UI displays a fresh "updated" line without triggering a hydration
+  // mismatch (client-only Date.now() is safe here — it never runs on the
+  // SSR pass).
   useEffect(() => {
+    const todayStr = new Date().toLocaleDateString('en-CA', { month: 'long', day: 'numeric', year: 'numeric' });
     const fetchRates = async () => {
       try {
         const docRef = doc(db, 'site_settings', 'mortgage_rates');
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-          setRates({ ...DEFAULT_RATES, ...docSnap.data() });
+          const firestoreData = docSnap.data();
+          setRates({
+            ...DEFAULT_RATES,
+            ...firestoreData,
+            lastUpdated: firestoreData.lastUpdated || todayStr,
+          });
+        } else {
+          setRates((prev) => ({ ...prev, lastUpdated: todayStr }));
         }
       } catch (e) {
         console.error("⚠️ Failed to fetch rates, using defaults:", e);
+        setRates((prev) => ({ ...prev, lastUpdated: todayStr }));
       } finally {
         setLoadingRates(false);
       }
@@ -382,13 +397,21 @@ export default function RatesPage() {
       {/* --- HERO SECTION --- */}
       <div className="container mx-auto px-6 max-w-7xl mb-16 text-center">
          <span className="bg-blue-100 text-blue-800 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] mb-6 inline-block shadow-sm">
-            Wholesale Pricing Matrix
+            Wholesale Pricing Matrix{rates.lastUpdated ? ` · Updated ${rates.lastUpdated}` : ''}
          </span>
-         <h1 className="text-5xl md:text-7xl font-black uppercase tracking-tighter mb-6 text-slate-900 leading-[0.9]">
-            Stop Overpaying <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">The Banks.</span>
+         {/* Kicker preserves the brand voice; the real H1 below is keyword-
+             aligned so /rates can actually rank for "Ontario mortgage rates". */}
+         <p className="text-4xl md:text-6xl font-black uppercase tracking-tighter text-slate-400 leading-[0.9] mb-2">
+            Stop Overpaying <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600/70 to-indigo-600/70">The Banks.</span>
+         </p>
+         <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tighter mb-6 text-slate-900 leading-[0.95]">
+            Ontario Mortgage Rates <br className="hidden md:block"/>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
+               5-Year Fixed from {rates.insured_5yr_fixed}%
+            </span>
          </h1>
          <p className="text-lg md:text-xl text-slate-600 font-medium leading-relaxed mb-10 max-w-3xl mx-auto">
-            We bypass retail branches and connect you directly to 40+ wholesale lenders. Secure "Status Pricing" for your next purchase, renewal, or refinance.
+            Live wholesale pricing across 40+ Canadian lenders. Insured, insurable and uninsured 5-year fixed and variable rates for purchases, renewals and refinances — brokered through Pineapple Financial (FSRA #12830).
          </p>
          
          {/* THE ULTIMATE CTA BUTTON */}

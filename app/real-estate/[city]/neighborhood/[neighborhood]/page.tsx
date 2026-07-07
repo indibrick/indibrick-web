@@ -4,11 +4,12 @@ import Link from 'next/link';
 import { Metadata } from 'next';
 import {
   MapPin, ArrowRight, Phone, Compass, Train, GraduationCap,
-  TreePine, ShieldCheck, ChevronDown,
+  TreePine, ShieldCheck, ChevronDown, Landmark, Coffee, Utensils, Store, BookOpen,
 } from 'lucide-react';
 import { CITIES } from '../../../../../data/cityData';
 import { PROPERTY_TYPES, PRICE_RANGES } from '../../../../../data/matrixData';
 import { MarketDataService } from '../../../../../services/MarketDataService';
+import { getNeighborhoodExtras, isFlagshipNeighborhoodTier } from '../../../../../data/neighborhoodExtras';
 import LeadForm from '../../../../../components/LeadForm';
 import JsonLd from '../../../../../components/JsonLd';
 import { buildMetadata } from '../../../../../lib/buildMetadata';
@@ -46,7 +47,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
       slug: `/real-estate/${params.city}/neighborhood/${params.neighborhood}`,
     });
   }
-  return buildMetadata({
+
+  const base = buildMetadata({
     title: `${neighborhood} Real Estate — ${city.name}`,
     description: `Live market snapshot, sample comparables, transit and lifestyle data for ${neighborhood}, ${city.name}, Ontario. Updated hourly via IndiBrick.`,
     slug: `/real-estate/${params.city}/neighborhood/${params.neighborhood}`,
@@ -58,6 +60,20 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
       `${city.name} ${neighborhood} townhouses`,
     ],
   });
+
+  // Standard-tier neighborhoods (era/history/buyer-profile only, no
+  // walkScore/transit/schools/spots) are noindex,follow: Google won't
+  // index them but internal-link equity still flows through. This defuses
+  // the site-wide Helpful Content risk that hitting Google with ~200
+  // template-shaped thin pages would trigger. Each entry auto-becomes
+  // indexable the moment we upgrade it to flagship depth — no separate
+  // flag or deploy needed.
+  const extras = getNeighborhoodExtras(city.slug, params.neighborhood);
+  if (!isFlagshipNeighborhoodTier(extras)) {
+    base.robots = { index: false, follow: true };
+  }
+
+  return base;
 }
 
 export default async function NeighborhoodPage({ params }: { params: Params }) {
@@ -77,6 +93,11 @@ export default async function NeighborhoodPage({ params }: { params: Params }) {
 
   const priceK = (n: number) =>
     n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(2)}M` : `$${Math.round(n / 1000)}K`;
+
+  // Curated real-world facts for the top-search-volume neighborhoods. When
+  // absent, the page still renders the generic template — this is additive,
+  // never a hard dependency.
+  const extras = getNeighborhoodExtras(city.slug, params.neighborhood);
 
   const otherNeighborhoods = city.neighborhoods.filter((n) => n !== neighborhood).slice(0, 6);
 
@@ -180,6 +201,167 @@ export default async function NeighborhoodPage({ params }: { params: Params }) {
         </div>
       </section>
 
+      {/* === CURATED SECTIONS (rendered only when we have real curated data — extra
+              signal for the highest-volume neighborhoods without polluting the
+              long tail with invented facts) === */}
+      {extras && (
+        <section className="py-16 md:py-20 px-6 bg-white border-b border-gray-100">
+          <div className="container mx-auto max-w-5xl">
+            {/* Scores block */}
+            {(extras.walkScore || extras.transitScore || extras.bikeScore) && (
+              <>
+                <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-slate-900 mb-2">
+                  {neighborhood} scores.
+                </h2>
+                <p className="text-sm text-gray-500 mb-6">
+                  Third-party walkability, transit, and cycling scores — neighborhood-level snapshot from Walk Score. Scores are per-address in reality; treat these as a directional guide.
+                </p>
+                <div className="grid grid-cols-3 gap-4 mb-12">
+                  {typeof extras.walkScore === 'number' && (
+                    <div className="p-6 bg-gray-50 border border-gray-100 rounded-2xl text-center">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Walk Score</p>
+                      <p className="text-4xl md:text-5xl font-black text-emerald-600 tracking-tighter">{extras.walkScore}</p>
+                      <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mt-1">/ 100</p>
+                    </div>
+                  )}
+                  {typeof extras.transitScore === 'number' && (
+                    <div className="p-6 bg-gray-50 border border-gray-100 rounded-2xl text-center">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Transit Score</p>
+                      <p className="text-4xl md:text-5xl font-black text-blue-600 tracking-tighter">{extras.transitScore}</p>
+                      <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mt-1">/ 100</p>
+                    </div>
+                  )}
+                  {typeof extras.bikeScore === 'number' && (
+                    <div className="p-6 bg-gray-50 border border-gray-100 rounded-2xl text-center">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Bike Score</p>
+                      <p className="text-4xl md:text-5xl font-black text-orange-500 tracking-tighter">{extras.bikeScore}</p>
+                      <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mt-1">/ 100</p>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Transit */}
+            {extras.transitStations && extras.transitStations.length > 0 && (
+              <div className="mb-12">
+                <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight text-slate-900 mb-4 flex items-center gap-2">
+                  <Train size={22} className="text-blue-600" /> Transit access
+                </h3>
+                <ul className="space-y-3">
+                  {extras.transitStations.map((s, i) => (
+                    <li key={i} className="p-4 bg-gray-50 border border-gray-100 rounded-xl">
+                      <p className="font-black text-sm text-slate-900">{s.name}</p>
+                      {s.lines && s.lines.length > 0 && (
+                        <p className="text-xs text-gray-500 mt-1">{s.lines.join(' · ')}</p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Mid-scroll advisor CTA — sits right at peak engagement on
+                flagship neighborhood pages (reader has just seen scores +
+                transit and is making the "could I actually live here?"
+                mental leap). Uses UTM param so the /apply funnel can
+                attribute conversion back to this specific neighborhood. */}
+            <div className="mb-12 bg-slate-900 text-white rounded-2xl p-6 md:p-7 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
+              <div className="flex-1">
+                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-300 mb-1">Thinking about {neighborhood}?</p>
+                <p className="text-base md:text-lg font-black leading-snug">
+                  A licensed {city.name} advisor will reach out to walk you through your options.
+                </p>
+              </div>
+              <a
+                href={`/apply?ref=nbhd-${city.slug}-${params.neighborhood}`}
+                className="shrink-0 inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-900 px-5 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition shadow-lg"
+              >
+                Connect With an Advisor <ArrowRight size={14} />
+              </a>
+            </div>
+
+            {/* Schools */}
+            {extras.notableSchools && extras.notableSchools.length > 0 && (
+              <div className="mb-12">
+                <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight text-slate-900 mb-4 flex items-center gap-2">
+                  <GraduationCap size={22} className="text-blue-600" /> Notable schools
+                </h3>
+                <ul className="space-y-3">
+                  {extras.notableSchools.map((s, i) => (
+                    <li key={i} className="p-4 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-between gap-3 flex-wrap">
+                      <div className="min-w-0">
+                        <p className="font-black text-sm text-slate-900">{s.name}</p>
+                        {s.band && <p className="text-xs text-gray-500 mt-1">{s.band}</p>}
+                      </div>
+                      {s.fraserBand && (
+                        <span className="shrink-0 bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                          Fraser · {s.fraserBand}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Notable spots */}
+            {extras.notableSpots && extras.notableSpots.length > 0 && (
+              <div className="mb-12">
+                <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight text-slate-900 mb-4 flex items-center gap-2">
+                  <Landmark size={22} className="text-blue-600" /> Notable places
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {extras.notableSpots.map((sp, i) => {
+                    const Icon = sp.kind === 'restaurant' ? Utensils
+                      : sp.kind === 'cafe' ? Coffee
+                      : sp.kind === 'park' ? TreePine
+                      : sp.kind === 'shop' ? Store
+                      : Landmark;
+                    return (
+                      <span key={i} className="inline-flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-100 rounded-full text-xs font-bold text-slate-800">
+                        <Icon size={12} className="text-blue-600" /> {sp.name}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Architecture + history */}
+            {(extras.architecturalEra || extras.historyBlurb) && (
+              <div className="mb-12">
+                <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight text-slate-900 mb-4 flex items-center gap-2">
+                  <BookOpen size={22} className="text-blue-600" /> History &amp; housing stock
+                </h3>
+                {extras.architecturalEra && (
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">
+                    Architectural era · {extras.architecturalEra}
+                  </p>
+                )}
+                {extras.historyBlurb && (
+                  <p className="text-base text-gray-700 leading-relaxed font-medium">
+                    {extras.historyBlurb}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Buyer profile */}
+            {extras.buyerProfile && (
+              <div>
+                <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight text-slate-900 mb-4 flex items-center gap-2">
+                  <Compass size={22} className="text-blue-600" /> Who buys here
+                </h3>
+                <p className="text-base text-gray-700 leading-relaxed font-medium">
+                  {extras.buyerProfile}
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* === BROWSE BY TYPE × PRICE === */}
       <section className="py-16 md:py-20 px-6 bg-white border-b border-gray-100">
         <div className="container mx-auto max-w-6xl">
@@ -254,17 +436,17 @@ export default async function NeighborhoodPage({ params }: { params: Params }) {
         <div className="container mx-auto max-w-3xl">
           <div className="bg-slate-900 text-white rounded-[2.5rem] p-8 md:p-12 shadow-2xl text-center">
             <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tight mb-3 leading-tight">
-              Get every active listing in {neighborhood}.
+              Talk to a {city.name} advisor about {neighborhood}.
             </h2>
             <p className="text-gray-400 text-base md:text-lg mb-8">
-              A licensed {city.name} advisor will send you the live list within 1 business hour.
+              A licensed {city.name} advisor will reach out to walk you through active {neighborhood} listings, current prices, and your financing options.
             </p>
             <div className="text-left max-w-lg mx-auto bg-white p-2 rounded-[2.5rem] shadow-xl border border-gray-100">
               <LeadForm
                 type="Realtor"
                 title={`${neighborhood}, ${city.name}`}
-                subtitle={`Median ${priceK(median)} · ${active} active`}
-                ctaText="Send Me the List"
+                subtitle={`Median ${priceK(median)} · ${active} active · Licensed advisor`}
+                ctaText="Connect With an Advisor"
               />
             </div>
           </div>

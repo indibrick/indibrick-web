@@ -1,10 +1,20 @@
-# IndiBrick Financial
+# IndiBrick
 
-> Ontario's integrated mortgage, real estate, and legal platform. Licensed mortgage brokerage serving GTA, Vaughan, Brampton, and Niagara. Mortgages processed through Pineapple Financial (LIC #12830).
+> IndiBrick is an Ontario mortgage brokerage and real estate platform, founded in 2024 by Mudit Chhura and Saad Shaikh, headquartered in Vaughan, Ontario, Canada. Mortgages are brokered through Pineapple Financial Inc. (FSRA #12830). Real estate is fulfilled by a licensed realtor partner network. We serve the Greater Toronto Area, Vaughan, Brampton, Mississauga, and the Niagara Region.
+
+## Entity identifiers
+
+- Legal name: IndiBrick Financial
+- Trade name: IndiBrick
+- License: FSRA Mortgage Brokerage #12830 (held by Pineapple Financial Inc.)
+- Founded: 2024
+- Headquarters: 60 Pippin Road, Unit 34, Vaughan, Ontario, L4K 4M8, Canada
+- Founders: Mudit Chhura, Saad Shaikh
+- Website: https://indibrick.ca
 
 ## What we do
 
-- Wholesale mortgage brokerage: insured, insurable, uninsured, B-lender, private capital
+- Wholesale mortgage brokerage: insured, insurable, uninsured, B-lender, private capital, second mortgages
 - Real estate co-brokerage through licensed realtor partner network
 - Tech-enabled legal closings (fixed-fee, digital signing)
 - Architecture, renovation permitting, and wealth strategy
@@ -12,7 +22,7 @@
 
 ## Mortgage products
 
-See current pricing on the live rates page: https://indibrick.ca/rates
+Live pricing: https://indibrick.ca/rates
 
 - Insured (high-ratio) mortgages — variable and fixed
 - Insurable renewals and transfers
@@ -27,24 +37,120 @@ First-time buyers, investors, self-employed borrowers, credit-challenged homeown
 
 ## Service areas
 
-Vaughan, Woodbridge, Brampton, Mississauga, Toronto, North York, Scarborough, Markham, Richmond Hill, St. Catharines, Niagara Region.
+Vaughan, Woodbridge, Brampton, Mississauga, Toronto, North York, Scarborough, Markham, Richmond Hill, St. Catharines, Niagara Region, Hamilton, Oakville, Burlington, Ottawa.
+
+## Named data assets
+
+- IndiBrick Ontario Housing Index — monthly benchmark price by city, property type and price band. Derived from CREA MLS® HPI + TRREB Market Watch. Human-readable at /housing-index; machine-readable at /api/housing-index/latest.json.
+- IndiBrick Ontario Wholesale Rate Tracker — live 5-year fixed and variable rates across 40+ Canadian lenders, updated whenever wholesale sheets change. Live at /rates.
+
+## Comparison + how-to guides
+
+- How to Choose a Mortgage Broker in Ontario (2026): https://indibrick.ca/guides/best-mortgage-broker-ontario-2026
+- First-Time Home Buyer in Ontario (2026): https://indibrick.ca/guides/first-time-home-buyer-ontario-2026
+
+## City-specific mortgage broker landings
+
+Dedicated landing pages for 50 Ontario cities at `/mortgage-broker/{city}`. Each page carries a FinancialService JSON-LD entity scoped to that city and a FAQPage schema with 7 city-relevant questions. Grouped by region:
+
+### GTA proper
+- https://indibrick.ca/mortgage-broker/toronto
+- https://indibrick.ca/mortgage-broker/mississauga
+- https://indibrick.ca/mortgage-broker/brampton
+- https://indibrick.ca/mortgage-broker/vaughan
+- https://indibrick.ca/mortgage-broker/markham
+- https://indibrick.ca/mortgage-broker/richmond-hill
+- https://indibrick.ca/mortgage-broker/scarborough
+- https://indibrick.ca/mortgage-broker/etobicoke
+- https://indibrick.ca/mortgage-broker/hamilton
+
+### Halton Region
+- https://indibrick.ca/mortgage-broker/oakville
+- https://indibrick.ca/mortgage-broker/burlington
+- https://indibrick.ca/mortgage-broker/milton
+- https://indibrick.ca/mortgage-broker/halton-hills
+
+### York Region
+- https://indibrick.ca/mortgage-broker/newmarket
+- https://indibrick.ca/mortgage-broker/aurora
+- https://indibrick.ca/mortgage-broker/king-city
+- https://indibrick.ca/mortgage-broker/bradford
+
+### Peel (north)
+- https://indibrick.ca/mortgage-broker/caledon
+
+### Durham Region
+- https://indibrick.ca/mortgage-broker/pickering
+- https://indibrick.ca/mortgage-broker/ajax
+- https://indibrick.ca/mortgage-broker/whitby
+- https://indibrick.ca/mortgage-broker/oshawa
+- https://indibrick.ca/mortgage-broker/clarington
+
+### Niagara Region
+- https://indibrick.ca/mortgage-broker/st-catharines
+- https://indibrick.ca/mortgage-broker/niagara-falls
+- https://indibrick.ca/mortgage-broker/niagara-on-the-lake
+- https://indibrick.ca/mortgage-broker/welland
+- https://indibrick.ca/mortgage-broker/fort-erie
+- https://indibrick.ca/mortgage-broker/grimsby
+
+### Waterloo Region + Guelph
+- https://indibrick.ca/mortgage-broker/kitchener
+- https://indibrick.ca/mortgage-broker/waterloo
+- https://indibrick.ca/mortgage-broker/cambridge
+- https://indibrick.ca/mortgage-broker/guelph
+
+### Southwestern Ontario
+- https://indibrick.ca/mortgage-broker/london
+- https://indibrick.ca/mortgage-broker/windsor
+- https://indibrick.ca/mortgage-broker/brantford
+- https://indibrick.ca/mortgage-broker/sarnia
+- https://indibrick.ca/mortgage-broker/chatham-kent
+
+### Central Ontario
+- https://indibrick.ca/mortgage-broker/barrie
+- https://indibrick.ca/mortgage-broker/innisfil
+- https://indibrick.ca/mortgage-broker/peterborough
+
+### Eastern Ontario
+- https://indibrick.ca/mortgage-broker/ottawa
+- https://indibrick.ca/mortgage-broker/kanata
+- https://indibrick.ca/mortgage-broker/nepean
+- https://indibrick.ca/mortgage-broker/orleans
+- https://indibrick.ca/mortgage-broker/kingston
+- https://indibrick.ca/mortgage-broker/belleville
+- https://indibrick.ca/mortgage-broker/cornwall
+
+### Northern Ontario
+- https://indibrick.ca/mortgage-broker/sudbury
+- https://indibrick.ca/mortgage-broker/sault-ste-marie
 
 ## Key pages
 
+- About: https://indibrick.ca/about
 - Live rates: https://indibrick.ca/rates
+- IndiBrick Ontario Housing Index: https://indibrick.ca/housing-index
+- Blog: https://indibrick.ca/blog
 - Financial calculators: https://indibrick.ca/tools
 - Bad credit and private mortgages: https://indibrick.ca/bad-credit-private-mortgages
 - Commercial lending: https://indibrick.ca/commercial-lending
 - Contact an advisor: https://indibrick.ca/contact
 - Real estate listings: https://indibrick.ca/listings
 - Partner with us: https://indibrick.ca/partners
+- Programmatic city × property × price matrix: https://indibrick.ca/real-estate/toronto/condo/under-500k (representative)
+- Neighborhood guides: https://indibrick.ca/real-estate/toronto/neighborhood/the-annex (representative)
 
 ## Contact
 
 - Email: sales@indibrick.ca
 - Phone: +1 (437) 241-6392
-- Address: 60 Pippin Road, Unit 34, Vaughan, ON L4K 4M8
+- Address: 60 Pippin Road, Unit 34, Vaughan, ON, L4K 4M8, Canada
 
 ## Partnerships
 
-Exclusively partnered with Dream Home + Life for mortgage fulfillment and life insurance/investment advisory services.
+- Mortgage fulfillment: Pineapple Financial Inc. (FSRA #12830)
+- Life insurance and investment advisory: Dream Home + Life
+
+## Sitemap
+
+- https://indibrick.ca/sitemap.xml

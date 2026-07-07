@@ -71,6 +71,9 @@ function pickNewest(files: string[]): string | null {
 
 // CREA single-family benchmark covers BOTH detached and semi-detached. We
 // expose both in the matrix-type map so each cell still gets a number.
+// Also emits the raw `composite` reading so downstream consumers (the
+// /housing-index page's headline stat + release notes) don't have to guard
+// against undefined.
 function mapCreaReadingToTypes(reading: HPIReading): { benchmark: Record<string, number>; yoy: Record<string, number | null> } {
   const benchmark: Record<string, number> = {};
   const yoy: Record<string, number | null> = {};
@@ -85,6 +88,10 @@ function mapCreaReadingToTypes(reading: HPIReading): { benchmark: Record<string,
     }
     benchmark[t.slug] = reading.benchmarks[creaType] || reading.benchmarks.composite;
     yoy[t.slug] = reading.yoyPct[creaType] ?? reading.yoyPct.composite;
+  }
+  if (reading.benchmarks.composite > 0) {
+    benchmark['composite'] = reading.benchmarks.composite;
+    yoy['composite'] = reading.yoyPct.composite;
   }
   return { benchmark, yoy };
 }

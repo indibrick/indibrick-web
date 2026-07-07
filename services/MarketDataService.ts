@@ -21,6 +21,7 @@
 import { PROPERTY_TYPES, PRICE_RANGES, getPriceRangeBySlug, getTypeBySlug } from '../data/matrixData';
 import { CITIES } from '../data/cityData';
 import { getMarketData } from '../lib/marketData/loader';
+import type { TRREBAggregate } from '../lib/marketData/parseTRREB';
 
 export interface ComparableListing {
   address: string;
@@ -342,4 +343,88 @@ export const MarketDataService = {
     }
     return tuples;
   },
+
+  /**
+   * Full derivative-index snapshot — the payload behind the /housing-index
+   * page and /api/housing-index/latest.json endpoint. Single source of truth
+   * so page + API + JSON-LD all read the same numbers.
+   *
+   * Falls back to an empty-cities snapshot (never mock) if getMarketData
+   * fails — the /housing-index page is a primary-source authority claim, so
+   * it should never surface fabricated numbers.
+   */
+  async getIndexSnapshot(): Promise<IndexSnapshot> {
+    const emptySnapshot = (label: string): IndexSnapshot => ({
+      asOf: new Date().toISOString(),
+      cities: [],
+      trreb: null,
+      sourceLabel: label,
+      coverage: { cityCount: 0, typeCount: PROPERTY_TYPES.length },
+    });
+
+    try {
+      const data = await getMarketData();
+      const cityRows: IndexCityRow[] = [];
+      let maxAsOfMs = 0;
+
+      for (const city of CITIES) {
+        const stats = data.byCity.get(city.slug);
+        if (!stats) continue;
+        const asOfMs = stats.asOf.getTime();
+        if (asOfMs > maxAsOfMs) maxAsOfMs = asOfMs;
+
+        // Only emit types where we actually have a benchmark — no invented numbers.
+        const benchmarks: Record<string, number> = {};
+        const yoyPct: Record<string, number | null> = {};
+        for (const t of PROPERTY_TYPES) {
+          const bench = stats.benchmarkByType[t.slug];
+          if (typeof bench === 'number' && bench > 0) {
+            benchmarks[t.slug] = bench;
+            yoyPct[t.slug] = stats.yoyPctByType[t.slug] ?? null;
+          }
+        }
+        if (Object.keys(benchmarks).length === 0) continue;
+
+        cityRows.push({
+          citySlug: city.slug,
+          cityName: city.name,
+          region: stats.region,
+          benchmarks,
+          yoyPct,
+          asOf: stats.asOf.toISOString(),
+        });
+      }
+
+      const asOfIso = maxAsOfMs > 0 ? new Date(maxAsOfMs).toISOString() : new Date().toISOString();
+      return {
+        asOf: asOfIso,
+        cities: cityRows,
+        trreb: data.trreb,
+        sourceLabel: data.sourceLabel,
+        coverage: { cityCount: cityRows.length, typeCount: PROPERTY_TYPES.length },
+      };
+    } catch (e) {
+      console.warn('[MarketData] getIndexSnapshot failed — returning empty snapshot', e);
+      return emptySnapshot('IndiBrick Internal Model');
+    }
+  },
 };
+
+// Types deliberately exported so the JSON-LD builder + Route Handler don't
+// have to reconstruct them.
+export interface IndexCityRow {
+  citySlug: string;
+  cityName: string;
+  region: string;
+  benchmarks: Record<string, number>;
+  yoyPct: Record<string, number | null>;
+  asOf: string; // ISO
+}
+
+export interface IndexSnapshot {
+  asOf: string; // ISO — max asOf across cities
+  cities: IndexCityRow[];
+  trreb: TRREBAggregate | null;
+  sourceLabel: string;
+  coverage: { cityCount: number; typeCount: number };
+}

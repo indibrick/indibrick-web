@@ -76,7 +76,7 @@ const generateCityData = (name: string, slug: string, neighborhoods: string[]): 
 };
 
 export const CITIES: CityData[] = [
-  generateCityData('Toronto', 'toronto', ['The Annex', 'Liberty Village', 'Leslieville', 'Bridle Path', 'Distillery District', 'High Park']),
+  generateCityData('Toronto', 'toronto', ['The Annex', 'Liberty Village', 'Leslieville', 'Bridle Path', 'Distillery District', 'High Park', 'Yorkville', 'King West', 'The Beaches', 'Riverdale', 'Roncesvalles', 'Bloor West Village', 'Cabbagetown', 'Rosedale']),
   generateCityData('Brampton', 'brampton', ['Mount Pleasant', 'Castlemore', 'Heart Lake', 'Bramalea', 'Peel Village', 'Credit Valley']),
   generateCityData('Mississauga', 'mississauga', ['Port Credit', 'Erin Mills', 'City Centre', 'Streetsville', 'Cooksville', 'Lakeview']),
   generateCityData('Vaughan', 'vaughan', ['Woodbridge', 'Maple', 'Thornhill', 'Kleinburg', 'Vaughan Metropolitan Centre', 'Concord']),
@@ -124,7 +124,9 @@ export const CITIES: CityData[] = [
   generateCityData('Ottawa', 'ottawa', ['Westboro', 'The Glebe', 'Rockcliffe Park', 'Centretown', 'Old Ottawa South', 'Hintonburg']),
   generateCityData('Kanata', 'kanata', ['Kanata Lakes', 'Beaverbrook', 'Bridlewood', 'Glen Cairn', 'Katimavik-Hazeldean', 'Morgan\'s Grant']),
   generateCityData('Nepean', 'nepean', ['Barrhaven', 'Bells Corners', 'Crystal Beach', 'Bayshore', 'Centrepointe', 'Manordale']),
-  generateCityData('Orleans', 'orleans', ['Avalon', 'Convent Glen', 'Fallingbrook', 'Chapel Hill', 'Queenswood Heights', 'Cardinal Creek'])
+  generateCityData('Orleans', 'orleans', ['Avalon', 'Convent Glen', 'Fallingbrook', 'Chapel Hill', 'Queenswood Heights', 'Cardinal Creek']),
+  // Northern Ontario
+  generateCityData('Sudbury', 'sudbury', ['New Sudbury', 'Downtown Sudbury', 'South End', 'Minnow Lake', 'Copper Cliff', 'Lively']),
 ];
 
 export const PRE_CON_CITIES: PreConCityData[] = CITIES.map(city => ({

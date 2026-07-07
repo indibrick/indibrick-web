@@ -8,21 +8,54 @@ import { Linkedin, Users } from 'lucide-react';
 
 export default function AboutPage() {
 
-  // --- AEO: ORGANIZATION SCHEMA ---
+  // AboutPage → mainEntity → Organization pattern. The Organization node is
+  // nested (no @id) so it augments — rather than conflicts with — the site-wide
+  // Organization declared in app/layout.tsx. Google + LLMs merge these by
+  // matching name + url, letting the layout node hold the identifier/address
+  // core while /about adds the founder + employee detail that's specific to
+  // this page.
   const aboutSchema = {
     "@context": "https://schema.org",
-    "@type": "Organization",
-    "name": "IndiBrick",
-    "url": "https://indibrick.ca",
-    "founders": [
-      { "@type": "Person", "name": "Saad Shaikh", "jobTitle": "Co-Founder" },
-      { "@type": "Person", "name": "Mudit Chhura", "jobTitle": "Co-Founder" }
-    ],
-    "employees": [
-       { "@type": "Person", "name": "Vikas Sharma", "jobTitle": "Broker" },
-       { "@type": "Person", "name": "Amit Nagpal", "jobTitle": "Mortgage Agent Level 2" },
-       { "@type": "Person", "name": "Nitish Gupta", "jobTitle": "Mortgage Agent Level 1" }
-    ]
+    "@type": "AboutPage",
+    "url": "https://indibrick.ca/about",
+    "name": "About IndiBrick",
+    "description": "Meet the founders and licensed team behind IndiBrick — an Ontario mortgage brokerage and real estate platform.",
+    "primaryImageOfPage": "https://indibrick.ca/icon.png",
+    "publisher": { "@id": "https://indibrick.ca/#organization" },
+    "mainEntity": {
+      "@type": ["Organization", "FinancialService"],
+      "name": "IndiBrick",
+      "legalName": "IndiBrick Financial",
+      "url": "https://indibrick.ca",
+      "logo": "https://indibrick.ca/logo.png",
+      "description": "Ontario mortgage brokerage and real estate platform. Mortgages brokered through Pineapple Financial Inc. (FSRA #12830). Founded 2024 by Mudit Chhura and Saad Shaikh.",
+      "foundingDate": "2024",
+      "email": "sales@indibrick.ca",
+      "telephone": "+1-437-241-6392",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Vaughan",
+        "addressRegion": "ON",
+        "addressCountry": "CA"
+      },
+      "identifier": [
+        { "@type": "PropertyValue", "propertyID": "FSRA", "value": "12830" }
+      ],
+      "parentOrganization": {
+        "@type": "FinancialService",
+        "name": "Pineapple Financial Inc.",
+        "identifier": "FSRA #12830"
+      },
+      "founder": [
+        { "@type": "Person", "name": "Mudit Chhura", "jobTitle": "Co-Founder" },
+        { "@type": "Person", "name": "Saad Shaikh", "jobTitle": "Co-Founder" }
+      ],
+      "employee": [
+        { "@type": "Person", "name": "Vikas Sharma", "jobTitle": "Broker" },
+        { "@type": "Person", "name": "Amit Nagpal", "jobTitle": "Mortgage Agent Level 2" },
+        { "@type": "Person", "name": "Nitish Gupta", "jobTitle": "Mortgage Agent Level 1" }
+      ]
+    }
   };
 
   // Shared Styles for Consistency
@@ -47,6 +80,12 @@ export default function AboutPage() {
           </h1>
           <p className="text-xl text-gray-400 max-w-3xl mx-auto font-medium leading-relaxed">
             Where next-generation technology meets 22+ years of financial mastery.
+          </p>
+          {/* Factual entity descriptor sentence — this is what LLMs lift for
+              "who is IndiBrick" queries. Must stay under the marketing prose
+              so the brand voice reads first, the facts second. */}
+          <p className="text-sm md:text-base text-gray-500 max-w-3xl mx-auto font-medium leading-relaxed mt-6 border-t border-white/10 pt-6">
+            <strong className="text-gray-300">IndiBrick</strong> is an Ontario mortgage and real estate platform founded in <strong className="text-gray-300">2024</strong> by Mudit Chhura and Saad Shaikh, headquartered in Vaughan, Ontario. Mortgages are brokered through <strong className="text-gray-300">Pineapple Financial Inc. (FSRA #12830)</strong>. We serve the Greater Toronto Area, Vaughan, Brampton, and the Niagara Region.
           </p>
         </div>
       </section>

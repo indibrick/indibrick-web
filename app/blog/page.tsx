@@ -7,10 +7,20 @@ import { ArrowRight, Calendar, Zap, BookOpen, ChevronRight } from 'lucide-react'
 import { buildMetadata } from '../../lib/buildMetadata';
 
 export const metadata = buildMetadata({
-  title: 'Intelligence Hub — Market Data & Financial Strategy',
-  description: 'The latest chronological market intelligence, mortgage strategies, and real estate data for Ontario investors and homeowners.',
+  title: 'IndiBrick Blog — Ontario Mortgage & Real Estate Intelligence',
+  description: 'Weekly mortgage rate analysis, Ontario real estate market data and financial strategy from the IndiBrick team. Live TRREB stats, CREA HPI updates, and lender rate breakdowns for GTA homeowners and investors.',
   slug: '/blog',
-  keywords: ['Ontario mortgage market', 'real estate intelligence', 'financial strategy blog', 'IndiBrick market news'],
+  // titleAbsolute prevents the layout appending "| IndiBrick" — brand is
+  // already in the title, no need for the double-bookend.
+  titleAbsolute: true,
+  keywords: [
+    'Ontario mortgage blog',
+    'Toronto real estate blog',
+    'mortgage rate news Canada',
+    'real estate market intelligence Ontario',
+    'GTA housing market analysis',
+    'IndiBrick blog',
+  ],
 });
 
 // ISR — blog index regenerates hourly so new posts appear without a redeploy.
@@ -64,9 +74,16 @@ export default async function KnowledgeHubPage() {
              <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.3em] mb-6">
                 <BookOpen size={14} /> Market Intelligence
              </div>
-             <h1 className="text-5xl md:text-7xl font-black uppercase tracking-tighter mb-6 leading-none text-slate-900">
-                The <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Terminal.</span>
+             {/* Keyword-aligned H1 for ranking on "Ontario mortgage blog" /
+                 "Toronto real estate blog". Old H1 was "The Terminal." —
+                 great brand voice, invisible to search. Moved brand voice
+                 into the kicker above and the paragraph below. */}
+             <h1 className="text-5xl md:text-7xl font-black uppercase tracking-tighter mb-4 leading-none text-slate-900">
+                IndiBrick <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Blog.</span>
              </h1>
+             <p className="text-sm md:text-base text-gray-500 uppercase tracking-widest font-black mb-6">
+                Ontario Mortgage &amp; Real Estate Intelligence
+             </p>
              <p className="text-xl text-gray-500 max-w-2xl font-medium leading-relaxed">
                 Chronological market data, mortgage rate analysis, and wealth preservation strategies. Updated in real-time by the IndiBrick team.
              </p>

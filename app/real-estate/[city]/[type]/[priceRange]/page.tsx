@@ -193,9 +193,16 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
             <span className="inline-flex items-center gap-2 bg-blue-500/15 border border-blue-400/30 text-blue-300 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.3em] backdrop-blur-md">
               <Activity size={12} /> Live Market Snapshot · {snap.asOfDate}
             </span>
-            <span className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-gray-200 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.3em] backdrop-blur-md">
-              Data source · {sourceLabel}
-            </span>
+            {/* Link the source badge into the named index so both crawlers and
+                LLMs see the matrix cell as an application of the named
+                dataset — cements IndiBrick as the publisher of record, not
+                a downstream consumer. */}
+            <Link
+              href={`/housing-index#${params.city}`}
+              className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-gray-200 hover:bg-white/20 hover:text-white transition px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.3em] backdrop-blur-md"
+            >
+              Source · IndiBrick Ontario Housing Index · {sourceLabel}
+            </Link>
           </div>
 
           <h1 className="text-4xl md:text-6xl font-black uppercase tracking-tighter leading-[1.05] mb-4">
