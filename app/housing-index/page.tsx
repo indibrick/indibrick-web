@@ -11,7 +11,7 @@
 import React from 'react';
 import { Metadata } from 'next';
 import Link from 'next/link';
-import { Database, Download, FileJson, Info, Building2, TrendingUp } from 'lucide-react';
+import { Database, Download, FileJson, Info, Building2, TrendingUp, ArrowRight } from 'lucide-react';
 import { MarketDataService } from '../../services/MarketDataService';
 import { PROPERTY_TYPES } from '../../data/matrixData';
 import HousingIndexTable from '../../components/HousingIndexTable';
