@@ -1,31 +1,47 @@
+// Push CRM tasks to the connected user's Google Calendar. The prior
+// implementation of this route was a placeholder mock that returned
+// "Google Calendar API configuration required". This is the real one —
+// uses the per-user refresh token stored during OAuth to insert/patch
+// events in the user's primary calendar.
+
 import { NextRequest, NextResponse } from 'next/server';
+import { syncTasksForUser, getRefreshTokenForUser } from '../../../../services/CalendarService';
 
 export async function POST(req: NextRequest) {
   try {
     const { userId, tasks } = await req.json();
 
     if (!userId) {
-        return NextResponse.json({ error: 'User ID missing' }, { status: 400 });
+      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    }
+    if (!Array.isArray(tasks)) {
+      return NextResponse.json({ error: 'tasks must be an array' }, { status: 400 });
     }
 
-    // IMPORTANT: To fully implement 2-way Google Calendar Sync, you will need:
-    // 1. A Google Cloud Console Project
-    // 2. An OAuth 2.0 Client ID (Web Application)
-    // 3. To run: `npm install googleapis`
-    // 
-    // This route currently serves as a mock endpoint so your frontend UI works.
-    // Once you have your Client ID, you can implement the 'googleapis' auth flow here.
+    // Check connection first so we can return a clean "please connect"
+    // message rather than a 500 from deep inside the sync loop.
+    const refreshToken = await getRefreshTokenForUser(userId);
+    if (!refreshToken) {
+      return NextResponse.json(
+        {
+          success: false,
+          connected: false,
+          message: 'Google Calendar is not connected for this user. Click "Connect Google Calendar" first.',
+        },
+        { status: 200 }, // 200 with connected:false — this is a UX state, not an error
+      );
+    }
 
-    console.log(`Simulating Google Calendar Sync for user ${userId} with ${tasks.length} tasks.`);
+    const result = await syncTasksForUser({ uid: userId, tasks });
 
-    // Return a success message. 
-    // (If you were doing OAuth, you would return { url: "https://accounts.google.com/o/oauth2/v2/auth..." } to redirect them)
-    return NextResponse.json({ 
-        success: true, 
-        message: 'Google Calendar API configuration required. (Check server logs for details)' 
+    return NextResponse.json({
+      success: true,
+      connected: true,
+      message: `Synced ${result.pushed} task${result.pushed === 1 ? '' : 's'} to Google Calendar${result.skipped ? ` (${result.skipped} skipped)` : ''}${result.errors.length ? ` — ${result.errors.length} error${result.errors.length === 1 ? '' : 's'}` : ''}.`,
+      ...result,
     });
-
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (e: any) {
+    console.error('[calendar-sync]', e);
+    return NextResponse.json({ success: false, error: e.message || 'Sync failed' }, { status: 500 });
   }
 }

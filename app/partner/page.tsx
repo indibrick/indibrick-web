@@ -13,6 +13,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { doc, getDoc, updateDoc, collection, getDocs, query, where, addDoc, arrayUnion, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';
+import PartnerCopilot from '../../components/PartnerCopilot';
 
 // Global style that hides the public-site nav/footer when the portal is on
 // screen. Hoisted to module scope so React doesn't re-emit it on every render.
@@ -30,6 +31,49 @@ function formatCurrency(n: number) {
     if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
     if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
     return `$${n.toLocaleString()}`;
+}
+
+// Heuristic 0–100 deal score. Pure function of the referral doc + a couple of
+// derived signals (days-in-stage, callCount). No async, no lookups — safe to
+// call from a hot memo. Higher = warmer/more likely to close.
+// Component weights (must sum to 100):
+//   Recency (days in stage)         40
+//   Engagement (calls + timeline)   25
+//   SLA health                      15
+//   Deal size                       10
+//   Contact completeness            10
+function computeDealScore(deal: any, daysInStage: number, slaBreached: boolean): { score: number; band: 'red' | 'amber' | 'green'; hint: string } {
+    const status = String(deal.status || '');
+    const TERMINAL_WIN = ['Closed', 'Funded', 'Firm Sale', 'Firm / Conditional', 'Funded / Paid'];
+    const TERMINAL_LOSS = ['Declined', 'Lost', 'Cancelled'];
+    if (TERMINAL_WIN.includes(status)) return { score: 100, band: 'green', hint: 'Closed / funded' };
+    if (TERMINAL_LOSS.includes(status)) return { score: 0, band: 'red', hint: 'Terminal loss' };
+
+    // Recency: 0 days = full 40, 14+ days = 0.
+    const recency = Math.max(0, 40 - (daysInStage / 14) * 40);
+
+    // Engagement: calls up to 5 + timeline notes up to 10.
+    const callCount = Number(deal.callCount || 0);
+    const timelineLen = Array.isArray(deal.timeline) ? deal.timeline.length : 0;
+    const engagement = Math.min(15, callCount * 3) + Math.min(10, timelineLen);
+
+    const sla = slaBreached ? 0 : 15;
+
+    const value = Number(deal.loanAmount || deal.estimatedVolume || 0);
+    // 250k → ~5, 1M → 10 (cap).
+    const size = Math.min(10, Math.round((value / 1_000_000) * 10));
+
+    const hasPhone = !!deal.clientPhone;
+    const hasEmail = !!deal.clientEmail;
+    const contact = (hasPhone ? 5 : 0) + (hasEmail ? 5 : 0);
+
+    const score = Math.max(0, Math.min(100, Math.round(recency + engagement + sla + size + contact)));
+    const band: 'red' | 'amber' | 'green' = score >= 70 ? 'green' : score >= 40 ? 'amber' : 'red';
+    const hint =
+        band === 'green' ? 'Warm — keep pace'
+        : band === 'amber' ? (slaBreached ? 'SLA breach dragging score' : 'Cooling — schedule a touch')
+        : (daysInStage > 14 ? 'Stale — needs a touch or a status update' : 'Weak signal — verify contact + follow up');
+    return { score, band, hint };
 }
 
 function stageAgeStyle(days: number) {
@@ -117,6 +161,8 @@ export default function PartnerCRM() {
 
   // Brief toast surfaced when the AI Copilot auto-schedules a follow-up from a note
   const [aiTaskToast, setAiTaskToast] = useState<{ dueDate: string; description: string; isDefault?: boolean } | null>(null);
+  // Escalation flash — shown when the note copy tripped the competing-broker regex.
+  const [escalationToast, setEscalationToast] = useState<{ clientName: string } | null>(null);
   
   // --- CLIENT EDIT STATE ---
   const [isEditingClient, setIsEditingClient] = useState(false);
@@ -165,6 +211,12 @@ export default function PartnerCRM() {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
+  // Google Calendar OAuth connection state — the "Sync" button now
+  // toggles between "Connect" (no refresh token yet) and "Sync Now"
+  // (already connected). Populated on mount + refreshed when the OAuth
+  // callback returns to /partner?calendar=connected.
+  const [calendarConnected, setCalendarConnected] = useState(false);
+  const [calendarEmail, setCalendarEmail] = useState<string | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
 
   // Whether the user has manually picked a pipeline view this session. Stops loadProfileAndData() from clobbering admin's "Mine" selection.
@@ -288,15 +340,96 @@ export default function PartnerCRM() {
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   const todayDateString = new Date().toISOString().split('T')[0];
 
+  // Check whether the current user has connected Google Calendar. Runs
+  // on mount + whenever the OAuth callback returns to /partner?calendar=connected.
+  const refreshCalendarStatus = async () => {
+    if (!user?.uid) return;
+    try {
+      const res = await fetch(`/api/partner/calendar-oauth/status?uid=${user.uid}`);
+      const data = await res.json();
+      setCalendarConnected(!!data.connected);
+      setCalendarEmail(data.email || null);
+    } catch { /* silent — the button will fall back to "Connect" */ }
+  };
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    refreshCalendarStatus();
+
+    // Handle the return trip from Google's OAuth consent screen. The
+    // callback route redirects to /partner?calendar=connected|cancelled|error.
+    // Strip the params from the URL after we read them so a refresh
+    // doesn't re-trigger the alert.
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const calFlag = params.get('calendar');
+    if (calFlag === 'connected') {
+      const em = params.get('email');
+      alert(`Google Calendar connected${em ? ` as ${em}` : ''}.`);
+      refreshCalendarStatus();
+    } else if (calFlag === 'cancelled') {
+      alert('Google Calendar connection cancelled.');
+    } else if (calFlag === 'error') {
+      alert(`Google Calendar connection failed: ${params.get('reason') || 'unknown error'}`);
+    }
+    if (calFlag) {
+      params.delete('calendar');
+      params.delete('email');
+      params.delete('reason');
+      const qs = params.toString();
+      window.history.replaceState({}, '', `/partner${qs ? `?${qs}` : ''}`);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid]);
+
+  // Two-state action for the calendar button.
+  // - Not connected → open Google OAuth consent (new tab, so state survives).
+  // - Connected     → push the current task list into their Google Calendar.
   const handleGoogleSync = async () => {
+      if (!user?.uid) return;
       setIsSyncingGoogle(true);
       try {
-          const res = await fetch('/api/partner/calendar-sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user?.uid, tasks: allTasks }) });
-          const data = await res.json();
-          if (data.url) window.location.href = data.url; 
-          else alert(data.message || 'Calendar synced successfully!');
-      } catch (err) { alert('Failed to connect to Google Calendar.'); }
+          if (!calendarConnected) {
+            const res = await fetch(`/api/partner/calendar-oauth/authorize?uid=${user.uid}`);
+            const data = await res.json();
+            if (data.authUrl) {
+              // Same tab so we come back to /partner cleanly and the mount
+              // effect above picks up ?calendar=connected.
+              window.location.href = data.authUrl;
+              return;
+            }
+            alert(data.error || 'Could not build Google auth URL.');
+          } else {
+            const res = await fetch('/api/partner/calendar-sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: user.uid, tasks: allTasks }),
+            });
+            const data = await res.json();
+            if (data.connected === false) {
+              // Refresh token got revoked from the Google side. Fall back
+              // to "Connect" flow.
+              setCalendarConnected(false);
+              alert(data.message || 'Please reconnect Google Calendar.');
+            } else {
+              alert(data.message || `Synced ${data.pushed || 0} task(s).`);
+            }
+          }
+      } catch (err) { alert('Google Calendar action failed.'); }
       setIsSyncingGoogle(false);
+  };
+
+  const handleGoogleDisconnect = async () => {
+      if (!user?.uid) return;
+      if (!window.confirm('Disconnect Google Calendar? Future tasks will no longer sync until you reconnect.')) return;
+      try {
+          await fetch('/api/partner/calendar-oauth/disconnect', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uid: user.uid }),
+          });
+          setCalendarConnected(false);
+          setCalendarEmail(null);
+      } catch { alert('Disconnect failed.'); }
   };
 
   const handleManualTaskSubmit = async (e: React.FormEvent) => {
@@ -484,6 +617,13 @@ export default function PartnerCRM() {
           if (data.taskScheduled) {
               // Surface a toast so the agent can SEE that the AI caught it
               if (data.task) setAiTaskToast(data.task);
+          }
+          if (data.escalated) {
+              // Fire the escalation flash. Save-the-deal task was already
+              // added server-side; just flag the agent visually.
+              setEscalationToast({ clientName: selectedDeal.clientName });
+          }
+          if (data.taskScheduled || data.escalated) {
               // Refresh tasks list only (not the whole pipeline)
               try {
                   const tRes = await fetch(`/api/partner/tasks?userId=${user.uid}&role=${partnerRole}`);
@@ -500,6 +640,14 @@ export default function PartnerCRM() {
       const t = setTimeout(() => setAiTaskToast(null), 6000);
       return () => clearTimeout(t);
   }, [aiTaskToast]);
+
+  // Escalation flash stays longer — 12s — because it's an action item the
+  // agent needs to actually process, not just an "FYI".
+  useEffect(() => {
+      if (!escalationToast) return;
+      const t = setTimeout(() => setEscalationToast(null), 12000);
+      return () => clearTimeout(t);
+  }, [escalationToast]);
 
   const handleStatusChange = async (newStatus: string) => {
     if (!selectedDeal || !user) return;
@@ -958,9 +1106,17 @@ export default function PartnerCRM() {
       const thisYear = new Date().getFullYear();
       let activeValue = 0, fundedValueYTD = 0, fundedCommissionYTD = 0, fundedCount = 0, activeCount = 0;
       let inflightCommission = 0;
+      // Speed-to-lead: hours from referralDate → first logged call, over the
+      // trailing 14 days of created deals. Median (not mean) because a couple
+      // of week-long dead leads would dominate a mean.
+      const now = Date.now();
+      const WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+      const speedSamples: number[] = [];
+      let speedCoveredCount = 0, speedNoCallCount = 0;
       allReferrals.forEach(r => {
           const amt = Number(r.loanAmount || 0);
           const com = Number(r.expectedCommission || 0);
+          const referralAt = r.referralDate ? new Date(r.referralDate).getTime() : 0;
           const fundedAt = r.fundedAt ? new Date(r.fundedAt) : new Date(r.referralDate || Date.now());
           if (FUNDED_STATUSES.includes(r.status)) {
               if (fundedAt.getFullYear() === thisYear) {
@@ -973,8 +1129,43 @@ export default function PartnerCRM() {
               inflightCommission += com;
               activeCount += 1;
           }
+
+          // Only leads created in the last 14 days count toward the metric —
+          // this is a rolling health signal, not a lifetime average.
+          if (referralAt && now - referralAt <= WINDOW_MS) {
+              speedCoveredCount += 1;
+              const timeline: any[] = Array.isArray(r.timeline) ? r.timeline : [];
+              // Call logs are stamped with "📞 LOGGED CALL:" — the earliest
+              // one is the first outbound call.
+              const firstCall = timeline
+                  .filter(t => typeof t?.content === 'string' && t.content.includes('LOGGED CALL'))
+                  .map(t => new Date(t.timestamp).getTime())
+                  .filter(ts => !isNaN(ts) && ts >= referralAt)
+                  .sort((a, b) => a - b)[0];
+              if (firstCall) {
+                  speedSamples.push((firstCall - referralAt) / 3600000);
+              } else {
+                  speedNoCallCount += 1;
+              }
+          }
       });
-      return { activeValue, activeCount, fundedValueYTD, fundedCommissionYTD, fundedCount, inflightCommission, avgDeal: fundedCount ? fundedValueYTD / fundedCount : 0 };
+      // Median of the samples.
+      let speedToLeadMedianHrs: number | null = null;
+      if (speedSamples.length > 0) {
+          const sorted = [...speedSamples].sort((a, b) => a - b);
+          const mid = Math.floor(sorted.length / 2);
+          speedToLeadMedianHrs = sorted.length % 2 === 0
+              ? (sorted[mid - 1] + sorted[mid]) / 2
+              : sorted[mid];
+      }
+      return {
+          activeValue, activeCount, fundedValueYTD, fundedCommissionYTD, fundedCount, inflightCommission,
+          avgDeal: fundedCount ? fundedValueYTD / fundedCount : 0,
+          speedToLeadMedianHrs,
+          speedToLeadSampleSize: speedSamples.length,
+          speedToLeadCoveredCount: speedCoveredCount,
+          speedToLeadUncalledCount: speedNoCallCount,
+      };
   }, [allReferrals]);
 
   // Bucket tasks by date once per allTasks change so the calendar's per-day
@@ -1021,7 +1212,7 @@ export default function PartnerCRM() {
   // referentially stable across filter changes — so unaffected cards skip
   // re-render entirely.
   const dealMeta = useMemo(() => {
-      const map = new Map<string, { sla: { callCount: number; callSLA: string; subSLA: string; hoursSinceCreation: number }; days: number; progress: number; isWon: boolean; activeTask: Task | undefined }>();
+      const map = new Map<string, { sla: { callCount: number; callSLA: string; subSLA: string; hoursSinceCreation: number }; days: number; progress: number; isWon: boolean; activeTask: Task | undefined; score: number; scoreBand: 'red' | 'amber' | 'green'; scoreHint: string }>();
       const now = Date.now();
       const SUBMITTED_STATES = ['Underwriting', 'Approved', 'Funded', 'Firm Sale', 'Firm / Conditional'];
       const TERMINAL_WIN = new Set(['Closed', 'Funded', 'Firm Sale', 'Firm / Conditional']);
@@ -1039,12 +1230,17 @@ export default function PartnerCRM() {
               ? 100
               : (idx === -1 ? 10 : Math.max(10, (idx / (stagesLen - 1)) * 100));
           const activeTask = (tasksByReferralId.get(deal.id) || []).find(t => t.status !== 'Completed');
+          const slaBreached = callSLA === 'breached' || subSLA === 'breached';
+          const { score, band, hint } = computeDealScore(deal, days, slaBreached);
           map.set(deal.id, {
               sla: { callCount, callSLA, subSLA, hoursSinceCreation },
               days,
               progress,
               isWon: TERMINAL_WIN.has(deal.status),
               activeTask,
+              score,
+              scoreBand: band,
+              scoreHint: hint,
           });
       });
       return map;
@@ -1110,14 +1306,25 @@ export default function PartnerCRM() {
                     <button onClick={handleNextMonth} className="p-2 hover:bg-gray-100 rounded-lg transition"><ChevronRight size={20}/></button>
                  </div>
                  
-                 <div className="flex gap-2 w-full md:w-auto">
+                 <div className="flex flex-col md:flex-row md:items-center gap-2 w-full md:w-auto">
+                     {calendarConnected && (
+                       <div className="text-[10px] font-bold text-emerald-700 flex items-center gap-1.5 md:mr-2">
+                         <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span></span>
+                         Google Calendar{calendarEmail ? ` · ${calendarEmail}` : ''}
+                         <button onClick={handleGoogleDisconnect} className="ml-2 text-gray-400 hover:text-red-500 underline">disconnect</button>
+                       </div>
+                     )}
+                     <div className="flex gap-2 w-full md:w-auto">
                      <button onClick={() => setShowNewTaskForm(true)} className="flex-1 md:flex-none bg-slate-900 text-white px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-600 transition flex items-center justify-center gap-2 shadow-sm">
                         <Plus size={14}/> Add
                      </button>
                      <button onClick={handleGoogleSync} disabled={isSyncingGoogle} className="flex-1 md:flex-none bg-white border border-gray-200 text-slate-700 px-4 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 hover:border-blue-400 transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50">
                         {isSyncingGoogle ? <Loader2 size={14} className="animate-spin"/> : <Calendar size={14}/>}
-                        {isSyncingGoogle ? 'Syncing...' : 'Sync'}
+                        {isSyncingGoogle
+                          ? (calendarConnected ? 'Syncing...' : 'Redirecting...')
+                          : (calendarConnected ? 'Sync Now' : 'Connect Google Calendar')}
                      </button>
+                     </div>
                  </div>
               </div>
 
@@ -1262,8 +1469,10 @@ export default function PartnerCRM() {
         {activeTab === 'pipeline' && (
            <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 md:gap-6">
 
-              {/* PIPELINE REVENUE STRIP (top, full-width) */}
-              <div className="xl:col-span-12 grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+              {/* PIPELINE REVENUE STRIP (top, full-width). Admins get an
+                  extra Speed-to-Lead tile — rolling 14-day median from
+                  lead-created to first logged call. */}
+              <div className={`xl:col-span-12 grid grid-cols-2 gap-3 md:gap-4 ${partnerRole === 'admin' ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
                   <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
                       <div className="flex items-center gap-2 mb-1 text-blue-600"><Activity size={12}/><span className="text-[9px] font-black uppercase tracking-widest">Active Pipeline</span></div>
                       <p className="text-2xl font-black tracking-tighter text-slate-900">{formatCurrency(pipelineStats.activeValue)}</p>
@@ -1287,6 +1496,31 @@ export default function PartnerCRM() {
                           <p className="text-[10px] font-bold text-gray-400 mt-0.5">Avg deal: {formatCurrency(pipelineStats.avgDeal)}</p>
                       </div>
                   </div>
+                  {/* Admin-only: Speed-to-Lead. Green ≤2h, amber ≤6h, red slower.
+                      Anchor value is the median; subtitle exposes the sample size and
+                      how many recent leads still have no logged call at all. */}
+                  {partnerRole === 'admin' && (() => {
+                      const m = pipelineStats.speedToLeadMedianHrs;
+                      const hasData = m !== null && pipelineStats.speedToLeadSampleSize > 0;
+                      const band = !hasData ? 'gray' : m! <= 2 ? 'green' : m! <= 6 ? 'amber' : 'red';
+                      const dot = band === 'green' ? 'text-emerald-600' : band === 'amber' ? 'text-amber-600' : band === 'red' ? 'text-red-600' : 'text-gray-400';
+                      const displayValue = !hasData
+                          ? '—'
+                          : m! < 1 ? `${Math.round(m! * 60)}m`
+                          : m! < 24 ? `${m!.toFixed(1)}h`
+                          : `${(m! / 24).toFixed(1)}d`;
+                      return (
+                          <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm" title="Median hours from lead created → first logged call (rolling 14 days)">
+                              <div className={`flex items-center gap-2 mb-1 ${dot}`}><Zap size={12}/><span className="text-[9px] font-black uppercase tracking-widest">Speed to Lead</span></div>
+                              <p className="text-2xl font-black tracking-tighter text-slate-900">{displayValue}</p>
+                              <p className="text-[10px] font-bold text-gray-400 mt-0.5">
+                                  {hasData
+                                      ? `Median · ${pipelineStats.speedToLeadSampleSize}/${pipelineStats.speedToLeadCoveredCount} called · 14d`
+                                      : `No calls logged in trailing 14d`}
+                              </p>
+                          </div>
+                      );
+                  })()}
               </div>
 
               {/* LEFT: PIPELINE BOARD */}
@@ -1376,6 +1610,16 @@ export default function PartnerCRM() {
                                                     <div className="flex items-center gap-1.5 flex-wrap mb-2">
                                                         {!isTerminal && <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border ${stageAgeStyle(days)}`}>{days}d</span>}
                                                         {sla.callSLA === 'breached' && !isTerminal && <span className="bg-red-100 text-red-600 px-1.5 py-0.5 rounded text-[8px] font-black uppercase animate-pulse">SLA</span>}
+                                                        {!isTerminal && meta && (
+                                                            <span
+                                                                title={meta.scoreHint}
+                                                                className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border ${
+                                                                    meta.scoreBand === 'green' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                                    : meta.scoreBand === 'amber' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                                                    : 'bg-red-50 text-red-700 border-red-200'
+                                                                }`}
+                                                            >{meta.score}</span>
+                                                        )}
                                                         <span className="text-[9px] font-bold text-gray-500"><PhoneCall size={9} className="inline"/> {sla.callCount}/5</span>
                                                     </div>
                                                     {deal.clientPhone && (
@@ -1577,6 +1821,30 @@ export default function PartnerCRM() {
                {/* COL 1: INTELLIGENCE & SLA (25%) — stacks on mobile, scrolls internally on desktop */}
                <div className="w-full lg:w-1/4 bg-white lg:border-r border-b lg:border-b-0 border-gray-200 p-5 lg:overflow-y-auto space-y-6">
                   
+                  {/* Deal Score — 0-100 heuristic on top of SLA. Green/amber/red band mirrors the kanban chip. */}
+                  {(() => {
+                      const m = dealMeta.get(selectedDeal.id);
+                      if (!m) return null;
+                      const barColor = m.scoreBand === 'green' ? 'bg-emerald-500' : m.scoreBand === 'amber' ? 'bg-amber-500' : 'bg-red-500';
+                      const bg = m.scoreBand === 'green' ? 'bg-emerald-50 border-emerald-200' : m.scoreBand === 'amber' ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200';
+                      const textColor = m.scoreBand === 'green' ? 'text-emerald-800' : m.scoreBand === 'amber' ? 'text-amber-800' : 'text-red-800';
+                      return (
+                          <div>
+                              <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-1.5"><Sparkles size={12}/> Deal Score</h4>
+                              <div className={`p-3 rounded-xl border ${bg}`}>
+                                  <div className="flex items-baseline justify-between mb-2">
+                                      <span className={`text-3xl font-black tracking-tight ${textColor}`}>{m.score}</span>
+                                      <span className={`text-[9px] font-black uppercase tracking-widest ${textColor}`}>{m.scoreBand}</span>
+                                  </div>
+                                  <div className="w-full h-1.5 bg-white/70 rounded-full overflow-hidden mb-2">
+                                      <div className={`h-full ${barColor} transition-all`} style={{ width: `${m.score}%` }} />
+                                  </div>
+                                  <p className={`text-[10px] font-semibold ${textColor}`}>{m.scoreHint}</p>
+                              </div>
+                          </div>
+                      );
+                  })()}
+
                   <div>
                      <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-1.5"><Gauge size={12}/> SLA Health</h4>
                      <div className="space-y-3">
@@ -1692,6 +1960,19 @@ export default function PartnerCRM() {
                       </div>
                   )}
 
+                  {/* Competing-broker escalation flash — high-visibility red. Save-the-deal
+                      task is created server-side; this is the agent's ping to act on it now. */}
+                  {escalationToast && (
+                      <div className="border-b px-5 py-3 flex items-start gap-3 shrink-0 animate-fade-in-up bg-red-50 border-red-200">
+                          <div className="w-7 h-7 rounded-lg bg-red-600 text-white flex items-center justify-center shrink-0 animate-pulse"><AlertCircle size={14}/></div>
+                          <div className="flex-1 min-w-0">
+                              <p className="text-[10px] font-black uppercase tracking-widest text-red-700">Competing broker signal detected</p>
+                              <p className="text-xs font-bold text-slate-900 mt-0.5">Save-the-deal task added for today. Call {escalationToast.clientName} before end of day.</p>
+                          </div>
+                          <button onClick={() => setEscalationToast(null)} className="shrink-0 text-red-400 hover:text-red-900"><X size={14}/></button>
+                      </div>
+                  )}
+
                   {/* Action Bar */}
                   <div className="bg-white p-4 border-b border-gray-200 shrink-0">
                       <div className="flex overflow-x-auto whitespace-nowrap no-scrollbar gap-2 mb-3">
@@ -1711,8 +1992,12 @@ export default function PartnerCRM() {
                       {logType === 'route' ? (
                           <div className="flex gap-2">
                              <select className="flex-1 p-3 rounded-xl border border-purple-200 outline-none font-bold text-xs bg-purple-50" value={targetPartnerId} onChange={e => setTargetPartnerId(e.target.value)}>
-                                <option value="">Select Assignee...</option><option value="ADMIN_INBOX">📥 Admin Inbox (HQ)</option>
-                                {ecosystemPartners.filter(p => p.uid !== user?.uid).map(p => <option key={p.uid} value={p.uid}>{p.displayName}</option>)}
+                                <option value="">Select Assignee...</option>
+                                {user?.uid && selectedDeal.assignedAgentId !== user.uid && (
+                                    <option value={user.uid}>👤 Me ({fullName})</option>
+                                )}
+                                <option value="ADMIN_INBOX">📥 Admin Inbox (HQ)</option>
+                                {ecosystemPartners.filter(p => p.uid !== user?.uid && p.uid !== selectedDeal.assignedAgentId).map(p => <option key={p.uid} value={p.uid}>{p.displayName}</option>)}
                             </select>
                             <button onClick={handleActionSubmit} disabled={!targetPartnerId} className="bg-purple-600 text-white px-6 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-purple-700 transition disabled:opacity-50">Transfer</button>
                           </div>
@@ -2447,6 +2732,28 @@ export default function PartnerCRM() {
 
         </div>
       )}
+
+      {/* Gemini Copilot — floating launcher + slide-in chat. Read tools run
+          inline; every write is gated behind a confirmation card. Callback
+          triggers a data reload so CRM state stays in sync with any
+          approved changes. */}
+      {user && (
+        <PartnerCopilot
+          ctx={{
+            uid: user.uid,
+            role: partnerRole === 'admin' ? 'admin' : 'agent',
+            selectedDealId: selectedDeal?.id,
+            pipelineFilter: {
+              status: filterStatus !== 'all' ? filterStatus : undefined,
+              tag: filterTag !== 'all' ? filterTag : undefined,
+              assignee: filterAssignee !== 'all' ? filterAssignee : undefined,
+              source: filterReferralSource !== 'all' ? filterReferralSource : undefined,
+            },
+            viewScope: pipelineView,
+          }}
+          onToolExecuted={() => { loadProfileAndData(); }}
+        />
+      )}
     </div>
   );
 }
@@ -2465,6 +2772,9 @@ interface DealMeta {
     progress: number;
     isWon: boolean;
     activeTask: any;
+    score: number;
+    scoreBand: 'red' | 'amber' | 'green';
+    scoreHint: string;
 }
 
 const DealListCard = React.memo(function DealListCard({
@@ -2504,9 +2814,19 @@ const DealListCard = React.memo(function DealListCard({
                     </div>
                 </div>
                 <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-0 border-gray-50 pt-3 sm:pt-0">
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-center flex-wrap">
                         {sla.callSLA === 'breached' && !isWon && <span className="bg-red-100 text-red-600 px-2 py-1 rounded text-[8px] font-black uppercase flex items-center gap-1 animate-pulse"><AlertCircle size={10}/> Call SLA</span>}
                         {sla.subSLA === 'breached' && !isWon && <span className="bg-orange-100 text-orange-600 px-2 py-1 rounded text-[8px] font-black uppercase flex items-center gap-1"><Clock size={10}/> Submit SLA</span>}
+                        {meta && !isWon && !LOST_STATUSES.includes(deal.status) && (
+                            <span
+                                title={meta.scoreHint}
+                                className={`px-2 py-1 rounded text-[8px] font-black uppercase tracking-widest border flex items-center gap-1 ${
+                                    meta.scoreBand === 'green' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : meta.scoreBand === 'amber' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-red-50 text-red-700 border-red-200'
+                                }`}
+                            ><Gauge size={10}/> Score {meta.score}</span>
+                        )}
                     </div>
                     <div className="text-right flex flex-col items-end gap-1">
                         <p className="text-[8px] text-gray-400 uppercase font-black tracking-widest hidden sm:block">Status</p>
