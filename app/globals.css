@@ -3,18 +3,40 @@
 @tailwind utilities;
 
 @layer base {
+  /* Lock form-control rendering to light mode across the site. Without this,
+     Chrome/Safari on macOS/iOS dark mode paint inputs with white text on our
+     light backgrounds, making forms unreadable. Explicit color: light also
+     preserves the browser's normal light-mode autofill styling. */
+  html {
+    color-scheme: light;
+  }
+
   body {
     /* 1. PREMIUM FONT RENDERING */
     /* This forces the browser to render text crisper and thinner */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    
+
     /* 2. THINNER WEIGHT */
     /* Standard is 400. 350 is "Book" (Modern Fintech Look). */
-    font-weight: 300; 
-    
+    font-weight: 300;
+
     @apply text-slate-900 bg-white;
     overflow-x: hidden;
+  }
+
+  /* Belt to the color-scheme suspenders — some UA stylesheets still ignore
+     the parent color when the OS is in dark mode. Force sane defaults on
+     every form control site-wide; pages that need a dark input explicitly
+     override with their own text-* / bg-* classes. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+  select,
+  textarea {
+    color: rgb(15 23 42); /* slate-900 */
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: rgb(156 163 175); /* gray-400 */
   }
 
   /* 3. HEADINGS OPTIMIZATION */
