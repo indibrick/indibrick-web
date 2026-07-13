@@ -46,6 +46,10 @@ const STATIC_ROUTES: { path: string; priority?: number }[] = [
   // Funnel + conversion
   { path: '/apply', priority: 0.9 },
   { path: '/thank-you', priority: 0.2 },
+  // Lead-gen landing pages — 2026 mortgage-market conversion funnels
+  { path: '/renewal-rescue', priority: 0.95 },
+  { path: '/six-minute-approval', priority: 0.9 },
+  { path: '/refi-payout-plan', priority: 0.9 },
   // Calculators + tools
   { path: '/tools', priority: 0.7 },
   { path: '/mortgage-payment-calculator', priority: 0.75 },

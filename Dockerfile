@@ -1,5 +1,7 @@
 # 1. BASE IMAGE
-FROM node:18-alpine AS base
+# Bumped from node:18 → node:20 because pdf-parse@2.x and pdfjs-dist@5.x
+# require Node >=20.16.0. Node 20 is LTS through April 2026.
+FROM node:20-alpine AS base
 
 # 2. DEPENDENCIES
 FROM base AS deps
