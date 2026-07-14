@@ -50,6 +50,17 @@ const STATIC_ROUTES: { path: string; priority?: number }[] = [
   { path: '/renewal-rescue', priority: 0.95 },
   { path: '/six-minute-approval', priority: 0.9 },
   { path: '/refi-payout-plan', priority: 0.9 },
+  // /situations/* — playbook family, one page per common mortgage life-event.
+  // Each has its own capture form + FSRA-licensed broker callback.
+  { path: '/situations', priority: 0.9 },
+  { path: '/situations/declined-by-bank', priority: 0.95 },
+  { path: '/situations/mortgage-renewal', priority: 0.9 },
+  { path: '/situations/refinance-debt-consolidation', priority: 0.9 },
+  { path: '/situations/pre-construction-closing', priority: 0.85 },
+  { path: '/situations/investment-property', priority: 0.85 },
+  { path: '/situations/first-time-buyer', priority: 0.85 },
+  { path: '/situations/new-to-canada', priority: 0.85 },
+  { path: '/situations/reverse-mortgage', priority: 0.9 },
   // Calculators + tools
   { path: '/tools', priority: 0.7 },
   { path: '/mortgage-payment-calculator', priority: 0.75 },
