@@ -52,8 +52,8 @@ export default function AboutPage() {
       ],
       "employee": [
         { "@type": "Person", "name": "Vikas Sharma", "jobTitle": "Broker" },
-        { "@type": "Person", "name": "Amit Nagpal", "jobTitle": "Mortgage Agent Level 2" },
-        { "@type": "Person", "name": "Nitish Gupta", "jobTitle": "Mortgage Agent Level 1" }
+        { "@type": "Person", "name": "Nitish Gupta", "jobTitle": "Co-Founder, Mortgage Agent Level 1" },
+        { "@type": "Person", "name": "Jeet Gandhi", "jobTitle": "Mortgage Agent Level 1" }
       ]
     }
   };
@@ -160,38 +160,38 @@ export default function AboutPage() {
                   </a>
                </div>
 
-               {/* 4. AMIT */}
-               <div className={cardStyle}>
-                  <div className={imageContainerStyle}>
-                     <Image src="/amit-in.jpg" fill alt="Amit Nagpal" className="object-cover" />
-                  </div>
-                  <div>
-                     <h4 className={nameStyle}>Amit Nagpal</h4>
-                     <p className={roleStyle}>Mortgage Agent L2/Underwriter</p>
-                  </div>
-                  <p className={textStyle}>
-                     <strong className="text-blue-600 block mb-2">Part of Dream Home + Life</strong>
-                     Specializing in complex deal structuring and underwriting. Amit ensures that every file is meticulously prepared to meet lender guidelines and secure approvals for challenging scenarios.
-                  </p>
-                  <a href="https://www.linkedin.com/in/hramitnagpal/" target="_blank" rel="noopener noreferrer" className={linkedinButtonStyle}>
-                     <Linkedin size={18} /> LinkedIn
-                  </a>
-               </div>
-
-               {/* 5. NITISH */}
+               {/* 4. NITISH — Co-Founder + Mortgage Agent L1 */}
                <div className={cardStyle}>
                   <div className={imageContainerStyle}>
                      <Image src="/nitish.jpg" fill alt="Nitish Gupta" className="object-cover" />
                   </div>
                   <div>
                      <h4 className={nameStyle}>Nitish Gupta</h4>
+                     <p className={roleStyle}>Co-Founder · Mortgage Agent Level 1</p>
+                  </div>
+                  <p className={textStyle}>
+                     <strong className="text-blue-600 block mb-2">Part of Dream Home + Life</strong>
+                     An ex-banker with 6 years at major financial institutions, Nitish co-founded IndiBrick and works as a licensed mortgage agent — bringing deep institutional knowledge to complex files and driving IndiBrick&apos;s business development across the GTA.
+                  </p>
+                  <a href="https://www.linkedin.com/in/nitish-g-74a5b139/" target="_blank" rel="noopener noreferrer" className={linkedinButtonStyle}>
+                     <Linkedin size={18} /> LinkedIn
+                  </a>
+               </div>
+
+               {/* 5. JEET GANDHI */}
+               <div className={cardStyle}>
+                  <div className={imageContainerStyle}>
+                     <Image src="/jeet-in.jpg" fill alt="Jeet Gandhi" className="object-cover" />
+                  </div>
+                  <div>
+                     <h4 className={nameStyle}>Jeet Gandhi</h4>
                      <p className={roleStyle}>Mortgage Agent Level 1</p>
                   </div>
                   <p className={textStyle}>
                      <strong className="text-blue-600 block mb-2">Part of Dream Home + Life</strong>
-                     An ex-banker with 6 years of experience with major financial institutions, now working as a mortgage agent with Dream Home + Life, Nitish supports Indibrick in business development, bringing deep institutional knowledge to complex files.
+                     A licensed mortgage agent focused on purchase, renewal, and refinance files across the GTA. Jeet works alongside the IndiBrick team to move deals cleanly from application to funding.
                   </p>
-                  <a href="https://www.linkedin.com/in/nitish-g-74a5b139/" target="_blank" rel="noopener noreferrer" className={linkedinButtonStyle}>
+                  <a href="https://www.linkedin.com/in/jeet-gandhi/" target="_blank" rel="noopener noreferrer" className={linkedinButtonStyle}>
                      <Linkedin size={18} /> LinkedIn
                   </a>
                </div>

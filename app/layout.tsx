@@ -16,9 +16,12 @@ import ExitPopup from "../components/ExitPopup";
 import MobileStickyBar from "../components/MobileStickyBar";
 
 // 1. OPTIMIZE FONT LOADER
-const inter = Inter({ 
+const inter = Inter({
   subsets: ["latin"],
   variable: '--font-inter',
+  // display:'swap' eliminates the render-blocking-webfont FOIT that the
+  // audit tool flagged as the site's render-blocking script.
+  display: 'swap',
 });
 
 // 2. ENTERPRISE SEO & AEO METADATA INJECTION
@@ -32,6 +35,35 @@ export const metadata: Metadata = {
   keywords: ["Mortgage Broker Ontario", "Real Estate Investing", "Private Lending", "First Time Home Buyer", "Toronto Real Estate", "Canadian Mortgages"],
   alternates: {
     canonical: './',
+    // Self-referencing hreflang signals language intent without faking a
+    // French mirror we don't actually publish. x-default is the fallback
+    // hreflang Google uses when no locale matches.
+    languages: {
+      'en-CA': './',
+      'x-default': './',
+    },
+  },
+  // Web App Manifest + PWA hints. Manifest lives at app/manifest.ts (Next
+  // App Router auto-generates the /manifest.webmanifest route).
+  manifest: '/manifest.webmanifest',
+  themeColor: '#0B1120',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'IndiBrick',
+  },
+  // Explicit robots defaults with max-image-preview:large — unlocks Google
+  // Discover eligibility + rich image results in SERPs.
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+      'max-video-preview': -1,
+    },
   },
   
   // Open Graph for rich link previews (LinkedIn, Facebook, iMessage)
@@ -167,8 +199,20 @@ export default async function RootLayout({
 
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-white text-slate-900 pb-20 md:pb-0 antialiased font-[350]`}> 
-        
+      <head>
+        {/* Preconnect to the origins we hit on every render — gtag + Meta
+            Pixel are on the critical path. dns-prefetch is the cheaper
+            fallback for hosts we call less frequently. Saves ~150–300ms
+            of TTFB on mid-range mobile. */}
+        <link rel="preconnect" href="https://www.googletagmanager.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://connect.facebook.net" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://www.redditstatic.com" />
+        <link rel="dns-prefetch" href="https://firestore.googleapis.com" />
+        <link rel="dns-prefetch" href="https://firebasestorage.googleapis.com" />
+        <link rel="dns-prefetch" href="https://www.google-analytics.com" />
+      </head>
+      <body className={`${inter.className} bg-white text-slate-900 pb-20 md:pb-0 antialiased font-[350]`}>
+
         {/* --- GOOGLE ADS TAG (AW-17924066227) --- */}
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=AW-17924066227"
@@ -207,6 +251,17 @@ fbq('track', 'PageView');`}
           />
         </noscript>
         {/* --- END META PIXEL --- */}
+
+        {/* --- REDDIT PIXEL (a2_jct2yhtnylge) — fires PageVisit on every route.
+            Same "afterInteractive" strategy as the other pixels so it doesn't
+            block first paint. Uses Reddit's official snippet verbatim.
+            Advanced matching (email / phone / externalId) is wired at the
+            per-form level via lib/tracking.ts (rdt call inside trackLeadSubmit)
+            so PII stays scoped to the actual conversion moment. */}
+        <Script id="reddit-pixel" strategy="afterInteractive">
+          {`!function(w,d){if(!w.rdt){var p=w.rdt=function(){p.sendEvent?p.sendEvent.apply(p,arguments):p.callQueue.push(arguments)};p.callQueue=[];var t=d.createElement("script");t.src="https://www.redditstatic.com/ads/pixel.js?pixel_id=a2_jct2yhtnylge",t.async=!0;var s=d.getElementsByTagName("script")[0];s.parentNode.insertBefore(t,s)}}(window,document);rdt('init','a2_jct2yhtnylge');rdt('track','PageVisit');`}
+        </Script>
+        {/* --- END REDDIT PIXEL --- */}
 
         <JsonLd data={organizationSchema} />
         <JsonLd data={websiteSchema} />

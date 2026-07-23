@@ -1,68 +1,59 @@
 import React from 'react';
-import AffordabilityCalculator from '../../components/AffordabilityCalculator';
-import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
-import { Wallet, Info } from 'lucide-react';
 import { buildMetadata } from '../../lib/buildMetadata';
+import CalcChrome from '../../components/calc/CalcChrome';
+import AffordabilityCalc from '../../components/calc/AffordabilityCalc';
 
 export const metadata = buildMetadata({
-  title: 'Home Affordability Calculator — "Max" vs "Safe"',
-  description: 'Determine your true home buying power in Ontario. Compare bank qualification limits against your actual safe monthly budget.',
+  title: 'Mortgage Affordability Calculator — Ontario B-20 Stress Test',
+  description: 'How much house can you afford in Ontario? Runs full GDS/TDS math with B-20 stress test, insured vs uninsured breakdown, and rate sensitivity across 3 scenarios. FSRA-licensed brokerage.',
   slug: '/affordability-calculator',
-  keywords: ['affordability calculator', 'how much house can i afford', 'gds tds calculator'],
+  keywords: [
+    'affordability calculator Ontario',
+    'how much house can I afford Canada',
+    'mortgage affordability calculator 2026',
+    'GDS TDS calculator',
+    'B-20 stress test calculator',
+    'mortgage qualification calculator',
+  ],
 });
 
-export default function AffordabilityPage() {
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'FinancialProduct',
-    name: 'IndiBrick Affordability Engine',
-    description: 'Calculates maximum mortgage qualification based on income and debts.',
-  };
+const FAQ = [
+  {
+    q: 'What is GDS and TDS?',
+    a: 'GDS (Gross Debt Service) = housing costs (mortgage + property tax + heating + 50% of condo fees) ÷ gross monthly income. Max 39% under B-20.\n\nTDS (Total Debt Service) = GDS + all other monthly debt payments (car, LOC, credit cards). Max 44% under B-20.\n\nYou have to pass BOTH ratios to qualify with a Canadian A-lender.',
+  },
+  {
+    q: 'What is the stress test?',
+    a: 'Federal B-20 requires you to qualify at the greater of your contract rate + 2% or 5.25% (the "minimum qualifying rate"). It exists to make sure you can still afford payments if rates rise mid-term. Only federally regulated A-lenders enforce it — provincially regulated credit unions and B-lenders often do not.',
+  },
+  {
+    q: 'How can I qualify for more house?',
+    a: 'Three main levers:\n\n1. Reduce monthly debts — a $400/mo car payment costs you about $80,000 of mortgage qualification.\n2. Add a co-signer — blending incomes lowers your GDS/TDS ratios.\n3. Larger down payment — reduces the mortgage amount you need to qualify for, and if it takes you over 20% down you also drop CMHC insurance costs.',
+  },
+  {
+    q: 'Should I use the "safe" number or the "max"?',
+    a: 'The number this calculator shows is your MAX under A-lender rules — the bank ceiling. Your "safe" number depends on what else is in your budget: daycare, savings goals, travel, emergency reserves. A common rule: keep total housing cost below 30% of your take-home (post-tax) income for real financial breathing room.',
+  },
+  {
+    q: 'What if I fail the stress test?',
+    a: 'A-lenders will decline. Options: (1) reduce purchase price so you fit within stress-tested ratios, (2) increase down payment, (3) reduce other debts, (4) use a B-lender (rates 100–200 bps higher but no stress test), (5) add a co-signer. A broker can route the file — a single decline at your bank does not mean the deal is dead.',
+  },
+];
 
+export default function Page() {
   return (
-    <div className="bg-white">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      
-      <section className="bg-black text-white py-20 text-center border-b border-white/10">
-        <div className="container mx-auto px-6">
-          <div className="inline-flex items-center gap-2 bg-white/10 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.3em] mb-6">
-            <Wallet size={14} /> Buying Power
-          </div>
-          <h1 className="text-4xl md:text-6xl font-black uppercase tracking-tighter mb-4">
-            How Much House <br /> Can I Afford?
-          </h1>
-          <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-            The bank tells you what they will lend. We tell you what you can actually afford.
-          </p>
-        </div>
-      </section>
-
-      <section className="py-20 bg-gray-50">
-        <div className="container mx-auto px-6 max-w-6xl">
-           <AffordabilityCalculator />
-        </div>
-      </section>
-
-      <section className="py-20 bg-white">
-        <div className="container mx-auto px-6 max-w-4xl">
-           <div className="bg-yellow-50 p-8 rounded-3xl border border-yellow-100 flex gap-6">
-              <div className="bg-yellow-400 text-black p-3 rounded-xl h-fit"><Info size={24} /></div>
-              <div>
-                 <h3 className="font-black text-xl mb-2 text-yellow-900">The "House Poor" Trap</h3>
-                 <p className="text-yellow-800/80 leading-relaxed font-medium">
-                   Most calculators only show you the Maximum Qualification (GDS/TDS). This ignores your car payments, daycare, and lifestyle. 
-                   Our "Safe Budget" number protects your cash flow. Always aim for the green bar, not the black one.
-                 </p>
-              </div>
-           </div>
-        </div>
-      </section>
-
-      <section className="py-20 bg-gray-50 border-t border-gray-100">
-         <div className="container mx-auto px-6 max-w-3xl">
-            <CalculatorLeadCTA calculatorName="Affordability Calculator" />
-         </div>
-      </section>
-    </div>
+    <CalcChrome
+      title="How Much House Can You Afford?"
+      subtitle="Real B-20 stress test math. GDS + TDS ratios, insured vs uninsured, rate sensitivity across 3 scenarios."
+      accent="blue"
+      eyebrow="Affordability · Ontario"
+      breadcrumb={[{ label: 'Tools', href: '/tools' }, { label: 'Calculators', href: '/tools' }]}
+      faq={FAQ}
+      brokerPageSource="/six-minute-approval"
+      ctaLabel="Get a real pre-approval"
+      ctaHref="/six-minute-approval"
+    >
+      <AffordabilityCalc />
+    </CalcChrome>
   );
 }

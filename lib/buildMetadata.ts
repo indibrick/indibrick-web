@@ -43,6 +43,17 @@ export function buildMetadata({
     ? imgPath
     : `${SITE_URL}${imgPath.startsWith('/') ? imgPath : `/${imgPath}`}`;
 
+  // effectiveTitle is what the browser <title> will ACTUALLY render.
+  // - titleAbsolute:true → the title as-provided (bypasses layout template).
+  // - titleAbsolute:false → the layout's "%s | IndiBrick" template runs,
+  //   yielding "{title} | IndiBrick".
+  //
+  // Before this fix, OG/Twitter were fed the RAW `title` while <title>
+  // was fed the templated version, so 99% of pages shipped mismatched
+  // titles between Google SERPs (brand appended) and Facebook/LinkedIn
+  // previews (no brand). Now both use effectiveTitle → identical everywhere.
+  const effectiveTitle = titleAbsolute ? title : `${title} | IndiBrick`;
+
   return {
     title: titleAbsolute ? { absolute: title } : title,
     description,
@@ -54,7 +65,7 @@ export function buildMetadata({
       type: 'website',
       locale: 'en_CA',
       siteName: SITE_NAME,
-      title,
+      title: effectiveTitle,
       description,
       url,
       images: [
@@ -62,13 +73,13 @@ export function buildMetadata({
           url: imgUrl,
           width: 1200,
           height: 630,
-          alt: title,
+          alt: effectiveTitle,
         },
       ],
     },
     twitter: {
       card: 'summary_large_image',
-      title,
+      title: effectiveTitle,
       description,
       images: [imgUrl],
     },

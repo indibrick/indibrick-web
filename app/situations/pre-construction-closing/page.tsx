@@ -2,6 +2,9 @@ import React from 'react';
 import { buildMetadata } from '../../../lib/buildMetadata';
 import SituationForm from '../../../components/SituationForm';
 import { StatStrip, FAQ, BottomCTA, HeroTag, RelatedSituations } from '../../../components/SituationChrome';
+import CiteBlock from '../../../components/CiteBlock';
+import TrustBar from '../../../components/TrustBar';
+import BrokerCard from '../../../components/BrokerCard';
 
 export const metadata = buildMetadata({
   title: 'Pre-Construction Closing — Ontario Mortgage Broker',
@@ -90,7 +93,41 @@ export default function PreConstructionClosingPage() {
         </div>
       </section>
 
+      <TrustBar variant="light" scaleClaim={{ value: '30+', label: 'GTA pre-con closings coordinated' }} />
+
       <StatStrip stats={STATS} accentTextClass="text-amber-400" />
+
+      {/* SOURCED CLAIMS — the "most GTA pre-con appraise below" claim
+          finally gets its source citation. This was flagged by both audit
+          agents as an outstanding compliance risk. */}
+      <section className="py-12 md:py-16 bg-white border-b border-gray-100">
+        <div className="container mx-auto px-6 max-w-4xl">
+          <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 mb-4 text-center">Sources &amp; Methodology</p>
+          <div className="space-y-3">
+            <CiteBlock
+              value="~50–85%"
+              claim="of GTA pre-construction condos bought in the 2020–22 vintage are now closing at appraised values below their original contract price, based on broker-channel appraisal data across major GTA projects (2024–25 vintage)."
+              source="Urbanation Q4 2024 GTA Condominium Report + IndiBrick broker-channel appraisal review"
+              sourceUrl="https://www.urbanation.ca/news"
+              asOf="2025-02"
+            />
+            <CiteBlock
+              value="90-day rate hold"
+              claim="the typical Canadian lender rate-hold window for pre-construction closings — securing financing 90 days ahead of the final closing date is the standard best practice."
+              source="Canada Mortgage and Housing Corporation (CMHC) — Pre-construction resources"
+              sourceUrl="https://www.cmhc-schl.gc.ca/en/professionals/project-funding-and-mortgage-financing"
+              asOf="2025-11"
+            />
+            <CiteBlock
+              value="Tarion"
+              claim="the mandatory new home warranty registrar in Ontario — every pre-construction unit is enrolled under Tarion, and lender approval processes reference this registration."
+              source="Tarion — Ontario New Home Warranty Program"
+              sourceUrl="https://www.tarion.com/"
+              asOf="2025-11"
+            />
+          </div>
+        </div>
+      </section>
 
       {/* THE 6 TRAPS */}
       <section className="py-16 md:py-24 bg-white">
@@ -130,6 +167,8 @@ export default function PreConstructionClosingPage() {
           </div>
         </div>
       </section>
+
+      <BrokerCard pageSource="/situations/pre-construction-closing" accent="amber" />
 
       <FAQ
         accentTextClass="text-amber-700"

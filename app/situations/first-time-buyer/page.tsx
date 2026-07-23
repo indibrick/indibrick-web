@@ -3,6 +3,9 @@ import Link from 'next/link';
 import { buildMetadata } from '../../../lib/buildMetadata';
 import SituationForm from '../../../components/SituationForm';
 import { StatStrip, FAQ, BottomCTA, HeroTag, RelatedSituations } from '../../../components/SituationChrome';
+import CiteBlock from '../../../components/CiteBlock';
+import TrustBar from '../../../components/TrustBar';
+import BrokerCard from '../../../components/BrokerCard';
 
 export const metadata = buildMetadata({
   title: 'First-Time Home Buyer Ontario — Broker Guidance + Real Numbers',
@@ -96,7 +99,39 @@ export default function FirstTimeBuyerPage() {
         </div>
       </section>
 
+      <TrustBar variant="light" scaleClaim={{ value: '45+', label: 'A, B & insured lender panel' }} />
+
       <StatStrip stats={STATS} accentTextClass="text-blue-400" />
+
+      {/* SOURCED CLAIMS */}
+      <section className="py-12 md:py-16 bg-white border-b border-gray-100">
+        <div className="container mx-auto px-6 max-w-4xl">
+          <p className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-4 text-center">Sources &amp; Methodology</p>
+          <div className="space-y-3">
+            <CiteBlock
+              value="$60,000"
+              claim="the maximum per-person RRSP Home Buyers' Plan withdrawal, raised from $35,000 in Budget 2024 for Canadian first-time buyers."
+              source="Government of Canada — Home Buyers' Plan"
+              sourceUrl="https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/rrsps-related-plans/what-home-buyers-plan.html"
+              asOf="2025-11"
+            />
+            <CiteBlock
+              value="$8,000/yr / $40,000 lifetime"
+              claim="the annual and lifetime contribution limits for the First Home Savings Account (FHSA) — Canada's newest first-home savings program launched April 2023."
+              source="Government of Canada — First Home Savings Account (FHSA)"
+              sourceUrl="https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/first-home-savings-account.html"
+              asOf="2025-11"
+            />
+            <CiteBlock
+              value="$4,000 / $4,475"
+              claim="the maximum Ontario Land Transfer Tax first-time buyer rebate (up to $4,000) and Toronto's additional municipal LTT rebate (up to $4,475), for a combined GTA maximum of $8,475."
+              source="Government of Ontario — Land Transfer Tax Refund"
+              sourceUrl="https://www.ontario.ca/document/land-transfer-tax/land-transfer-tax-refund-first-time-homebuyers"
+              asOf="2025-11"
+            />
+          </div>
+        </div>
+      </section>
 
       {/* FTHB LEVERS */}
       <section className="py-16 md:py-24 bg-white">
@@ -134,6 +169,8 @@ export default function FirstTimeBuyerPage() {
           </div>
         </div>
       </section>
+
+      <BrokerCard pageSource="/situations/first-time-buyer" accent="blue" />
 
       <FAQ
         accentTextClass="text-blue-600"

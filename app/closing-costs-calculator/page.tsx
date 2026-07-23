@@ -1,61 +1,58 @@
 import React from 'react';
-import ClosingCostsCalculator from '../../components/ClosingCostsCalculator';
-import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
-import { DollarSign, AlertTriangle, FileText } from 'lucide-react';
 import { buildMetadata } from '../../lib/buildMetadata';
+import CalcChrome from '../../components/calc/CalcChrome';
+import ClosingCostsCalc from '../../components/calc/ClosingCostsCalc';
 
 export const metadata = buildMetadata({
-  title: 'Closing Costs Calculator Ontario 2026 — True Cash Required',
-  description: 'Calculate Land Transfer Tax, Legal Fees, and the hidden PST on CMHC insurance for 2026 closings.',
+  title: 'Closing Costs Calculator Ontario — Full Line-by-Line Cash Required',
+  description: 'Full breakdown of Ontario closing costs including Land Transfer Tax, PST on CMHC, legal fees, title insurance, appraisal, inspection, and prepaid adjustments. Toronto MLTT + FTHB rebates supported.',
   slug: '/closing-costs-calculator',
-  keywords: ['closing costs calculator ontario 2026', 'land transfer tax calculator', 'legal fees buying house'],
+  keywords: [
+    'closing costs calculator Ontario',
+    'closing costs calculator Toronto',
+    'Ontario home closing costs',
+    'land transfer tax closing costs',
+    'PST on CMHC calculator',
+  ],
 });
 
-export default function ClosingCostsPage() {
+const FAQ = [
+  {
+    q: 'How much are closing costs in Ontario?',
+    a: 'Typical range: 1.5% to 4% of purchase price. The biggest single line item is Land Transfer Tax (0.5%–3% depending on price and Toronto vs suburb). Legal fees are usually $1,500–$2,000. If your down payment is under 20%, add the 8% PST on the CMHC premium (paid in cash at closing).',
+  },
+  {
+    q: 'What is the PST on CMHC and why is it a cash cost?',
+    a: 'CMHC insurance premium is financed into your mortgage — you pay it over the amortization. But the 8% Ontario Provincial Sales Tax on that premium is due at closing in CASH. On a $500,000 mortgage with 5% down, CMHC premium is $20,000; PST on it is $1,600. Many first-time buyers are surprised by this line item.',
+  },
+  {
+    q: 'What are prepaid adjustments?',
+    a: 'Costs the seller has already paid in advance that you reimburse them for at closing. Most common: property tax already paid past the closing date (you reimburse the portion covering your ownership), utility credits, condo fee prepayments. Typical range: $1,000–$3,000. Your real estate lawyer calculates the exact number.',
+  },
+  {
+    q: 'Do first-time buyers save on closing costs?',
+    a: 'Yes — through the Land Transfer Tax rebates. Ontario provincial LTT rebate: up to $4,000. Toronto MLTT rebate (if buying in the 416): up to $4,475. Combined maximum in Toronto: $8,475. On a home priced under $368,000 in Toronto, the rebates fully eliminate LTT.',
+  },
+  {
+    q: 'Can I add closing costs to my mortgage?',
+    a: 'Some lenders offer "cash-back at closing" mortgages that give you 1–5% of the mortgage balance back at closing, which can offset closing costs. Trade-off: the rate is typically 20–40 bps higher than the standard product. Worth doing the math — sometimes the higher rate over 5 years costs more than the closing costs saved.',
+  },
+];
+
+export default function Page() {
   return (
-    <div className="bg-white">
-      <section className="bg-black text-white py-20 text-center border-b border-white/10">
-        <div className="container mx-auto px-6">
-          <div className="inline-flex items-center gap-2 bg-white/10 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.3em] mb-6 text-yellow-400">
-            <DollarSign size={14} /> Cash Planning
-          </div>
-          <h1 className="text-4xl md:text-6xl font-black uppercase tracking-tighter mb-4">
-            Closing Costs <br /> Calculator
-          </h1>
-          <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-            The bank approves the mortgage, but you must bring the cash. Calculate your true "Cash to Close" for 2026.
-          </p>
-        </div>
-      </section>
-
-      <section className="py-20 bg-gray-50">
-        <div className="container mx-auto px-6 max-w-6xl">
-           <ClosingCostsCalculator />
-        </div>
-      </section>
-
-      <section className="py-24 bg-white">
-        <div className="container mx-auto px-6 max-w-4xl">
-           <h2 className="text-3xl font-black text-black mb-8 uppercase tracking-tight">The "Hidden" Costs Explained</h2>
-           <div className="grid md:grid-cols-2 gap-8">
-              <div className="bg-gray-50 p-8 rounded-3xl border border-gray-100">
-                 <h3 className="text-lg font-black mb-4 flex items-center gap-2"><AlertTriangle size={20} className="text-red-600"/> PST on CMHC</h3>
-                 <p className="text-sm text-gray-600 leading-relaxed">
-                    Most First-Time Buyers miss this. If you put less than 20% down, you need CMHC insurance. The <strong>8% PST</strong> must be paid in cash.
-                 </p>
-              </div>
-              <div className="bg-gray-50 p-8 rounded-3xl border border-gray-100">
-                 <h3 className="text-lg font-black mb-4 flex items-center gap-2"><FileText size={20} className="text-blue-600"/> Adjustments</h3>
-                 <p className="text-sm text-gray-600 leading-relaxed">
-                    Reimbursing the seller for pre-paid Property Taxes or Utilities. We recommend budgeting <strong>$500 - $1,000</strong>.
-                 </p>
-              </div>
-           </div>
-           <div className="mt-12 text-center">
-              <CalculatorLeadCTA calculatorName="Closing Costs Calculator" />
-           </div>
-        </div>
-      </section>
-    </div>
+    <CalcChrome
+      title="Ontario Closing Costs Calculator"
+      subtitle="Every cash line item: LTT, PST on CMHC, legal, title, appraisal, inspection, and prepaid adjustments."
+      accent="blue"
+      eyebrow="Closing Costs · Ontario"
+      breadcrumb={[{ label: 'Tools', href: '/tools' }, { label: 'Calculators', href: '/tools' }]}
+      faq={FAQ}
+      brokerPageSource="/six-minute-approval"
+      ctaLabel="Get a real pre-approval"
+      ctaHref="/six-minute-approval"
+    >
+      <ClosingCostsCalc />
+    </CalcChrome>
   );
 }

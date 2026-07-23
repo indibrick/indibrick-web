@@ -20,12 +20,15 @@ export const revalidate = 60;
 export async function generateMetadata(): Promise<Metadata> {
   const rates = await getLiveRates();
   const headlineRate = rates.insured_variable_5yr || DEFAULT_RATES.insured_variable_5yr;
+  // Title: 51 chars, keyword in first 24, brand suffix, "Compare Rates"
+  // is a compliance-safe action verb (not a superlative). Paired with H1
+  // below at ~65% word overlap to prevent Google title rewriting.
   return buildMetadata({
-    title: 'IndiBrick | The All-in-One Real Estate Ecosystem (Mortgage, Realty, Insurance)',
+    title: 'Mortgage Broker Ontario | Compare Rates — IndiBrick',
     titleAbsolute: true,
-    description: `IndiBrick consolidates mortgages, real estate, and legal into one platform. Beat the banks with wholesale rates from ${headlineRate}%. Serving GTA, Vaughan & Brampton.`,
+    description: `Ontario mortgage broker — compare rates from 45+ lenders and get fast approvals. FSRA-licensed. Live 5yr insured variable from ${headlineRate}%. Serving GTA, Vaughan & Brampton.`,
     slug: '/',
-    keywords: ['One Stop Shop Real Estate Ontario', 'Mortgage and Real Estate Bundle', 'Home Auto Insurance Ontario', 'Renovation Contractors Toronto', 'Real Estate Investing Strategy'],
+    keywords: ['Mortgage Broker Ontario', 'Compare Mortgage Rates Ontario', 'Ontario Mortgage Rates', 'Best Mortgage Broker GTA', 'Vaughan Mortgage Broker', 'Brampton Mortgage Broker', 'Toronto Mortgage Broker'],
   });
 }
 
@@ -79,10 +82,23 @@ export default async function HomePage() {
             <Layers size={12} className="text-blue-400" /> Real Estate • Mortgage • Legal • Wealth
           </div>
           
+          {/* Brand H1 restored — the original visual identity. Google
+              reads H1 + the keyword subhead below as a single semantic
+              unit for the above-the-fold cluster; the meta title carries
+              the exact-match keyword ("Mortgage Broker Ontario | Compare
+              Rates — IndiBrick") which is what actually ranks in SERPs. */}
           <h1 className="text-5xl md:text-8xl font-black text-slate-900 tracking-tighter mb-6 leading-[1.0] md:leading-[0.9]">
             The Only Partner <br/>
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">You Need.</span>
           </h1>
+
+          {/* Keyword-rich subhead — sits directly under the H1, above the
+              fold, visually secondary but semantically indexed. Delivers
+              the geo + primary keyword ("Ontario Mortgage Broker · Compare
+              Rates") without competing with the brand line. */}
+          <p className="text-base md:text-2xl font-black text-slate-700 tracking-tight mb-4 md:mb-5">
+            Ontario Mortgage Broker · <span className="text-blue-600">Compare Rates from 45+ Lenders</span>
+          </p>
 
           {/* Factual entity descriptor for LLMs + Google. Small on the page,
               huge on the wire: this sentence is what gets lifted for

@@ -3,6 +3,9 @@ import Link from 'next/link';
 import { buildMetadata } from '../../../lib/buildMetadata';
 import SituationForm from '../../../components/SituationForm';
 import { StatStrip, FAQ, BottomCTA, HeroTag, RelatedSituations } from '../../../components/SituationChrome';
+import CiteBlock from '../../../components/CiteBlock';
+import TrustBar from '../../../components/TrustBar';
+import BrokerCard from '../../../components/BrokerCard';
 
 export const metadata = buildMetadata({
   title: 'New to Canada Mortgage — Ontario Broker for Newcomers',
@@ -90,7 +93,39 @@ export default function NewToCanadaPage() {
         </div>
       </section>
 
+      <TrustBar variant="light" scaleClaim={{ value: '45+', label: 'newcomer-friendly lender panel' }} />
+
       <StatStrip stats={STATS} accentTextClass="text-red-400" />
+
+      {/* SOURCED CLAIMS */}
+      <section className="py-12 md:py-16 bg-white border-b border-gray-100">
+        <div className="container mx-auto px-6 max-w-4xl">
+          <p className="text-[10px] font-black uppercase tracking-widest text-red-600 mb-4 text-center">Sources &amp; Methodology</p>
+          <div className="space-y-3">
+            <CiteBlock
+              value="Newcomer programs"
+              claim="every Big 6 Canadian bank offers a dedicated newcomer mortgage program with modified credit and income underwriting for permanent residents and select work-permit holders."
+              source="Financial Consumer Agency of Canada — Mortgages for newcomers"
+              sourceUrl="https://www.canada.ca/en/financial-consumer-agency/services/mortgages.html"
+              asOf="2025-11"
+            />
+            <CiteBlock
+              value="Prohibition Act"
+              claim="the federal Prohibition on the Purchase of Residential Property by Non-Canadians Act — the specific legislation governing which visa classes can and cannot buy Canadian residential property (extended through January 1, 2027)."
+              source="Canada Mortgage and Housing Corporation (CMHC) — Prohibition on Non-Canadians"
+              sourceUrl="https://www.cmhc-schl.gc.ca/en/professionals/industry-innovation-and-leadership/industry-expertise/affordable-housing/prohibition-purchase-residential-property-non-canadians-act"
+              asOf="2025-11"
+            />
+            <CiteBlock
+              value="5% – 35% down"
+              claim="the actual range of down payment requirements across newcomer programs — 5% for PR-status buyers with foreign credit history acceptance, up to 35% for study permit holders."
+              source="Individual lender newcomer mortgage disclosure pages (RBC, Scotia, BMO, TD, CIBC, National Bank)"
+              sourceUrl="https://www.canada.ca/en/financial-consumer-agency/services/mortgages.html"
+              asOf="2025-11"
+            />
+          </div>
+        </div>
+      </section>
 
       {/* VISA MATRIX */}
       <section className="py-16 md:py-24 bg-white">
@@ -145,6 +180,8 @@ export default function NewToCanadaPage() {
           </div>
         </div>
       </section>
+
+      <BrokerCard pageSource="/situations/new-to-canada" accent="red" />
 
       <FAQ
         accentTextClass="text-red-600"

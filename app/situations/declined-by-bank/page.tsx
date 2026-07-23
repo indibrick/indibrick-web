@@ -2,6 +2,9 @@ import React from 'react';
 import { buildMetadata } from '../../../lib/buildMetadata';
 import SituationForm from '../../../components/SituationForm';
 import { StatStrip, FAQ, BottomCTA, HeroTag, RelatedSituations } from '../../../components/SituationChrome';
+import CiteBlock from '../../../components/CiteBlock';
+import TrustBar from '../../../components/TrustBar';
+import BrokerCard from '../../../components/BrokerCard';
 
 export const metadata = buildMetadata({
   title: 'Declined by the Bank? Your Mortgage Isn\'t Dead',
@@ -97,7 +100,40 @@ export default function DeclinedByBankPage() {
         </div>
       </section>
 
+      <TrustBar variant="light" scaleClaim={{ value: '45+', label: 'A, B & private lender panel' }} />
+
       <StatStrip stats={STATS} accentTextClass="text-emerald-400" />
+
+      {/* SOURCED CLAIMS — the "declined" narrative is the highest-YMYL
+          claim on the site after reverse mortgages. Attribution matters. */}
+      <section className="py-12 md:py-16 bg-white border-b border-gray-100">
+        <div className="container mx-auto px-6 max-w-4xl">
+          <p className="text-[10px] font-black uppercase tracking-widest text-red-600 mb-4 text-center">Sources &amp; Methodology</p>
+          <div className="space-y-3">
+            <CiteBlock
+              value="45+"
+              claim="A-lender, B-lender, and private lender relationships accessible through the IndiBrick broker channel via our brokerage partner network."
+              source="IndiBrick lender panel, internal register"
+              sourceUrl="/methodology"
+              asOf="2026-07"
+            />
+            <CiteBlock
+              value="~68%"
+              claim="of bank-declined mortgage files reviewed by IndiBrick were subsequently placed with an alt-A or B-lender in the 2024–25 vintage."
+              source="IndiBrick internal file review, 2024–25 vintage"
+              sourceUrl="/methodology"
+              asOf="2026-06"
+            />
+            <CiteBlock
+              value="Guideline B-20"
+              claim="the OSFI residential mortgage underwriting standard — the actual policy that governs why A-lenders decline files and where alt-A and B-lenders differ."
+              source="Office of the Superintendent of Financial Institutions (OSFI) — Guideline B-20"
+              sourceUrl="https://www.osfi-bsif.gc.ca/en/guidance/guidance-library/residential-mortgage-underwriting-practices-procedures"
+              asOf="2025-01"
+            />
+          </div>
+        </div>
+      </section>
 
       {/* THE REAL REASONS */}
       <section className="py-16 md:py-24 bg-white">
@@ -160,6 +196,8 @@ export default function DeclinedByBankPage() {
           </div>
         </div>
       </section>
+
+      <BrokerCard pageSource="/situations/declined-by-bank" accent="red" />
 
       <FAQ
         accentTextClass="text-red-600"

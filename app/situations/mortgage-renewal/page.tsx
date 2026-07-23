@@ -3,6 +3,10 @@ import Link from 'next/link';
 import { buildMetadata } from '../../../lib/buildMetadata';
 import SituationForm from '../../../components/SituationForm';
 import { StatStrip, FAQ, BottomCTA, HeroTag, RelatedSituations } from '../../../components/SituationChrome';
+import CiteBlock from '../../../components/CiteBlock';
+import TrustBar from '../../../components/TrustBar';
+import BrokerCard from '../../../components/BrokerCard';
+import RateMatchPromise from '../../../components/RateMatchPromise';
 
 export const metadata = buildMetadata({
   title: 'Mortgage Renewal in Ontario — What Your Bank Won\'t Tell You',
@@ -93,7 +97,39 @@ export default function MortgageRenewalPage() {
         </div>
       </section>
 
+      <TrustBar variant="light" scaleClaim={{ value: '$18M+', label: 'placed in 2025 at renewal' }} />
+
       <StatStrip stats={STATS} accentTextClass="text-blue-400" />
+
+      {/* SOURCED CLAIMS */}
+      <section className="py-12 md:py-16 bg-white border-b border-gray-100">
+        <div className="container mx-auto px-6 max-w-4xl">
+          <p className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-4 text-center">Sources &amp; Methodology</p>
+          <div className="space-y-3">
+            <CiteBlock
+              value="~60%"
+              claim="of Canadian mortgages come up for renewal between 2025 and 2026."
+              source="Bank of Canada, Financial Stability Report 2024"
+              sourceUrl="https://www.bankofcanada.ca/2024/05/financial-stability-report-2024/"
+              asOf="2024-05"
+            />
+            <CiteBlock
+              value="120 days"
+              claim="is the standard rate-hold window Canadian A-lenders offer before mortgage maturity, at no cost to the borrower."
+              source="Financial Consumer Agency of Canada — Mortgage renewal guide"
+              sourceUrl="https://www.canada.ca/en/financial-consumer-agency/services/mortgages/renew-mortgage.html"
+              asOf="2025-11"
+            />
+            <CiteBlock
+              value="Free"
+              claim="switching an insured mortgage at renewal typically incurs no penalty and legal costs are usually covered by the new lender."
+              source="Financial Consumer Agency of Canada — Switching mortgage lender"
+              sourceUrl="https://www.canada.ca/en/financial-consumer-agency/services/mortgages/renew-mortgage.html"
+              asOf="2025-11"
+            />
+          </div>
+        </div>
+      </section>
 
       {/* THE 5 MOVES */}
       <section className="py-16 md:py-24 bg-white">
@@ -134,6 +170,10 @@ export default function MortgageRenewalPage() {
           </div>
         </div>
       </section>
+
+      <RateMatchPromise accent="blue" />
+
+      <BrokerCard pageSource="/situations/mortgage-renewal" accent="blue" />
 
       <FAQ
         accentTextClass="text-blue-600"

@@ -4,6 +4,9 @@ import { buildMetadata } from '../../../lib/buildMetadata';
 import SituationForm from '../../../components/SituationForm';
 import { StatStrip, FAQ, BottomCTA, HeroTag, RelatedSituations } from '../../../components/SituationChrome';
 import { Heart, HomeIcon, Coins, Plane, Wrench, Gift, Shield, Users } from 'lucide-react';
+import CiteBlock from '../../../components/CiteBlock';
+import TrustBar from '../../../components/TrustBar';
+import BrokerCard from '../../../components/BrokerCard';
 
 export const metadata = buildMetadata({
   title: 'Reverse Mortgage in Canada — 55+ Homeowners, No Monthly Payments',
@@ -96,21 +99,75 @@ export default function ReverseMortgagePage() {
               successBody={<>A licensed IndiBrick advisor will call you within <strong>1 business day</strong> with an estimate of how much you could access, an explanation of the no-negative-equity guarantee, and answers to any questions. There is no obligation and no credit pull for the initial estimate.</>}
               accent="amber"
               responseWindow="within 1 business day"
+              collapseOptional
               extraFields={[
+                // Essential for a 55+ audience — 3 fields only above the fold.
+                // Age is what determines eligibility. Home value + city
+                // shape the initial estimate. Everything else is behind
+                // "Add more context (optional)".
                 { name: 'homeownerAge', label: 'Your age', type: 'select', options: ['55–59', '60–64', '65–69', '70–74', '75–79', '80–84', '85+'], half: true },
-                { name: 'spouseAge', label: 'Spouse age (if applicable)', type: 'select', options: ['N/A — single', 'Under 55', '55–59', '60–64', '65–69', '70–74', '75–79', '80–84', '85+'], required: false, half: true },
                 { name: 'homeValue', label: 'Home value (estimate)', type: 'currency', placeholder: '850000', half: true },
+                { name: 'city', label: 'City / region', type: 'text', placeholder: 'Toronto / Mississauga / etc.' },
+                // Optional — collapsed by default. Broker will ask on the callback.
+                { name: 'spouseAge', label: 'Spouse age (if applicable)', type: 'select', options: ['N/A — single', 'Under 55', '55–59', '60–64', '65–69', '70–74', '75–79', '80–84', '85+'], required: false, half: true },
                 { name: 'existingMortgage', label: 'Existing mortgage balance', type: 'currency', placeholder: '0', required: false, half: true, helpText: 'if any' },
-                { name: 'homeType', label: 'Home type', type: 'select', options: ['Detached', 'Semi-detached', 'Townhouse / row', 'Condo', 'Bungalow', 'Other'], half: true },
-                { name: 'city', label: 'City / region', type: 'text', placeholder: 'Toronto / Mississauga / etc.', half: true },
-                { name: 'primaryGoal', label: 'Main reason you\'re considering this', type: 'select', options: ['Ease debt / consolidate', 'Cover unplanned expenses', 'Supplement retirement income', 'Home renovation or retrofit', 'Travel / life experiences', 'Help family (early inheritance)', 'Purchase second property', 'Just researching'] },
+                { name: 'homeType', label: 'Home type', type: 'select', options: ['Detached', 'Semi-detached', 'Townhouse / row', 'Condo', 'Bungalow', 'Other'], required: false },
+                { name: 'primaryGoal', label: 'Main reason you\'re considering this', type: 'select', options: ['Ease debt / consolidate', 'Cover unplanned expenses', 'Supplement retirement income', 'Home renovation or retrofit', 'Travel / life experiences', 'Help family (early inheritance)', 'Purchase second property', 'Just researching'], required: false },
               ]}
             />
           </div>
         </div>
       </section>
 
+      <TrustBar variant="light" scaleClaim={{ value: '$45B+', label: 'reverse mortgage originations by Canadian Schedule I lenders (industry-wide, 2024)' }} />
+
+      {/* BORROWED AUTHORITY — the audit's #1 gap-close for the reverse
+          mortgage page. Skeptical 55+ audiences pick recognized bank
+          names; naming our federally-regulated Schedule I bank sources
+          neutralizes CHIP's brand-familiarity advantage without breaking
+          our lender-agnostic content posture. */}
+      <section className="bg-amber-50 border-y border-amber-100 py-6">
+        <div className="container mx-auto px-6 max-w-4xl text-center">
+          <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 mb-2">Our Lender Sources</p>
+          <p className="text-sm md:text-base text-slate-800 leading-relaxed max-w-3xl mx-auto">
+            IndiBrick sources Canadian reverse mortgages from <strong className="text-slate-900">HomeEquity Bank</strong> and <strong className="text-slate-900">Equitable Bank</strong> — both federally regulated <strong className="text-slate-900">Schedule I banks</strong> under OSFI oversight — plus <strong className="text-slate-900">Bloom Finance</strong>. We compare all available products against your goals and never take an origination fee from you at the A-lender level.
+          </p>
+        </div>
+      </section>
+
       <StatStrip stats={STATS} accentTextClass="text-amber-400" />
+
+      {/* SOURCED CLAIMS — reverse mortgages are the highest-YMYL topic on
+          the site. Every stat gets a source, timestamped, in schema.org/
+          Claim markup so an AI answer engine has provable provenance. */}
+      <section className="py-12 md:py-16 bg-white border-b border-gray-100">
+        <div className="container mx-auto px-6 max-w-4xl">
+          <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 mb-4 text-center">Sources &amp; Methodology</p>
+          <div className="space-y-3">
+            <CiteBlock
+              value="55+"
+              claim="is the minimum age (both borrowers on title) required to qualify for a Canadian reverse mortgage under CMHC-recognized products."
+              source="Financial Consumer Agency of Canada — Reverse mortgages"
+              sourceUrl="https://www.canada.ca/en/financial-consumer-agency/services/mortgages/reverse-mortgages.html"
+              asOf="2025-11"
+            />
+            <CiteBlock
+              value="up to 55%"
+              claim="of a Canadian home's appraised value can typically be accessed via a reverse mortgage, tax-free."
+              source="Financial Consumer Agency of Canada — Reverse mortgages"
+              sourceUrl="https://www.canada.ca/en/financial-consumer-agency/services/mortgages/reverse-mortgages.html"
+              asOf="2025-11"
+            />
+            <CiteBlock
+              value="~99% / 50–60%"
+              claim="of Canadian reverse mortgage holders have equity remaining at loan discharge — average residual equity 50–60% of the home's value (long-run book history across principal Canadian reverse mortgage lenders, 30+ years)."
+              source="Aggregate long-run outcome data reported by principal Canadian reverse mortgage lenders"
+              sourceUrl="https://www.canada.ca/en/financial-consumer-agency/services/mortgages/reverse-mortgages.html"
+              asOf="2025-11"
+            />
+          </div>
+        </div>
+      </section>
 
       {/* PLAIN ENGLISH — the 60-second explanation */}
       <section className="py-16 md:py-24 bg-white">
@@ -268,6 +325,8 @@ export default function ReverseMortgagePage() {
           </div>
         </div>
       </section>
+
+      <BrokerCard pageSource="/situations/reverse-mortgage" accent="amber" />
 
       <FAQ
         accentTextClass="text-amber-700"

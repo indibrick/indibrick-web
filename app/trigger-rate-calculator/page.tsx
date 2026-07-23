@@ -1,49 +1,54 @@
 import React from 'react';
-import TriggerRateCalculator from '../../components/TriggerRateCalculator';
-import CalculatorLeadCTA from '../../components/CalculatorLeadCTA';
-import { AlertTriangle } from 'lucide-react';
 import { buildMetadata } from '../../lib/buildMetadata';
+import CalcChrome from '../../components/calc/CalcChrome';
+import TriggerRateCalc from '../../components/calc/TriggerRateCalc';
 
 export const metadata = buildMetadata({
-  title: 'Trigger Rate Calculator for Variable Mortgages',
-  description: 'Find out at what interest rate your variable mortgage payments stop covering principal (Negative Amortization risk).',
+  title: 'Variable Mortgage Trigger Rate Calculator — Canada',
+  description: 'Calculate your variable mortgage trigger rate — the interest rate at which your fixed payment no longer covers interest. Payment shock analysis + options if you\'re at trigger.',
   slug: '/trigger-rate-calculator',
-  keywords: ['trigger rate calculator', 'variable mortgage negative amortization', 'Canada trigger rate'],
+  keywords: [
+    'trigger rate calculator Canada',
+    'variable mortgage trigger rate',
+    'negative amortization Canada',
+    'variable mortgage payment shock',
+    'mortgage trigger point',
+  ],
 });
 
-export default function TriggerRatePage() {
+const FAQ = [
+  {
+    q: 'What is a trigger rate?',
+    a: 'On a FIXED-payment variable mortgage, your monthly payment stays constant while the rate floats. Your trigger rate is the interest rate at which your fixed payment no longer covers the monthly interest — at which point unpaid interest starts adding to your principal (negative amortization).',
+  },
+  {
+    q: 'What happens if I hit trigger?',
+    a: 'Your lender typically contacts you within 60–90 days after you hit trigger and gives you options: (1) increase your payment, (2) make a lump-sum principal payment, (3) switch to a fixed rate, (4) sometimes extend the amortization back to the original 25/30 years to reduce the required payment.',
+  },
+  {
+    q: 'What is the trigger point vs the trigger rate?',
+    a: 'Trigger RATE = the interest rate at which your payment stops covering interest (this calculator). Trigger POINT = the balance level at which your outstanding balance exceeds a set threshold (often 105% of the original mortgage amount), typically triggering a mandatory payment reset regardless of rate.',
+  },
+  {
+    q: 'Should I switch to fixed?',
+    a: 'It depends on where rates are heading. Fixed locks certainty at a higher rate today; variable keeps the option of paying less if rates drop. Talk to a broker — the switch is usually free, but timing it wrong costs money either way.',
+  },
+];
+
+export default function Page() {
   return (
-    <div className="bg-white">
-      <section className="bg-black text-white py-20 text-center border-b border-white/10">
-        <div className="container mx-auto px-6">
-          <div className="inline-flex items-center gap-2 bg-white/10 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.3em] mb-6 text-red-400">
-            <AlertTriangle size={14} /> Risk Analysis
-          </div>
-          <h1 className="text-4xl md:text-6xl font-black uppercase tracking-tighter mb-4">
-            Trigger Rate <br /> Analyzer
-          </h1>
-          <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-            Protect yourself from negative amortization. Know your safety line.
-          </p>
-        </div>
-      </section>
-
-      <section className="py-20 bg-gray-50">
-        <div className="container mx-auto px-6 max-w-5xl">
-           <TriggerRateCalculator />
-        </div>
-      </section>
-
-      <section className="py-20 bg-white">
-        <div className="container mx-auto px-6 max-w-4xl text-center">
-           <h2 className="text-3xl font-black mb-6">Hit Your Trigger Rate?</h2>
-           <p className="text-gray-600 mb-10 max-w-2xl mx-auto">
-             If your current rate is higher than your trigger rate, your principal is growing every month. 
-             We can help you refinance to a fixed rate or extend your amortization to lower payments.
-           </p>
-           <CalculatorLeadCTA calculatorName="Trigger Rate Calculator" />
-        </div>
-      </section>
-    </div>
+    <CalcChrome
+      title="Variable Mortgage Trigger Rate Calculator"
+      subtitle="At what interest rate does your fixed payment stop covering interest? See the trigger rate + payment shock."
+      accent="amber"
+      eyebrow="Trigger Rate · Variable"
+      breadcrumb={[{ label: 'Tools', href: '/tools' }, { label: 'Calculators', href: '/tools' }]}
+      faq={FAQ}
+      brokerPageSource="/refi-payout-plan"
+      ctaLabel="Talk to a broker about your options"
+      ctaHref="/refi-payout-plan"
+    >
+      <TriggerRateCalc />
+    </CalcChrome>
   );
 }

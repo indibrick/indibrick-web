@@ -1,6 +1,10 @@
 import React from 'react';
 import { buildMetadata } from '../../lib/buildMetadata';
 import SixMinuteForm from './SixMinuteForm';
+import CiteBlock from '../../components/CiteBlock';
+import TrustBar from '../../components/TrustBar';
+import BrokerCard from '../../components/BrokerCard';
+import RateMatchPromise from '../../components/RateMatchPromise';
 
 export const metadata = buildMetadata({
   title: 'Mortgage Approval Snapshot — Know What You Qualify For',
@@ -72,6 +76,8 @@ export default function SixMinuteApprovalPage() {
         </div>
       </section>
 
+      <TrustBar variant="light" scaleClaim={{ value: '$18M+', label: 'placed in 2025 · 45+ lender panel' }} />
+
       {/* STAT STRIP */}
       <section className="bg-slate-950 text-white py-8 border-t border-white/5">
         <div className="container mx-auto px-6 max-w-6xl grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
@@ -81,6 +87,36 @@ export default function SixMinuteApprovalPage() {
               <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold mt-1">{s.label}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* SOURCED CLAIMS */}
+      <section className="py-12 md:py-16 bg-white border-b border-gray-100">
+        <div className="container mx-auto px-6 max-w-4xl">
+          <p className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-4 text-center">Sources &amp; Methodology</p>
+          <div className="space-y-3">
+            <CiteBlock
+              value="B-20 stress test"
+              claim="mortgage applicants are qualified at the greater of the contract rate + 2% or the Bank of Canada's minimum qualifying rate — the actual policy that governs Canadian pre-approval math."
+              source="OSFI Guideline B-20 — Residential Mortgage Underwriting Practices and Procedures"
+              sourceUrl="https://www.osfi-bsif.gc.ca/en/guidance/guidance-library/residential-mortgage-underwriting-practices-procedures"
+              asOf="2025-01"
+            />
+            <CiteBlock
+              value="45+"
+              claim="A-lender, B-lender, and private lender relationships accessible through IndiBrick's brokerage partner (Pineapple Financial Inc.) — the lender pool that determines how much you actually qualify for."
+              source="IndiBrick lender panel, internal register"
+              sourceUrl="/methodology"
+              asOf="2026-07"
+            />
+            <CiteBlock
+              value="Insured / uninsured / B"
+              claim="the three tiers of Canadian mortgage lending — pre-approval quality depends on identifying the right tier for your file before the full credit application."
+              source="Financial Consumer Agency of Canada — Mortgage basics"
+              sourceUrl="https://www.canada.ca/en/financial-consumer-agency/services/mortgages.html"
+              asOf="2025-11"
+            />
+          </div>
         </div>
       </section>
 
@@ -144,6 +180,10 @@ export default function SixMinuteApprovalPage() {
           </div>
         </div>
       </section>
+
+      <RateMatchPromise accent="blue" />
+
+      <BrokerCard pageSource="/six-minute-approval" accent="blue" />
 
       {/* FAQ */}
       <section className="py-16 md:py-24 bg-gray-50">

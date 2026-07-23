@@ -2,6 +2,9 @@ import React from 'react';
 import { buildMetadata } from '../../../lib/buildMetadata';
 import SituationForm from '../../../components/SituationForm';
 import { StatStrip, FAQ, BottomCTA, HeroTag, RelatedSituations } from '../../../components/SituationChrome';
+import CiteBlock from '../../../components/CiteBlock';
+import TrustBar from '../../../components/TrustBar';
+import BrokerCard from '../../../components/BrokerCard';
 
 export const metadata = buildMetadata({
   title: 'Investment Property Mortgage — Ontario Broker for Rentals & BRRRR',
@@ -100,7 +103,39 @@ export default function InvestmentPropertyPage() {
         </div>
       </section>
 
+      <TrustBar variant="light" scaleClaim={{ value: '45+', label: 'investor + portfolio lender panel' }} />
+
       <StatStrip stats={STATS} accentTextClass="text-purple-400" />
+
+      {/* SOURCED CLAIMS */}
+      <section className="py-12 md:py-16 bg-white border-b border-gray-100">
+        <div className="container mx-auto px-6 max-w-4xl">
+          <p className="text-[10px] font-black uppercase tracking-widest text-purple-600 mb-4 text-center">Sources &amp; Methodology</p>
+          <div className="space-y-3">
+            <CiteBlock
+              value="20% min down"
+              claim="the minimum down payment required for a Canadian rental / investment property mortgage — the file-fit gate for 1–4 unit rentals."
+              source="Canada Mortgage and Housing Corporation (CMHC) — Rental property mortgages"
+              sourceUrl="https://www.cmhc-schl.gc.ca/en/consumers/home-buying/mortgage-loan-insurance-for-consumers/rental-property"
+              asOf="2025-11"
+            />
+            <CiteBlock
+              value="50% – 100% rental offset"
+              claim="the range of rental income add-back methods across Canadian A-lenders and B-lenders — the specific method a lender uses is often the deciding factor in file qualification."
+              source="OSFI Guideline B-20 + individual lender underwriting policies"
+              sourceUrl="https://www.osfi-bsif.gc.ca/en/guidance/guidance-library/residential-mortgage-underwriting-practices-procedures"
+              asOf="2025-01"
+            />
+            <CiteBlock
+              value="DCR 1.10–1.20"
+              claim="the debt coverage ratio range portfolio and commercial lenders typically require — the governing metric once you exceed A-lender door caps."
+              source="Canada Mortgage and Housing Corporation — Multi-unit residential financing"
+              sourceUrl="https://www.cmhc-schl.gc.ca/en/professionals/project-funding-and-mortgage-financing/mortgage-loan-insurance/multi-unit-insurance"
+              asOf="2025-11"
+            />
+          </div>
+        </div>
+      </section>
 
       {/* CASHFLOW MATH VISUAL */}
       <section className="py-16 md:py-24 bg-gray-50">
@@ -151,6 +186,8 @@ export default function InvestmentPropertyPage() {
           </div>
         </div>
       </section>
+
+      <BrokerCard pageSource="/situations/investment-property" accent="purple" />
 
       <FAQ
         accentTextClass="text-purple-600"

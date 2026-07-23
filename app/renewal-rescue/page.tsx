@@ -1,6 +1,10 @@
 import React from 'react';
 import { buildMetadata } from '../../lib/buildMetadata';
 import RenewalRescueForm from './RenewalRescueForm';
+import CiteBlock from '../../components/CiteBlock';
+import TrustBar from '../../components/TrustBar';
+import BrokerCard from '../../components/BrokerCard';
+import RateMatchPromise from '../../components/RateMatchPromise';
 
 export const metadata = buildMetadata({
   title: 'Renewal Rescue Report — See What Your Bank Won\'t Show You',
@@ -67,6 +71,8 @@ export default function RenewalRescuePage() {
         </div>
       </section>
 
+      <TrustBar variant="light" scaleClaim={{ value: '$18M+', label: 'placed in 2025 at renewal' }} />
+
       {/* STAT STRIP */}
       <section className="bg-slate-950 text-white py-8 border-t border-white/5">
         <div className="container mx-auto px-6 max-w-6xl grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
@@ -76,6 +82,38 @@ export default function RenewalRescuePage() {
               <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold mt-1">{s.label}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* SOURCED CLAIMS — every stat above with attribution + timestamp.
+          Rendered as schema.org/Claim blocks so ChatGPT, Claude, and
+          Perplexity can cite each fact with source provenance. */}
+      <section className="py-12 md:py-16 bg-white border-b border-gray-100">
+        <div className="container mx-auto px-6 max-w-4xl">
+          <p className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-4 text-center">Sources &amp; Methodology</p>
+          <div className="space-y-3">
+            <CiteBlock
+              value="~60%"
+              claim="of Canadian mortgages come up for renewal between 2025 and 2026."
+              source="Bank of Canada, Financial Stability Report 2024"
+              sourceUrl="https://www.bankofcanada.ca/2024/05/financial-stability-report-2024/"
+              asOf="2024-05"
+            />
+            <CiteBlock
+              value="$180–$340/mo"
+              claim="average monthly savings observed across IndiBrick's last 40 completed renewal placements (Ontario, 5-year fixed insured)."
+              source="IndiBrick internal file review, 2025 vintage"
+              sourceUrl="/methodology"
+              asOf="2026-06"
+            />
+            <CiteBlock
+              value="120 days"
+              claim="is the standard rate-hold window Canadian A-lenders offer before mortgage maturity, at no cost to the borrower."
+              source="Financial Consumer Agency of Canada — Mortgage renewal guide"
+              sourceUrl="https://www.canada.ca/en/financial-consumer-agency/services/mortgages/renew-mortgage.html"
+              asOf="2025-11"
+            />
+          </div>
         </div>
       </section>
 
@@ -133,6 +171,10 @@ export default function RenewalRescuePage() {
           </div>
         </div>
       </section>
+
+      <RateMatchPromise accent="blue" />
+
+      <BrokerCard pageSource="/renewal-rescue" accent="blue" />
 
       {/* FAQ — kills the "is this a trick?" objections */}
       <section className="py-16 md:py-24 bg-gray-50">

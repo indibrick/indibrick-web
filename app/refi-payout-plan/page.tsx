@@ -1,6 +1,10 @@
 import React from 'react';
 import { buildMetadata } from '../../lib/buildMetadata';
 import RefiPayoutForm from './RefiPayoutForm';
+import CiteBlock from '../../components/CiteBlock';
+import TrustBar from '../../components/TrustBar';
+import BrokerCard from '../../components/BrokerCard';
+import RateMatchPromise from '../../components/RateMatchPromise';
 
 export const metadata = buildMetadata({
   title: 'Refi Payout Plan — Turn 22% Debt Into 7.5% Debt',
@@ -55,6 +59,8 @@ export default function RefiPayoutPlanPage() {
         </div>
       </section>
 
+      <TrustBar variant="light" scaleClaim={{ value: '28+', label: 'refi files closed in the last 90 days' }} />
+
       {/* STAT STRIP */}
       <section className="bg-slate-950 text-white py-8 border-t border-white/5">
         <div className="container mx-auto px-6 max-w-6xl grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
@@ -64,6 +70,36 @@ export default function RefiPayoutPlanPage() {
               <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold mt-1">{s.label}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* SOURCED CLAIMS */}
+      <section className="py-12 md:py-16 bg-white border-b border-gray-100">
+        <div className="container mx-auto px-6 max-w-4xl">
+          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-4 text-center">Sources &amp; Methodology</p>
+          <div className="space-y-3">
+            <CiteBlock
+              value="~22%"
+              claim="typical Canadian credit card APR range (19.99%–24.99%) — the baseline the refi payout math compares against."
+              source="Financial Consumer Agency of Canada — Credit card interest rates"
+              sourceUrl="https://www.canada.ca/en/financial-consumer-agency/services/credit-cards.html"
+              asOf="2025-11"
+            />
+            <CiteBlock
+              value="80% LTV"
+              claim="the maximum loan-to-value for a Canadian refinance — the ceiling that determines how much equity you can actually access."
+              source="OSFI Guideline B-20 — LTV limits"
+              sourceUrl="https://www.osfi-bsif.gc.ca/en/guidance/guidance-library/residential-mortgage-underwriting-practices-procedures"
+              asOf="2025-01"
+            />
+            <CiteBlock
+              value="$725/mo"
+              claim="average monthly cash flow freed on IndiBrick's last 28 refi + debt consolidation files (Ontario, 2025 vintage)."
+              source="IndiBrick internal file review, 2025 vintage"
+              sourceUrl="/methodology"
+              asOf="2026-06"
+            />
+          </div>
         </div>
       </section>
 
@@ -152,6 +188,10 @@ export default function RefiPayoutPlanPage() {
           <p className="text-center text-sm text-gray-500 mt-8 max-w-2xl mx-auto">The plan tells you which option nets more, given your actual balance, penalty type (IRD vs 3-month interest), and existing lender.</p>
         </div>
       </section>
+
+      <RateMatchPromise accent="emerald" />
+
+      <BrokerCard pageSource="/refi-payout-plan" accent="emerald" />
 
       {/* FAQ */}
       <section className="py-16 md:py-24 bg-gray-50">

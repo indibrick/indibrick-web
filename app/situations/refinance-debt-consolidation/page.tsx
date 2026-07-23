@@ -3,6 +3,10 @@ import Link from 'next/link';
 import { buildMetadata } from '../../../lib/buildMetadata';
 import SituationForm from '../../../components/SituationForm';
 import { StatStrip, FAQ, BottomCTA, HeroTag, RelatedSituations } from '../../../components/SituationChrome';
+import CiteBlock from '../../../components/CiteBlock';
+import TrustBar from '../../../components/TrustBar';
+import BrokerCard from '../../../components/BrokerCard';
+import RateMatchPromise from '../../../components/RateMatchPromise';
 
 export const metadata = buildMetadata({
   title: 'Refinance for Debt Consolidation — Ontario Mortgage Broker',
@@ -107,21 +111,57 @@ export default function RefinanceDebtConsolidationPage() {
               successBody={<>A licensed IndiBrick advisor will email your <strong>Refi Payout Plan</strong> — current vs consolidated payment, break-even on any penalty, and five-year cash-flow delta — within <strong>24 hours</strong>.</>}
               accent="emerald"
               responseWindow="within 24 hours"
+              collapseOptional
               extraFields={[
-                { name: 'currentLender', label: 'Current mortgage lender', type: 'text', placeholder: 'RBC / TD / MCAP / etc.', half: true },
-                { name: 'termType', label: 'Fixed or variable?', type: 'select', options: ['Fixed', 'Variable / Adjustable', 'Not sure'], half: true },
+                // Essential — always shown. Broker needs at least these 3
+                // to build a real payout plan.
                 { name: 'mortgageBalance', label: 'Mortgage balance', type: 'currency', placeholder: '450000', half: true },
                 { name: 'homeValue', label: 'Home value (estimate)', type: 'currency', placeholder: '850000', half: true },
-                { name: 'creditCardDebt', label: 'Credit card debt', type: 'currency', placeholder: '60000', step: 500, half: true },
-                { name: 'otherDebt', label: 'Other unsecured debt', type: 'currency', placeholder: '15000', step: 500, half: true, required: false, helpText: 'LOCs, personal loans' },
-                { name: 'postalCode', label: 'Postal code', type: 'text', placeholder: 'M5V 3A8' },
+                { name: 'creditCardDebt', label: 'Credit card debt', type: 'currency', placeholder: '60000', step: 500 },
+                // Optional — collapsed. Broker will ask on the callback if left blank.
+                { name: 'currentLender', label: 'Current mortgage lender', type: 'text', placeholder: 'RBC / TD / MCAP / etc.', half: true, required: false },
+                { name: 'termType', label: 'Fixed or variable?', type: 'select', options: ['Fixed', 'Variable / Adjustable', 'Not sure'], half: true, required: false },
+                { name: 'otherDebt', label: 'Other unsecured debt', type: 'currency', placeholder: '15000', step: 500, required: false, helpText: 'LOCs, personal loans' },
+                { name: 'postalCode', label: 'Postal code', type: 'text', placeholder: 'M5V 3A8', required: false },
               ]}
             />
           </div>
         </div>
       </section>
 
+      <TrustBar variant="light" scaleClaim={{ value: '28+', label: 'refi files closed in the last 90 days' }} />
+
       <StatStrip stats={STATS} accentTextClass="text-emerald-400" />
+
+      {/* SOURCED CLAIMS */}
+      <section className="py-12 md:py-16 bg-white border-b border-gray-100">
+        <div className="container mx-auto px-6 max-w-4xl">
+          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-4 text-center">Sources &amp; Methodology</p>
+          <div className="space-y-3">
+            <CiteBlock
+              value="~22%"
+              claim="typical Canadian credit card APR range (19.99%–24.99%) — the baseline the refi consolidation math compares against."
+              source="Financial Consumer Agency of Canada — Credit card interest rates"
+              sourceUrl="https://www.canada.ca/en/financial-consumer-agency/services/credit-cards.html"
+              asOf="2025-11"
+            />
+            <CiteBlock
+              value="80% LTV / 65% HELOC"
+              claim="the maximum loan-to-value for a Canadian refinance (80%) and HELOC add-on (65%) — the ceilings that determine how much equity you can access."
+              source="OSFI Guideline B-20 — LTV limits and B-4 (HELOCs)"
+              sourceUrl="https://www.osfi-bsif.gc.ca/en/guidance/guidance-library/residential-mortgage-underwriting-practices-procedures"
+              asOf="2025-01"
+            />
+            <CiteBlock
+              value="IRD vs 3-mo interest"
+              claim="the two Canadian mortgage penalty methods — knowing which your lender uses determines whether a refi pencils out."
+              source="Financial Consumer Agency of Canada — Prepayment charges"
+              sourceUrl="https://www.canada.ca/en/financial-consumer-agency/services/mortgages/prepayment-charges.html"
+              asOf="2025-11"
+            />
+          </div>
+        </div>
+      </section>
 
       {/* WHEN IT MAKES SENSE */}
       <section className="py-16 md:py-24 bg-white">
@@ -167,6 +207,10 @@ export default function RefinanceDebtConsolidationPage() {
           <p className="text-center text-sm text-gray-500 mt-8 max-w-2xl mx-auto">The Refi Payout Plan tells you which option nets more given your actual balance, penalty type (IRD vs 3-mo interest), and existing lender relationship.</p>
         </div>
       </section>
+
+      <RateMatchPromise accent="emerald" />
+
+      <BrokerCard pageSource="/situations/refinance-debt-consolidation" accent="emerald" />
 
       <FAQ
         accentTextClass="text-emerald-600"
