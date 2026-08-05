@@ -200,6 +200,23 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/* Google Tag Manager (GTM-NQNDTRZF).
+            Placed as the FIRST child of <head> per Google's spec — GTM
+            docs specifically say "as high in the head as possible" so
+            the container loads before other analytics scripts can race
+            it. Uses plain inline <script> (not next/script) to guarantee
+            head-scope insertion order.
+            Direct pixels (gtag AW-, Meta 1274828…, Reddit a2_jct2…)
+            keep firing from <body> for now — GTM coexists with them
+            during migration. Retire a direct pixel only after its GTM
+            equivalent is verified in GTM's Preview mode. */}
+        <script
+          id="gtm-head"
+          dangerouslySetInnerHTML={{
+            __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-NQNDTRZF');`,
+          }}
+        />
+
         {/* Preconnect to the origins we hit on every render — gtag + Meta
             Pixel are on the critical path. dns-prefetch is the cheaper
             fallback for hosts we call less frequently. Saves ~150–300ms
@@ -212,6 +229,19 @@ export default async function RootLayout({
         <link rel="dns-prefetch" href="https://www.google-analytics.com" />
       </head>
       <body className={`${inter.className} bg-white text-slate-900 pb-20 md:pb-0 antialiased font-[350]`}>
+
+        {/* Google Tag Manager (noscript) — GTM's <noscript> fallback so
+            no-JS crawlers and users still register a pageview via the
+            iframe pixel. Per Google's spec, this MUST be the first
+            child of <body>. */}
+        <noscript>
+          <iframe
+            src="https://www.googletagmanager.com/ns.html?id=GTM-NQNDTRZF"
+            height="0"
+            width="0"
+            style={{ display: 'none', visibility: 'hidden' }}
+          />
+        </noscript>
 
         {/* --- GOOGLE ADS TAG (AW-17924066227) --- */}
         <Script
