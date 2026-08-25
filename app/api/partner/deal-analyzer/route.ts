@@ -3,7 +3,32 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { adminDb } from '@/lib/firebaseAdmin';
 import { FieldValue } from 'firebase-admin/firestore';
 
+// Deal analyzer is intentionally UNAUTHED — it powers the public partner
+// landing page /p/[slug] where a realtor can send scenarios without an
+// account. To stop LLM cost abuse, apply a Firestore-backed IP rate
+// limit that survives Cloud Run cold starts (Wave D).
+import { checkRateLimit, resetHeaderSeconds } from '@/lib/rateLimiter';
+const ANALYZER_WINDOW_MS = 10 * 60 * 1000;
+const ANALYZER_MAX = 10;
+
+function clientIp(req: NextRequest): string {
+  const fwd = req.headers.get('x-forwarded-for') || '';
+  return fwd.split(',')[0].trim() || 'unknown';
+}
+
 export async function POST(req: NextRequest) {
+  const rate = await checkRateLimit({
+    bucket: 'analyzer.public',
+    key: clientIp(req),
+    windowMs: ANALYZER_WINDOW_MS,
+    max: ANALYZER_MAX,
+  });
+  if (!rate.ok) {
+    return NextResponse.json(
+      { error: 'Too many requests. Try again in a few minutes.' },
+      { status: 429, headers: { 'Retry-After': String(resetHeaderSeconds(rate)) } },
+    );
+  }
   try {
     const apiKey = process.env.GEMINI_API_KEY || '';
     if (!apiKey) return NextResponse.json({ error: "API Key missing." }, { status: 500 });

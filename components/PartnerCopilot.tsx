@@ -7,6 +7,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Sparkles, X, Send, Loader2, Check, XCircle, AlertTriangle } from 'lucide-react';
+import { getAuth } from 'firebase/auth';
 
 type Role = 'user' | 'assistant';
 
@@ -77,9 +78,14 @@ export default function PartnerCopilot({ ctx, onToolExecuted }: Props) {
       abortRef.current = controller;
 
       try {
+        // Copilot streams SSE so we can't use authedFetch as-is — attach
+        // the Firebase ID token manually. Same header shape as lib/apiClient.
+        const idToken = await getAuth().currentUser?.getIdToken().catch(() => null);
+        const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (idToken) authHeaders.Authorization = `Bearer ${idToken}`;
         const res = await fetch('/api/partner/copilot', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: authHeaders,
           body: JSON.stringify({ sessionId, ...payload, context: ctx }),
           signal: controller.signal,
         });

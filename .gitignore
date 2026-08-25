@@ -36,3 +36,4 @@ tsconfig.tsbuildinfo
 
 # Local Claude Code settings
 .claude/
+.git.broken2/

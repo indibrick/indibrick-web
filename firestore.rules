@@ -1,0 +1,449 @@
+rules_version = '2';
+
+// Deny-by-default security rules for IndiBrick.
+//
+// Guiding principles:
+//   1. Every allow rule is explicit. The final catch-all denies all reads
+//      and writes, so any collection not named below is unreachable from
+//      the client SDK.
+//   2. Writes to CRM-critical collections (referrals, tasks, users, leads)
+//      are field-whitelisted per role. Direct client updates cannot mutate
+//      ownership fields (referrerId, assignedAgentId, participantIds,
+//      clientEmail) — those must go through server routes that carry the
+//      audit trail.
+//   3. Admin checks use a role field on /users/{uid} via get(). Long-term
+//      this should migrate to Firebase custom claims (auth.token.admin ==
+//      true) to remove the per-request document read. Marked TODO(claims).
+//   4. No collection allows delete from the client. Deletes happen only
+//      via server routes with justification logged.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helpers ─────────────────────────────────────────────────────
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasRole(roles) {
+      return signedIn() && userDoc().role in roles;
+    }
+
+    // TODO(claims): replace with request.auth.token.admin == true once
+    // admins are promoted via setCustomUserClaims. Until then this reads
+    // /users/{uid} on every rule evaluation — acceptable for the current
+    // request volume but not free.
+    function isAdmin() {
+      return hasRole(['admin']);
+    }
+
+    function isInternalAgent() {
+      return hasRole(['admin', 'internal_agent']);
+    }
+
+    // A user is "on" a referral if they submitted it, are assigned it,
+    // or explicitly appear in the participants array (broker + realtor +
+    // lawyer collaboration case).
+    function onReferral(data) {
+      return signedIn() && (
+        request.auth.uid == data.referrerId ||
+        request.auth.uid == data.assignedAgentId ||
+        (data.participantIds is list && request.auth.uid in data.participantIds)
+      );
+    }
+
+    // Team-scoped visibility (Wave K).
+    //
+    // We can't join to /teams inside a rule at query time — Firestore
+    // rules only allow point lookups via get(), which forces a lookup
+    // per doc read and blows through the 10-per-request cap on any
+    // pipeline scan. So instead of resolving the caller's team here,
+    // we require the referral doc to CARRY a `teamVisibleUids` array
+    // that's a mirror of the owning team's roster (populated by the
+    // server side when a referral is created + refreshed on team
+    // roster changes). Client reads then pass through cheaply.
+    //
+    // For legacy referrals without teamVisibleUids the array is
+    // absent, which safely evaluates false — the client either falls
+    // back to the classic onReferral path, or hits the server API
+    // where resolveTeamVisibleUids() does the full join.
+    function onReferralTeam(data) {
+      return signedIn()
+        && data.teamVisibleUids is list
+        && request.auth.uid in data.teamVisibleUids;
+    }
+
+    // Only these fields may be changed on a referral by a client-side
+    // write. Ownership + identity fields are intentionally excluded —
+    // they require the server-side PATCH endpoint at
+    // /api/partner/referrals/[id] so the change is logged + validated.
+    function referralWriteFieldsAllowed() {
+      let allowed = [
+        'status', 'notes', 'timeline', 'callCount', 'leadTag',
+        'dealCategory', 'dealType', 'dealSummary', 'loanAmount', 'expectedCommission',
+        'lastTouchedAt', 'lastUpdated', 'lastUpdatedBy', 'clientName', 'clientPhone',
+        'requiredDocuments', 'crossSellFlagged',
+        'pushedForMortgage', 'pushedForMortgageAt', 'pushedForMortgageBy',
+        // Insurance-specific fields (Phase 5)
+        'insuranceCarrier', 'insurancePolicyNumber', 'insurancePremiumAnnual',
+        'insuranceCoverageType', 'insuranceEffectiveDate', 'insuranceRenewalDate',
+        'insuranceBoundAt', 'insuranceClaimedBy', 'insuranceClaimedAt',
+        // Wave A: user-defined per-deal custom field bag
+        'customFields',
+        // Wave E-4: attribution bag (UTM + referrer + landing page)
+        'attribution',
+        // Wave K: team-visibility roster mirror. Server keeps this
+        // in sync with the owning team's roster; client-side writes
+        // never touch it directly but the field must be in the
+        // allow-list so the diff after a server-side sync doesn't
+        // trigger an unrelated client write to be rejected.
+        'teamVisibleUids',
+      ];
+      return request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(allowed);
+    }
+
+    // ─── CRM: referrals ──────────────────────────────────────────────
+    // Read: user must be on the referral, OR admin. Admins have
+    //       universal access to every deal regardless of the
+    //       pushedForMortgage flag — that flag is a workflow signal
+    //       ("does the realtor want us on this file?"), not a privacy
+    //       shield. Compliance + audit trail require admin visibility
+    //       across the brokerage.
+    // Create: signed-in — real gate is on the referrerId set to self.
+    // Update: user must be on the referral AND change only whitelisted
+    //         fields. Ownership fields require the server route.
+    // Delete: denied from client. Cloud Function or admin route only.
+    match /referrals/{referralId} {
+      allow read:   if isAdmin()
+                    || onReferral(resource.data)
+                    || onReferralTeam(resource.data);
+      allow create: if signedIn()
+                    && request.resource.data.referrerId == request.auth.uid;
+      allow update: if (isAdmin() || onReferral(resource.data) || onReferralTeam(resource.data))
+                    && referralWriteFieldsAllowed()
+                    // Cannot re-key ownership on update.
+                    && request.resource.data.referrerId == resource.data.referrerId
+                    && request.resource.data.assignedAgentId == resource.data.assignedAgentId
+                    && request.resource.data.leadId == resource.data.leadId;
+      allow delete: if false;
+    }
+
+    // ─── CRM: teams ─────────────────────────────────────────────────
+    // Owner + members read their own team. Writes go through the
+    // /api/partner/team route (admin SDK bypasses these rules), so
+    // client-side writes stay off — this rule mostly exists so a
+    // curious client can subscribe to their team's roster for the
+    // header chip without an extra API call.
+    match /teams/{teamId} {
+      allow read: if isAdmin() || (
+        signedIn() && (
+          request.auth.uid == resource.data.ownerUid ||
+          (resource.data.memberUids is list && request.auth.uid in resource.data.memberUids)
+        )
+      );
+      allow create, update, delete: if false; // API-only
+    }
+
+    // ─── CRM: tasks ──────────────────────────────────────────────────
+    // Reads scoped by assignee. Writes API-only (all /api/partner/tasks
+    // routes use adminDb, which bypasses these rules).
+    match /tasks/{taskId} {
+      allow read: if isAdmin()
+                  || (signedIn() && request.auth.uid == resource.data.assigneeId);
+      allow write: if false;
+    }
+
+    // ─── Users / profiles ────────────────────────────────────────────
+    // A user can read their own profile. Admins can read all.
+    // Writes are admin-only for the ownership + role fields, EXCEPT a
+    // small allowlist of self-editable preference fields (customStages,
+    // customDealFields — user-scoped view config that doesn't affect
+    // permissions). Enforced by a diff.hasOnly() check.
+    function userSelfWriteFieldsAllowed() {
+      let allowed = [
+        'customStages',       // per-user pipeline vocabulary
+        'customDealFields',   // per-user custom field defs
+        'preferences',        // UI prefs bucket
+        'displayName',        // realtor can change their display name
+        'onboardingCompletedAt', // first-time-login wizard completion stamp
+        'onboardingSkippedAt',   // opted out — treat as completed
+        'senderIdentity',     // Wave E-5 — display name, from-email, brokerage
+      ];
+      return request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(allowed);
+    }
+    match /users/{uid} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow write: if isAdmin()
+                    || (signedIn()
+                        && request.auth.uid == uid
+                        && userSelfWriteFieldsAllowed());
+    }
+
+    // ─── Client-side lead intake (public forms) ──────────────────────
+    // partner_inquiries: any visitor may submit the partner signup form.
+    // Deny all reads from client — admin dashboard uses adminDb.
+    match /partner_inquiries/{id} {
+      allow create: if request.resource.data.size() < 40
+                    && request.resource.data.email is string
+                    && request.resource.data.email.size() < 200;
+      allow read, update, delete: if false;
+    }
+
+    // ─── Waitlist (Phase 6) ──────────────────────────────────────────
+    // partner_waitlist is written EXCLUSIVELY via /api/partner/waitlist
+    // so we can rate-limit + validate + increment capacity counters
+    // atomically. Direct client writes blocked.
+    match /partner_waitlist/{id} {
+      allow read, write: if false;
+    }
+
+    // Public counter for the landing-page scarcity widget. Anyone can
+    // read the current spots left; writes only via server route.
+    match /waitlist_capacity/{kind} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // leads: same shape — public create, admin-only read.
+    match /leads/{id} {
+      allow create: if request.resource.data.size() < 60;
+      allow read: if isAdmin()
+                  || (signedIn() && resource.data.clientEmail == request.auth.token.email);
+      allow update, delete: if false;
+    }
+
+    // ─── Lender marketplace ──────────────────────────────────────────
+    match /borrow_direct_deals/{id} {
+      allow read: if hasRole(['admin', 'internal_agent', 'partner_lender']);
+      allow write: if isAdmin();
+    }
+    match /borrow_direct_bids/{id} {
+      allow read: if isAdmin()
+                  || (signedIn() && resource.data.lenderId == request.auth.uid);
+      allow create: if signedIn()
+                    && request.resource.data.lenderId == request.auth.uid;
+      allow update: if isAdmin()
+                    || (signedIn() && resource.data.lenderId == request.auth.uid);
+      allow delete: if false;
+    }
+
+    // ─── Client portal ───────────────────────────────────────────────
+    // A signed-in client can read their own document uploads.
+    match /client_documents/{id} {
+      allow read: if isAdmin()
+                  || (signedIn() && resource.data.clientEmail == request.auth.token.email);
+      allow create: if signedIn()
+                    && request.resource.data.clientEmail == request.auth.token.email;
+      allow update, delete: if isAdmin();
+    }
+
+    // ─── Drip sequences (Wave E-3) ───────────────────────────────────
+    // Per-user sequence definitions + per-recipient run state. Reads
+    // via live subscription in the drip editor; writes go through the
+    // API so we validate + enforce ownership + prevent runs bypass.
+    match /drip_sequences/{id} {
+      allow read: if signedIn() && (isAdmin() || resource.data.ownerUid == request.auth.uid);
+      allow write: if false;
+    }
+    match /drip_runs/{id} {
+      allow read: if signedIn() && (isAdmin() || resource.data.ownerUid == request.auth.uid);
+      allow write: if false;
+    }
+
+    // ─── Unsubscribes (Wave E-2 — CASL suppression list) ─────────────
+    // Server-only. Written by /api/unsubscribe/[token] on one-click
+    // opt-out; read by mass-send + form-submit before dispatching.
+    // Doc IDs are hashed so raw email addresses don't leak via IDs.
+    match /unsubscribes/{id} {
+      allow read, write: if false;
+    }
+
+    // ─── Email templates (Wave E — marketing) ────────────────────────
+    // Per-user template library — reads live-subscribe from the CRM;
+    // writes go through /api/partner/email-templates for validation.
+    match /email_templates/{id} {
+      allow read: if signedIn() && (isAdmin() || resource.data.ownerUid == request.auth.uid);
+      allow write: if false;
+    }
+
+    // ─── Mass-send batches (Wave E — audit + throttle bookkeeping) ───
+    // One doc per mass send: template id, recipient count, send status.
+    // Read by owner + admin; written server-only.
+    match /mass_send_batches/{id} {
+      allow read: if signedIn() && (isAdmin() || resource.data.senderUid == request.auth.uid);
+      allow write: if false;
+    }
+
+    // ─── Rate limits (Wave D — distributed rate limiter) ─────────────
+    // Server-only. Counters keyed by (bucket, key, windowStart). The
+    // TTL policy on rate_limits.expiresAt sweeps expired docs.
+    match /rate_limits/{id} {
+      allow read, write: if false;
+    }
+
+    // ─── Copilot audit log ───────────────────────────────────────────
+    // Written server-side only (adminDb bypasses these rules).
+    // Even admins should read it via a server route, so deny all here.
+    match /copilot_events/{id} {
+      allow read, write: if false;
+    }
+
+    // ─── In-app notifications (Phase 2 rules engine output) ─────────
+    // Notifications are written server-side only (by onReferralWrite +
+    // scheduled digests). A recipient can READ their own inbox and
+    // UPDATE dismiss/snooze state — nothing else. Writes go through
+    // /api/partner/notifications/[id] so audit + validation live in one
+    // place; the direct-update path here is a fallback for the inbox
+    // "mark all read" UX which shouldn't need a round-trip.
+    match /notifications/{id} {
+      allow read: if isAdmin()
+                  || (signedIn() && request.auth.uid == resource.data.recipientUid);
+      allow create: if false;
+      allow update: if signedIn()
+                    && request.auth.uid == resource.data.recipientUid
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['read', 'readAt', 'dismissed', 'dismissedAt',
+                                 'snoozedUntil', 'snoozedAt']);
+      allow delete: if false;
+    }
+
+    // ─── Rules engine event log (idempotency + audit) ────────────────
+    // Every rule evaluation writes a row here so onReferralWrite can
+    // dedupe (idempotency key) and rate-limit (debounce). No client
+    // access — read via server route.
+    match /rule_events/{id} {
+      allow read, write: if false;
+    }
+
+    // ─── Rule config (author-time toggles) ───────────────────────────
+    // Rule enable/disable state + snooze thresholds. Admin-editable via
+    // a future rules-authoring UI; for now created via the seed script.
+    match /rule_config/{ruleId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // ─── Workflows (Phase 8 Wave 2 — user-authored automations) ──────
+    // A workflow is a stored JSON blob describing a trigger + conditions
+    // + actions. The rules engine loads active workflows on every eval
+    // and interprets them into runtime Rule objects. Same safeguards
+    // (idempotency, debounce, circuit breaker) apply as to code-defined
+    // rules.
+    //
+    // For v1 (Wave 2): admin-authored only, so we can iterate on the
+    // interpreter safely without exposing malformed workflows to
+    // partners. Once we harden the interpreter + add a schema-validated
+    // create endpoint, we open create/update to internal_agent + team
+    // owners in a future wave.
+    match /workflows/{id} {
+      allow read: if isAdmin() || isInternalAgent();
+      allow write: if false;   // API-only via /api/partner/workflows
+    }
+
+    // ─── Forms (Phase 8 Wave 2 — lead-capture form builder) ──────────
+    // Read: signed-in admins (list in the panel). Public consumers hit
+    // GET /api/forms/[slug] which uses adminDb server-side to render
+    // the form on the public /f/{slug} page. Writes are API-only.
+    match /forms/{id} {
+      allow read: if isAdmin() || isInternalAgent();
+      allow write: if false;
+    }
+
+    // Form submissions — server-written on every public form submit
+    // (via /api/forms/[slug]/submit). Only admins list them; the
+    // referral doc it spawned is where day-to-day work happens.
+    match /form_submissions/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ─── Messages (Phase 8 Wave 1 — Twilio SMS + call log) ──────────
+    // Each message doc is one SMS or call event tied to a referral.
+    // Reads: participants of the linked referral, or admin.
+    // Writes: server-side only (via /api/twilio/* webhooks and
+    // /api/partner/messages), so we can rate-limit + meter + audit.
+    match /messages/{id} {
+      allow read: if isAdmin()
+                  || (signedIn() && (
+                        request.auth.uid == resource.data.senderUid
+                        || request.auth.uid == resource.data.recipientUid
+                        || (resource.data.participantUids is list && request.auth.uid in resource.data.participantUids)
+                      ));
+      allow write: if false;
+    }
+
+    // ─── Usage metering (Phase 8 Wave 1) ─────────────────────────────
+    // Per-tenant monthly counters (sms/call/email/storage). Server-
+    // written on every action. Reads: admin only for now; a future
+    // customer-billing UI can add per-tenant read via a scoped role.
+    match /usage/{tenantId} {
+      allow read, write: if false;
+      match /months/{monthId} {
+        allow read: if isAdmin();
+        allow write: if false;
+      }
+    }
+
+    // ─── Cross-sell flags (Phase 3) ──────────────────────────────────
+    // Persistent state machine for cross-sell opportunities. Created
+    // server-side by the rules engine when e.g. a realtor deal enters
+    // Offer Made without a linked mortgage. The assigned broker (owner)
+    // can update status to Contacted / Converted / Dismissed via the
+    // /api/partner/cross-sell-flags/[id] endpoint. Admins see the
+    // aggregate view.
+    //
+    // Reads: owner OR admin. Writes: server-side only through the API
+    // route (audit trail + escalation logic lives there).
+    match /crossSellFlags/{id} {
+      allow read: if isAdmin()
+                  || (signedIn() && request.auth.uid == resource.data.ownerUid);
+      allow write: if false;
+    }
+
+    // ─── Firebase Trigger Email extension ────────────────────────────
+    // Only server code should enqueue emails. The extension itself reads
+    // and deletes with admin privileges.
+    match /mail/{id} {
+      allow read, write: if false;
+    }
+
+    // ─── Public content collections ──────────────────────────────────
+    // Read-all, admin-write. These already carry no PII and are served
+    // to unauthenticated visitors.
+    match /posts/{id}          { allow read: if true; allow write: if isAdmin(); }
+    match /news/{id}           { allow read: if true; allow write: if isAdmin(); }
+    match /rates/{id}          { allow read: if true; allow write: if isAdmin(); }
+    match /cities/{id}         { allow read: if true; allow write: if isAdmin(); }
+    match /properties/{id}     { allow read: if true; allow write: if isAdmin(); }
+    match /market_reports/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /site_settings/{id}  { allow read: if true; allow write: if isAdmin(); }
+
+    // ─── SEO OS collections (Phase 0) ────────────────────────────────
+    // All six behavioral collections are admin-only from the client
+    // SDK. The API routes with admin SDK bypass these — that's the
+    // path we use for anything an admin needs to see or write.
+    // integrationCredentials is even stricter: client-side is DENIED
+    // outright since it holds encrypted OAuth tokens; only the
+    // admin-SDK-backed server code ever touches it.
+    match /seoContent/{id}            { allow read: if isAdmin(); allow write: if false; }
+    match /seoCalendar/{id}           { allow read: if isAdmin(); allow write: if false; }
+    match /seoAudits/{id}             { allow read: if isAdmin(); allow write: if false; }
+    match /backlinkTargets/{id}       { allow read: if isAdmin(); allow write: if false; }
+    match /publishQueue/{id}          { allow read: if isAdmin(); allow write: if false; }
+    match /aiCitations/{id}           { allow read: if isAdmin(); allow write: if false; }
+    match /aiCitationQueries/{id}     { allow read: if isAdmin(); allow write: if false; }
+    match /integrationCredentials/{id}{ allow read, write: if false; }
+
+    // ─── Deny-by-default catch-all ───────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

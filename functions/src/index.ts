@@ -8,6 +8,37 @@ import fetch from "node-fetch";
 admin.initializeApp();
 const db = admin.firestore();
 
+// Rules engine trigger — evaluates every /referrals write against the
+// registry in ./rules/index.ts and dispatches notifications / tasks
+// through the safeguarded runner in ./rules/engine.ts.
+export { onReferralWrite } from "./onReferralWrite";
+
+// Cross-sell flag lifecycle — hourly escalation ladder + 8am daily
+// admin digest. Both operate on /crossSellFlags which is populated by
+// the rules engine.
+export { escalateStaleCrossSellFlags, crossSellDailyDigest } from "./crossSell";
+
+// Insurance renewal reminders — 7am daily sweep of Insurance-typed
+// referrals with an approaching renewal date. Fires escalating tiers
+// (120d info → 60/30d warn → 7d urgent) directly to the assigned
+// insurance agent's inbox.
+export { insuranceRenewalReminders } from "./insurance";
+
+// Waitlist onboarding drip (Phase 6) — day-0 welcome on submission +
+// daily 9am scheduled sweep for day-7 / day-30 nudges to unreviewed
+// prospects.
+export { sendWaitlistWelcome, sendWaitlistNudges } from "./waitlistDrip";
+
+// Drip sequence runner (Wave E-3) — every 5 min, fires due steps
+// through the same /mail pipe as mass-send with matching CASL footer
+// + List-Unsubscribe headers.
+export { dripRunner } from "./dripRunner";
+
+// ESP-agnostic mail dispatcher (Wave E-5) — no-op while MAIL_PROVIDER
+// stays "trigger-email"; when we flip to SendGrid/Postmark/SES this
+// becomes the send path. Adapters live in ./mailDispatcher.
+export { dispatchMail } from "./mailDispatcher";
+
 export const metaLeadReceiver = onRequest(
   { secrets: ["META_ACCESS_TOKEN"] },
   async (req, res) => {

@@ -50,6 +50,12 @@ const STATIC_ROUTES: { path: string; priority?: number }[] = [
   { path: '/renewal-rescue', priority: 0.95 },
   { path: '/six-minute-approval', priority: 0.9 },
   { path: '/refi-payout-plan', priority: 0.9 },
+  // Partner-side landing pages (B2B — realtor + insurance-agent recruitment)
+  { path: '/for-realtors', priority: 0.85 },
+  { path: '/for-insurance-agents', priority: 0.85 },
+  { path: '/pricing', priority: 0.9 },
+  { path: '/vs-gohighlevel', priority: 0.75 },
+  { path: '/vs-follow-up-boss', priority: 0.75 },
   // /situations/* — playbook family, one page per common mortgage life-event.
   // Each has its own capture form + FSRA-licensed broker callback.
   { path: '/situations', priority: 0.9 },

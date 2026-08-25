@@ -6,14 +6,19 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { syncTasksForUser, getRefreshTokenForUser } from '../../../../services/CalendarService';
+import { requireAuth } from '@/lib/authGuard';
 
 export async function POST(req: NextRequest) {
-  try {
-    const { userId, tasks } = await req.json();
+  const guard = await requireAuth(req);
+  if (!guard.ok) return guard.response;
+  // userId always comes from the verified token — the previous version
+  // trusted the payload's userId, so any signed-in partner could sync
+  // events to another partner's calendar.
+  const userId = guard.session.uid;
 
-    if (!userId) {
-      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
-    }
+  try {
+    const { tasks } = await req.json();
+
     if (!Array.isArray(tasks)) {
       return NextResponse.json({ error: 'tasks must be an array' }, { status: 400 });
     }

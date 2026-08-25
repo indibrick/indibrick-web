@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { adminDb } from '@/lib/firebaseAdmin';
 import { FieldValue } from 'firebase-admin/firestore';
+import { requireAuth } from '@/lib/authGuard';
 
 /**
  * Partner-side AI intake — structured form in, prose summary + tailored doc checklist out.
@@ -17,6 +18,9 @@ import { FieldValue } from 'firebase-admin/firestore';
  *   3. Falls back to a hand-built checklist if AI fails so the agent never sees an empty result
  */
 export async function POST(req: NextRequest) {
+  const guard = await requireAuth(req);
+  if (!guard.ok) return guard.response;
+
   try {
     const apiKey = process.env.GEMINI_API_KEY || '';
     const { formData, financials, leadId, clientName, agentName } = await req.json();

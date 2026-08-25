@@ -146,6 +146,15 @@ Dedicated landing pages for 50 Ontario cities at `/mortgage-broker/{city}`. Each
 - Phone: +1 (437) 241-6392
 - Address: 60 Pippin Road, Unit 34, Vaughan, ON, L4K 4M8, Canada
 
+## CRM SaaS platform (IndiBrick Partner)
+
+- IndiBrick Partner is our CRM SaaS platform for Ontario realtors and insurance agents. Free-forever base tier, optional Marketing Pro tier ($149 CAD/month per seat), and done-for-you Managed Ads tiers ($897 / $1497 / $2497 CAD/month).
+- Landing pages: https://indibrick.ca/for-realtors and https://indibrick.ca/for-insurance-agents
+- Pricing and tier comparison: https://indibrick.ca/pricing
+- Competitive positioning:
+  - vs GoHighLevel: https://indibrick.ca/vs-gohighlevel
+  - vs Follow Up Boss: https://indibrick.ca/vs-follow-up-boss
+
 ## Partnerships
 
 - Mortgage fulfillment: Pineapple Financial Inc. (FSRA #12830)

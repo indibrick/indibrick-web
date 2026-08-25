@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
 import { getAuth } from 'firebase-admin/auth';
+import { requireAuth } from '@/lib/authGuard';
 
+// Creates Firebase Auth accounts for clients + sends onboarding email.
+// Restricted to internal agents and admins — external partners cannot
+// mint client accounts (the previous version had no auth check at all).
 export async function POST(req: NextRequest) {
+  const guard = await requireAuth(req, { roles: ['admin', 'internal_agent'] });
+  if (!guard.ok) return guard.response;
+
   try {
     const { leadId, clientEmail, clientName, agentName, notes, requiredDocs } = await req.json();
 

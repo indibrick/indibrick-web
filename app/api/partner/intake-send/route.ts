@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
 import { FieldValue } from 'firebase-admin/firestore';
+import { requireAuth } from '@/lib/authGuard';
 
 /**
  * Agent-confirmation step of the AI intake flow.
@@ -14,6 +15,9 @@ import { FieldValue } from 'firebase-admin/firestore';
  *      and the personalized document checklist with a portal link
  */
 export async function POST(req: NextRequest) {
+  const guard = await requireAuth(req);
+  if (!guard.ok) return guard.response;
+
   try {
     if (!adminDb) {
       return NextResponse.json({ error: 'Server not initialized' }, { status: 500 });

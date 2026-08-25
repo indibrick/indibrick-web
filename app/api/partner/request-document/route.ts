@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
 import { FieldValue } from 'firebase-admin/firestore';
+import { requireAuth } from '@/lib/authGuard';
 
 export async function POST(req: NextRequest) {
+  const guard = await requireAuth(req);
+  if (!guard.ok) return guard.response;
+
   try {
     // Notice we now accept documentNames (an array)
     const { leadId, documentNames, clientEmail, clientName, agentName } = await req.json();

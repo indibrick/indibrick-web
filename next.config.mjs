@@ -83,4 +83,30 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry — wrap the config only when the auth token is available (for
+// source-map upload). Locally + in unauthenticated CI, we skip the
+// wrapper so the build stays hermetic. Sentry SDK still initializes
+// at runtime via sentry.{client,server,edge}.config.ts as long as the
+// DSN is set.
+async function wrapWithSentryIfConfigured(config) {
+  if (!process.env.NEXT_PUBLIC_SENTRY_DSN) return config;
+  try {
+    const { withSentryConfig } = await import('@sentry/nextjs');
+    return withSentryConfig(config, {
+      // Only upload source maps when we have credentials — otherwise
+      // print a warning and continue.
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      silent: !process.env.SENTRY_AUTH_TOKEN,
+      widenClientFileUpload: true,
+      // Hide the source-map upload noise on CI without-auth.
+      disableLogger: !process.env.SENTRY_AUTH_TOKEN,
+    });
+  } catch (e) {
+    console.warn('[next.config] Sentry wrapper skipped:', e?.message);
+    return config;
+  }
+}
+
+export default await wrapWithSentryIfConfigured(nextConfig);

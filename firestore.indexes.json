@@ -1,0 +1,309 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "referrals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "assignedAgentId", "order": "ASCENDING" },
+        { "fieldPath": "referralDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "referrals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "participantIds", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "referralDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "referrals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "referralDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "referrals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clientEmail", "order": "ASCENDING" },
+        { "fieldPath": "referralDate", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "assigneeId", "order": "ASCENDING" },
+        { "fieldPath": "dueDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "referralId", "order": "ASCENDING" },
+        { "fieldPath": "dueDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "borrow_direct_bids",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "lenderId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "borrow_direct_bids",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "dealId", "order": "ASCENDING" },
+        { "fieldPath": "amount", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "copilot_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "recipientUid", "order": "ASCENDING" },
+        { "fieldPath": "dismissed", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "recipientUid", "order": "ASCENDING" },
+        { "fieldPath": "read", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "rule_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "idempotencyKey", "order": "ASCENDING" },
+        { "fieldPath": "firedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "rule_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ruleId", "order": "ASCENDING" },
+        { "fieldPath": "referralId", "order": "ASCENDING" },
+        { "fieldPath": "firedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "crossSellFlags",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerUid", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "flaggedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "crossSellFlags",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "flaggedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "crossSellFlags",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sourceReferralId", "order": "ASCENDING" },
+        { "fieldPath": "flaggedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "referrals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "dealType", "order": "ASCENDING" },
+        { "fieldPath": "insuranceRenewalDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "referrals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "dealType", "order": "ASCENDING" },
+        { "fieldPath": "assignedAgentId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "partner_waitlist",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "kind", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "partner_waitlist",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "dripDay", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "messages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "referralId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "messages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clientPhone", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "workflows",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "enabled", "order": "ASCENDING" },
+        { "fieldPath": "triggerType", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "forms",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "slug", "order": "ASCENDING" },
+        { "fieldPath": "enabled", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "form_submissions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "formSlug", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "email_templates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerUid", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mass_send_batches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "senderUid", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "unsubscribes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tenantId", "order": "ASCENDING" },
+        { "fieldPath": "lastOptedOutAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "drip_sequences",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerUid", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "drip_runs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "nextFireAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "drip_runs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sequenceId", "order": "ASCENDING" },
+        { "fieldPath": "enrolledAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "drip_runs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "referralId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "seoContent",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "seoCalendar",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "scheduledDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "aiCitations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "queryNormalized", "order": "ASCENDING" },
+        { "fieldPath": "engine", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "aiCitations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "runId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "aiCitationQueries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isActive", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

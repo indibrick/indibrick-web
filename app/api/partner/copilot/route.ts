@@ -6,6 +6,7 @@
 import { NextRequest } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { adminDb } from '../../../../lib/firebaseAdmin';
+import { requireAuth } from '../../../../lib/authGuard';
 import {
   COPILOT_TOOLS,
   getGeminiTools,
@@ -126,6 +127,16 @@ If the user says something you can't act on (delete a lead, reassign to another 
 // ─── Main handler ────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  // Auth: verify the Firebase ID token in the Authorization header and
+  // derive uid + role from it. Prior versions read uid + role from the
+  // request payload's `context` field, which meant any signed-in
+  // partner could impersonate any other by editing the client payload
+  // — and role could be self-promoted to 'admin', giving access to
+  // admin-only copilot tools.
+  const guard = await requireAuth(req);
+  if (!guard.ok) return guard.response;
+  const { uid, role: sessionRole } = guard.session;
+
   const body = await req.json().catch(() => ({}));
   const { sessionId, message, confirmationResponse, context: rawContext } = body || {};
 
@@ -137,22 +148,16 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: 'message or confirmationResponse required' }), { status: 400 });
   }
 
-  // Auth: pull uid + role from context. Callers pass a Firebase ID token
-  // in the Authorization header; we verify it server-side. For now,
-  // fall through to context-supplied uid to preserve existing partner
-  // API convention (consistent with the other /api/partner/* routes).
-  // TODO(security): tighten to require verifyIdToken() once client wires
-  // the Authorization header.
+  // Context is now: uid + role from the verified session (never from
+  // payload); viewport hints (selectedDealId, filter, scope) still come
+  // from the client since they're display state, not access control.
   const ctx: CopilotContext = {
-    uid: rawContext?.uid,
-    role: rawContext?.role === 'admin' ? 'admin' : 'agent',
+    uid,
+    role: sessionRole === 'admin' ? 'admin' : 'agent',
     selectedDealId: rawContext?.selectedDealId,
     pipelineFilter: rawContext?.pipelineFilter,
     viewScope: rawContext?.viewScope || 'my',
   };
-  if (!ctx.uid) {
-    return new Response(JSON.stringify({ error: 'context.uid required' }), { status: 400 });
-  }
 
   // Rate limit — only counts on brand-new messages, not confirmation replies.
   if (message && !confirmationResponse) {

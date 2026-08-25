@@ -10,7 +10,10 @@
     "enrich-neighborhoods": "tsx scripts/enrich-neighborhoods/index.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.120.0",
     "@google/generative-ai": "^0.24.1",
+    "@sentry/nextjs": "^10.70.0",
+    "cheerio": "^1.2.0",
     "firebase": "^10.8.0",
     "firebase-admin": "^12.0.0",
     "googleapis": "^171.4.0",
@@ -22,9 +25,11 @@
     "react-helmet-async": "^2.0.4",
     "recharts": "^2.12.0",
     "sanitize-html": "^2.17.1",
+    "twilio": "^6.1.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@types/cheerio": "^0.22.35",
     "@types/node": "^20.0.0",
     "@types/pdf-parse": "^1.1.5",
     "@types/react": "^18.0.0",
