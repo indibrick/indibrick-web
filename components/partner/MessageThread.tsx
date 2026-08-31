@@ -103,6 +103,7 @@ export default function MessageThread({ referralId, clientName, clientPhone, age
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [phoneForCall, setPhoneForCall] = useState(agentPhone || '');
+  const [showCallInput, setShowCallInput] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new messages arrive.
@@ -136,7 +137,10 @@ export default function MessageThread({ referralId, clientName, clientPhone, age
   const handleCall = async () => {
     setError(null);
     if (!phoneForCall.trim()) {
-      setError('Enter your phone number to be bridged into the call.');
+      // Prompt for the phone inline instead of stealing modal space
+      // for a permanent input strip. Once entered, remembered for the
+      // rest of the session.
+      setShowCallInput(true);
       return;
     }
     const res = await callClient(phoneForCall);
@@ -145,32 +149,51 @@ export default function MessageThread({ referralId, clientName, clientPhone, age
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="p-3 md:p-4 border-b border-gray-100 flex items-center justify-between shrink-0">
-        <div className="min-w-0">
+      {/* Header — compact. Call action is a single icon-only button; the
+          "your phone" prompt only surfaces when the agent actually
+          clicks Call without a stored number. */}
+      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-3 shrink-0">
+        <div className="min-w-0 flex-1">
           <h3 className="text-xs font-black uppercase tracking-widest text-slate-900">Messages · Calls</h3>
-          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-0.5 truncate">
+          <p className="text-[10px] text-gray-500 font-medium mt-0.5 truncate">
             {clientPhone ? `${clientName || 'Client'} · ${clientPhone}` : (clientName || 'Client')}
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <button
+          onClick={handleCall}
+          disabled={calling || !clientPhone}
+          title={clientPhone ? 'Bridge you and the client via Twilio' : 'Client has no phone on file'}
+          className="shrink-0 inline-flex items-center gap-1.5 bg-slate-900 hover:bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg transition disabled:opacity-40"
+        >
+          {calling ? <Loader2 size={11} className="animate-spin" /> : <PhoneCall size={11} />} Call
+        </button>
+      </div>
+
+      {/* On-demand "your phone" prompt — only visible when agent tried
+          to call without one on file. Small, tucked below the header. */}
+      {showCallInput && (
+        <div className="px-4 py-2 border-b border-blue-100 bg-blue-50 flex items-center gap-2 shrink-0">
+          <span className="text-[10px] font-black uppercase tracking-widest text-blue-800">Your phone</span>
           <input
             type="tel"
             value={phoneForCall}
             onChange={e => setPhoneForCall(e.target.value)}
-            placeholder="Your phone (E.164)"
-            className="w-40 px-2 py-1.5 text-[11px] font-medium bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-slate-900 text-slate-900"
+            placeholder="+14165551234"
+            autoFocus
+            className="flex-1 px-2 py-1 text-xs font-medium bg-white border border-blue-200 rounded outline-none focus:border-blue-600 text-slate-900"
           />
           <button
-            onClick={handleCall}
-            disabled={calling || !clientPhone}
-            title={clientPhone ? 'Bridge you and the client via Twilio' : 'Client has no phone on file'}
-            className="bg-slate-900 hover:bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg flex items-center gap-1 transition disabled:opacity-50"
+            onClick={async () => {
+              if (!phoneForCall.trim()) return;
+              setShowCallInput(false);
+              await handleCall();
+            }}
+            className="text-[10px] font-black uppercase tracking-widest bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded transition"
           >
-            {calling ? <Loader2 size={11} className="animate-spin" /> : <PhoneCall size={11} />} Call
+            Ring
           </button>
         </div>
-      </div>
+      )}
 
       {/* Thread body */}
       <div ref={scrollerRef} className="flex-1 overflow-y-auto p-3 md:p-4 bg-gray-50 min-h-[280px] max-h-[420px] custom-scrollbar">

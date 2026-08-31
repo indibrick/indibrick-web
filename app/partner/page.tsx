@@ -538,10 +538,11 @@ export default function PartnerCRM() {
              if (agent && agent.email) emails.add(agent.email);
              if (selectedDeal.participants) { selectedDeal.participants.forEach((p: any) => { if (p.email) emails.add(p.email); }); }
          }
-         const emailsArray = Array.from(emails).filter(e => e && e !== '');
-         for (const email of emailsArray) {
-             await addDoc(collection(db, "mail"), { to: email, message: { subject, html: `<div style="font-family: sans-serif; padding: 20px;">${htmlContent}</div>` } });
-         }
+         const recipients = Array.from(emails).filter(e => e && e !== '');
+         if (recipients.length === 0) return;
+         // Server-side enqueue — /mail collection is denied to client
+         // writes by design (Wave E). This endpoint proxies via admin SDK.
+         await authedPost('/api/partner/notify', { recipients, subject, html: htmlContent });
       } catch (e) { console.warn("Email dispatch failed", e); }
   };
 

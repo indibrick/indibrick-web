@@ -34,12 +34,16 @@ service cloud.firestore {
       return signedIn() && userDoc().role in roles;
     }
 
-    // TODO(claims): replace with request.auth.token.admin == true once
-    // admins are promoted via setCustomUserClaims. Until then this reads
-    // /users/{uid} on every rule evaluation — acceptable for the current
-    // request volume but not free.
+    // Accept BOTH paths: a custom claim `admin: true` on the auth
+    // token (the mechanism setCustomUserClaims uses — checked
+    // constant-time, no Firestore read) OR the /users/{uid}.role
+    // fallback. Matches lib/authGuard.ts on the server so admin
+    // status is consistent across client + server writes.
     function isAdmin() {
-      return hasRole(['admin']);
+      return signedIn() && (
+        request.auth.token.admin == true
+        || hasRole(['admin'])
+      );
     }
 
     function isInternalAgent() {
@@ -123,15 +127,21 @@ service cloud.firestore {
       allow read:   if isAdmin()
                     || onReferral(resource.data)
                     || onReferralTeam(resource.data);
-      allow create: if signedIn()
-                    && request.resource.data.referrerId == request.auth.uid;
-      allow update: if (isAdmin() || onReferral(resource.data) || onReferralTeam(resource.data))
+      allow create: if isAdmin() || (
+                    signedIn()
+                    && request.resource.data.referrerId == request.auth.uid);
+      // Admin bypasses field-lock + ownership-immutability checks so
+      // support workflows (fixing bad data, reassigning deals, etc.)
+      // aren't gated by the client-write allow-list. Non-admins still
+      // pass through the field-lock. This matches the server-side
+      // authGuard which grants admins universal access.
+      allow update: if isAdmin() || (
+                    (onReferral(resource.data) || onReferralTeam(resource.data))
                     && referralWriteFieldsAllowed()
-                    // Cannot re-key ownership on update.
                     && request.resource.data.referrerId == resource.data.referrerId
                     && request.resource.data.assignedAgentId == resource.data.assignedAgentId
-                    && request.resource.data.leadId == resource.data.leadId;
-      allow delete: if false;
+                    && request.resource.data.leadId == resource.data.leadId);
+      allow delete: if isAdmin();
     }
 
     // ─── CRM: teams ─────────────────────────────────────────────────
@@ -156,7 +166,14 @@ service cloud.firestore {
     match /tasks/{taskId} {
       allow read: if isAdmin()
                   || (signedIn() && request.auth.uid == resource.data.assigneeId);
-      allow write: if false;
+      // Any signed-in partner can CREATE a task — the touch-cadence
+      // batch write fires from the client every time a lead is
+      // routed / self-assigned, and every partner uses that flow.
+      allow create: if signedIn();
+      // Updates + deletes are scoped to the assignee (or admin).
+      // Reassignments go through the server API which uses admin SDK.
+      allow update, delete: if isAdmin()
+                            || (signedIn() && request.auth.uid == resource.data.assigneeId);
     }
 
     // ─── Users / profiles ────────────────────────────────────────────

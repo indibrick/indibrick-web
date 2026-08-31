@@ -41,32 +41,44 @@ function getDaysInStage(deal: any): number {
   return Math.floor((Date.now() - new Date(since).getTime()) / (1000 * 60 * 60 * 24));
 }
 
-// Wave I-1 — two-tab wrapper for the right-column messaging area:
-//   Send   → MessageThread (SMS + calls, with send box)
-//   Inbox  → UnifiedInbox (SMS + calls + email + notes, read-only)
-// State is local because tab choice is a per-open UI preference, not
-// something the parent modal needs to persist.
+// Right-column messaging.
+//
+// Primary interaction is MessageThread — SMS + calls, with its own
+// composer. The full-history view (email + notes + SMS + calls in one
+// stream) is exposed as an on-demand modal so the sidebar stays
+// uncluttered when the agent just wants to text the client.
 function DealConversation({ referralId, clientName, clientPhone }: {
   referralId: string; clientName?: string; clientPhone?: string;
 }) {
-  const [tab, setTab] = useState<'send' | 'inbox'>('send');
+  const [showFullHistory, setShowFullHistory] = useState(false);
   return (
-    <div>
-      <div className="inline-flex bg-gray-100 border border-gray-200 rounded-lg p-0.5 mb-3">
-        <button onClick={() => setTab('send')}
-          className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition ${tab === 'send' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}>
-          Send
-        </button>
-        <button onClick={() => setTab('inbox')}
-          className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition ${tab === 'inbox' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}>
-          Full inbox
-        </button>
-      </div>
-      {tab === 'send'
-        ? <MessageThread referralId={referralId} clientName={clientName} clientPhone={clientPhone}/>
-        : <div className="h-96 rounded-lg border border-gray-200 overflow-hidden">
-            <UnifiedInbox referralId={referralId}/>
-          </div>}
+    <div className="space-y-2">
+      <MessageThread referralId={referralId} clientName={clientName} clientPhone={clientPhone}/>
+      <button
+        onClick={() => setShowFullHistory(true)}
+        className="w-full text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 py-2 rounded-lg border border-dashed border-gray-200 hover:border-gray-400 transition"
+      >
+        View full history · email · notes
+      </button>
+
+      {showFullHistory && (
+        <div className="fixed inset-0 z-[95] bg-slate-900/70 flex items-center justify-center p-4"
+          onClick={() => setShowFullHistory(false)}>
+          <div className="bg-white w-full max-w-2xl max-h-[85vh] rounded-2xl overflow-hidden flex flex-col shadow-2xl"
+            onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-3 border-b border-neutral-200 flex items-center justify-between">
+              <div className="min-w-0">
+                <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">Full conversation history</h3>
+                <p className="text-xs text-neutral-500 truncate">{clientName || 'Client'} — every SMS, call, email, and note</p>
+              </div>
+              <button onClick={() => setShowFullHistory(false)} className="text-neutral-500 hover:text-neutral-900 p-1"><X size={16}/></button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <UnifiedInbox referralId={referralId}/>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -466,8 +478,28 @@ export default function DealModal(props: DealModalProps) {
                           </div>
                       ) : (
                           <form onSubmit={handleActionSubmit} className="relative">
-                            <textarea className={`w-full bg-white border-2 p-4 pr-12 rounded-xl font-medium focus:border-black outline-none transition resize-none text-sm shadow-sm ${logType === 'note_internal' ? 'border-amber-200 focus:border-amber-500 bg-amber-50/30' : 'border-gray-200'}`} rows={2} placeholder={logType === 'log_call' ? "Notes from call (will increment SLA counter)..." : logType === 'note_client' ? "Type a message directly to the client's portal..." : "Type an internal note visible only to the deal team..."} value={logInput} onChange={e => setLogInput(e.target.value)} required />
-                            <button className={`absolute right-2 bottom-3 p-2 rounded-lg text-white transition shadow-sm ${logType === 'log_call' ? 'bg-blue-600 hover:bg-blue-700' : logType === 'note_internal' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-slate-900 hover:bg-black'}`}><Send size={14} /></button>
+                            <textarea
+                              className={`w-full bg-white border-2 p-4 pr-16 rounded-xl font-medium focus:border-black outline-none transition resize-none text-sm shadow-sm ${logType === 'note_internal' ? 'border-amber-200 focus:border-amber-500 bg-amber-50/30' : 'border-gray-200'}`}
+                              rows={2}
+                              placeholder={logType === 'log_call' ? "Notes from call (will increment SLA counter)..." : logType === 'note_client' ? "Type a message directly to the client's portal..." : "Type an internal note visible only to the deal team..."}
+                              value={logInput}
+                              onChange={e => setLogInput(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                                  e.preventDefault();
+                                  handleActionSubmit(e as any);
+                                }
+                              }}
+                              required
+                            />
+                            <button
+                              type="submit"
+                              onClick={handleActionSubmit}
+                              disabled={!logInput.trim()}
+                              className={`absolute right-2 bottom-3 px-3 py-1.5 rounded-lg text-white text-[10px] font-black uppercase tracking-widest transition shadow-sm disabled:opacity-40 inline-flex items-center gap-1 ${logType === 'log_call' ? 'bg-blue-600 hover:bg-blue-700' : logType === 'note_internal' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-slate-900 hover:bg-black'}`}
+                            >
+                              <Send size={12}/> {logType === 'log_call' ? 'Log' : 'Save'}
+                            </button>
                           </form>
                       )}
                   </div>
