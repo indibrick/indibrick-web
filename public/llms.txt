@@ -155,6 +155,15 @@ Dedicated landing pages for 50 Ontario cities at `/mortgage-broker/{city}`. Each
   - vs GoHighLevel: https://indibrick.ca/vs-gohighlevel
   - vs Follow Up Boss: https://indibrick.ca/vs-follow-up-boss
 
+## Featured new-build communities (Simcoe County)
+
+Landing pages with verified pricing + floor plans, sourced from official builder pages:
+
+- MIRA Towns by Dunsire Developments — 700 Mapleview Dr E, South Barrie. Freehold townhomes (Vista/Metro/Legacy collections), 2-5 bedrooms, $599,990 – $799,999, occupancy 2028. Steps from Barrie South GO Station. https://indibrick.ca/listings/mira-dunsire
+- Vicinity by Mattamy Homes — 620 Lockhart Rd, South Barrie. Detached homes + freehold townhomes, 1,349 – 2,768 sq ft, 40 floor plans. Up to $40,000 in current savings. Companion community Vicinity West at McKay Rd W + Veterans Dr. https://indibrick.ca/listings/vicinity-mattamy
+- South Barrie new-homes hub — every active pre-construction community in the corridor, MIRA + Vicinity + more. https://indibrick.ca/listings/south-barrie
+- Midhurst Valley — master-planned community in Springwater Township (north of Barrie) by Brookfield Residential + Geranium Homes. 25' semis from $649,549, 36' detached from $835,389, Evergreen Collection from high $600s with 2027 closings. https://indibrick.ca/listings/midhurst-valley
+
 ## Partnerships
 
 - Mortgage fulfillment: Pineapple Financial Inc. (FSRA #12830)

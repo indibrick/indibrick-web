@@ -56,6 +56,12 @@ const STATIC_ROUTES: { path: string; priority?: number }[] = [
   { path: '/pricing', priority: 0.9 },
   { path: '/vs-gohighlevel', priority: 0.75 },
   { path: '/vs-follow-up-boss', priority: 0.75 },
+  // Featured new-build community landings — high-intent commercial pages
+  // for organic search on builder + address queries.
+  { path: '/listings/mira-dunsire', priority: 0.9 },
+  { path: '/listings/vicinity-mattamy', priority: 0.9 },
+  { path: '/listings/south-barrie', priority: 0.9 },
+  { path: '/listings/midhurst-valley', priority: 0.9 },
   // /situations/* — playbook family, one page per common mortgage life-event.
   // Each has its own capture form + FSRA-licensed broker callback.
   { path: '/situations', priority: 0.9 },

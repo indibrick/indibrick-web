@@ -1,8 +1,11 @@
 import React from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
 import { PropertyService } from '../../services/PropertyService';
 import ListingsClient from '../../components/ListingsClient';
-import { Zap } from 'lucide-react';
+import { Zap, MapPin, ArrowRight, Sparkles } from 'lucide-react';
 import { buildMetadata } from '../../lib/buildMetadata';
+import { DEVELOPMENTS } from '../../lib/developmentsData';
 
 export const metadata = buildMetadata({
   title: 'Curated Real Estate Opportunities',
@@ -91,6 +94,61 @@ export default async function ListingsPage() {
               We analyze thousands of pre-construction and assignment opportunities every week. 
               These are the only ones that met our investment criteria.
             </p>
+        </div>
+      </section>
+
+      {/* FEATURED NEW-BUILD COMMUNITIES — Simcoe County focus */}
+      <section className="py-16 md:py-20 bg-white">
+        <div className="container mx-auto px-6 max-w-6xl">
+          <div className="flex items-end justify-between flex-wrap gap-4 mb-8">
+            <div>
+              <span className="inline-flex items-center gap-2 bg-blue-50 border border-blue-200 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-blue-800 mb-3">
+                <Sparkles size={12}/> Featured new-build communities
+              </span>
+              <h2 className="text-3xl md:text-4xl font-black tracking-tight text-slate-900">
+                South Barrie + Simcoe County pre-construction
+              </h2>
+              <p className="mt-2 text-sm md:text-base text-neutral-600 max-w-2xl">
+                MIRA Towns, Vicinity by Mattamy Homes, Midhurst Valley, and every other active pre-construction release in the region — with real pricing pulled from official builder pages.
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {DEVELOPMENTS.map(d => (
+              <Link key={d.slug} href={`/listings/${d.slug}`}
+                className="group relative rounded-3xl overflow-hidden border border-neutral-200 hover:border-slate-900 transition bg-white">
+                <div className="relative h-48 md:h-56 bg-neutral-100">
+                  <Image src={d.heroImageUrl} alt={d.name} fill unoptimized className="object-cover group-hover:scale-105 transition duration-500"/>
+                  <div className="absolute top-3 left-3 flex flex-wrap gap-2">
+                    <span className="inline-flex items-center bg-white/90 text-slate-900 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full">
+                      {d.status}
+                    </span>
+                    {d.builderOrDeveloper && (
+                      <span className="inline-flex items-center bg-slate-900/80 text-white text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full">
+                        {d.builderOrDeveloper}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="p-5">
+                  <h3 className="text-xl font-black text-slate-900 group-hover:text-blue-600 transition">{d.name}</h3>
+                  <div className="mt-1 flex items-center gap-1 text-xs text-neutral-500">
+                    <MapPin size={12}/> {d.region}
+                  </div>
+                  <p className="mt-3 text-sm text-neutral-600 line-clamp-2">{d.tagline}</p>
+                  {d.priceRange && (
+                    <div className="mt-4 inline-flex items-center gap-2 bg-neutral-50 border border-neutral-200 px-3 py-1.5 rounded-lg">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-neutral-500">Pricing</span>
+                      <span className="text-sm font-black text-slate-900">{d.priceRange}</span>
+                    </div>
+                  )}
+                  <div className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-slate-500 group-hover:text-slate-900">
+                    View community <ArrowRight size={12}/>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
         </div>
       </section>
 
