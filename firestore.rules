@@ -124,9 +124,17 @@ service cloud.firestore {
     //         fields. Ownership fields require the server route.
     // Delete: denied from client. Cloud Function or admin route only.
     match /referrals/{referralId} {
-      allow read:   if isAdmin()
-                    || onReferral(resource.data)
-                    || onReferralTeam(resource.data);
+      // Read rule inlined (not via onReferral/onReferralTeam helpers)
+      // because Firestore's rules engine has trouble statically
+      // proving array-contains list queries against function-wrapped
+      // OR chains. Inlining lets the participantIds array-contains
+      // query pass query-validity analysis.
+      allow read:   if isAdmin() || (signedIn() && (
+                      request.auth.uid == resource.data.referrerId ||
+                      request.auth.uid == resource.data.assignedAgentId ||
+                      (resource.data.participantIds is list && request.auth.uid in resource.data.participantIds) ||
+                      (resource.data.teamVisibleUids is list && request.auth.uid in resource.data.teamVisibleUids)
+                    ));
       allow create: if isAdmin() || (
                     signedIn()
                     && request.resource.data.referrerId == request.auth.uid);

@@ -163,7 +163,11 @@ export default function PartnerCRM() {
 
   // --- FORMS ---
   const [showNewReferralForm, setShowNewReferralForm] = useState(false);
-  const [newClient, setNewClient] = useState({ name: '', phone: '', email: '', service: 'General Inquiry', message: '', assignedTo: 'ADMIN_INBOX', referralSource: 'Self-Generated' });
+  // assignedTo starts empty; the submit handler resolves it based on
+  // role (admin → ADMIN_INBOX, partner → self). Also re-set on the
+  // "New lead" button click below with the correct default now that
+  // partnerRole is known.
+  const [newClient, setNewClient] = useState({ name: '', phone: '', email: '', service: 'General Inquiry', message: '', assignedTo: '', referralSource: 'Self-Generated' });
   const [showNewTaskForm, setShowNewTaskForm] = useState(false);
   const [newTask, setNewTask] = useState({ description: '', dueDate: '', referralId: 'general' });
 
@@ -458,7 +462,11 @@ export default function PartnerCRM() {
 
     setInjectingLead(true);
     try {
-      let assignedAgentId = newClient.assignedTo || user.uid;
+      // Role-aware fallback: partners default to self; admin defaults
+      // to the triage inbox. Empty `assignedTo` (initial mount / reset)
+      // resolves to the right target based on who's logged in.
+      let assignedAgentId = newClient.assignedTo
+        || (partnerRole === 'admin' ? 'ADMIN_INBOX' : user.uid);
       let assignedAgentName = 'Admin Triage';
       if (assignedAgentId === user.uid) assignedAgentName = fullName;
       else if (assignedAgentId !== 'ADMIN_INBOX') {
@@ -500,7 +508,7 @@ export default function PartnerCRM() {
           catch (e) { console.warn('Cadence creation failed', e); }
       }
       setShowNewReferralForm(false);
-      setNewClient({ name: '', phone: '', email: '', service: 'General Inquiry', message: '', assignedTo: 'ADMIN_INBOX', referralSource: 'Self-Generated' });
+      setNewClient({ name: '', phone: '', email: '', service: 'General Inquiry', message: '', assignedTo: partnerRole === 'admin' ? 'ADMIN_INBOX' : (user?.uid || ''), referralSource: 'Self-Generated' });
 
       // Optimistic: prepend the new lead to local state instead of re-fetching
       // the whole pipeline. Drops the perceived save latency from seconds to
@@ -1053,7 +1061,7 @@ export default function PartnerCRM() {
              >
                <UploadIcon size={14} /> Import CSV
              </button>
-             <button onClick={() => { setNewClient({ name: '', phone: '', email: '', service: 'General Inquiry', message: '', assignedTo: user?.uid || 'ADMIN_INBOX', referralSource: 'Self-Generated' }); setShowNewReferralForm(true); }} className="bg-slate-900 text-white px-4 py-3 md:px-5 md:py-3 rounded-xl font-bold text-[10px] md:text-xs uppercase tracking-widest hover:bg-blue-600 transition flex items-center justify-center gap-2 shadow-lg hover:-translate-y-0.5">
+             <button onClick={() => { setNewClient({ name: '', phone: '', email: '', service: 'General Inquiry', message: '', assignedTo: partnerRole === 'admin' ? 'ADMIN_INBOX' : (user?.uid || ''), referralSource: 'Self-Generated' }); setShowNewReferralForm(true); }} className="bg-slate-900 text-white px-4 py-3 md:px-5 md:py-3 rounded-xl font-bold text-[10px] md:text-xs uppercase tracking-widest hover:bg-blue-600 transition flex items-center justify-center gap-2 shadow-lg hover:-translate-y-0.5">
                 <Plus size={16} /> <span className="hidden md:inline">Inject Lead</span><span className="md:hidden">Add</span>
              </button>
            </div>

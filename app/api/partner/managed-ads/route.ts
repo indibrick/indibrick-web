@@ -52,21 +52,38 @@ export async function PUT(req: NextRequest) {
   if (!userSnap.exists) return NextResponse.json({ error: 'Target user not found' }, { status: 404 });
 
   const existing = userSnap.data()?.managedAds || {};
-  const merged: ManagedAdsProfile = {
+  const merged: Record<string, any> = {
     tier: profile.tier || existing.tier,
     status: profile.status || existing.status || 'active',
     startedAt: profile.startedAt || existing.startedAt || new Date().toISOString(),
-    endedAt: profile.endedAt || existing.endedAt || undefined,
-    monthlyRetainer: profile.monthlyRetainer ?? existing.monthlyRetainer,
-    monthlyAdBudget: profile.monthlyAdBudget ?? existing.monthlyAdBudget,
-    brief: profile.brief ?? existing.brief,
-    platforms: profile.platforms ?? existing.platforms,
-    campaignLabels: profile.campaignLabels ?? existing.campaignLabels,
     updatedAt: new Date().toISOString(),
     updatedBy: actorUid,
   };
+  // Firestore Admin SDK throws on `undefined` — only include optional
+  // fields when they actually have a value.
+  if (profile.endedAt || existing.endedAt) merged.endedAt = profile.endedAt || existing.endedAt;
+  if (profile.monthlyRetainer !== undefined || existing.monthlyRetainer !== undefined) {
+    merged.monthlyRetainer = profile.monthlyRetainer ?? existing.monthlyRetainer;
+  }
+  if (profile.monthlyAdBudget !== undefined || existing.monthlyAdBudget !== undefined) {
+    merged.monthlyAdBudget = profile.monthlyAdBudget ?? existing.monthlyAdBudget;
+  }
+  if (profile.brief !== undefined || existing.brief !== undefined) {
+    merged.brief = profile.brief ?? existing.brief;
+  }
+  if (profile.platforms !== undefined || existing.platforms !== undefined) {
+    merged.platforms = profile.platforms ?? existing.platforms;
+  }
+  if (profile.campaignLabels !== undefined || existing.campaignLabels !== undefined) {
+    merged.campaignLabels = profile.campaignLabels ?? existing.campaignLabels;
+  }
 
-  await userRef.set({ managedAds: merged }, { merge: true });
+  try {
+    await userRef.set({ managedAds: merged }, { merge: true });
+  } catch (e: any) {
+    console.error('[managed-ads] write failed', e?.message, e?.stack);
+    return NextResponse.json({ error: e?.message || 'Write failed' }, { status: 500 });
+  }
   return NextResponse.json({ success: true, profile: merged });
 }
 

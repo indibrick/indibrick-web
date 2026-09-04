@@ -43,19 +43,24 @@ export class CRMService {
        return { sent, received: inbox, mine, participating: [] as Referral[] };
     }
 
-    const sentQuery = query(referralsRef, where("referrerId", "==", profile.uid));
-    const sentSnapshot = await getDocs(sentQuery);
-    const sentAll = sentSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Referral));
+    // Each query wrapped independently — a permission-denied on one
+    // (typically the array-contains participant query, which Firestore
+    // rules engine is stricter about) shouldn't wipe out the others.
+    const safeQuery = async (label: string, q: any): Promise<Referral[]> => {
+      try {
+        const snap = await getDocs(q);
+        return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Referral));
+      } catch (e: any) {
+        console.warn(`[getPartnerDashboard] ${label} skipped: ${e?.code || e?.message}`);
+        return [];
+      }
+    };
 
-    const receivedQuery = query(referralsRef, where("assignedAgentId", "==", profile.uid));
-    const receivedSnapshot = await getDocs(receivedQuery);
-    const receivedAll = receivedSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Referral));
-
-    // Deals this user is a collaborator on (added as a participant) but doesn't own or refer.
-    // participantIds is a flat UID array maintained alongside the richer participants objects.
-    const participatingQuery = query(referralsRef, where("participantIds", "array-contains", profile.uid));
-    const participatingSnapshot = await getDocs(participatingQuery);
-    const participatingAll = participatingSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Referral));
+    const sentAll = await safeQuery('sent', query(referralsRef, where("referrerId", "==", profile.uid)));
+    const receivedAll = await safeQuery('received', query(referralsRef, where("assignedAgentId", "==", profile.uid)));
+    // Collaborator/participant deals. participantIds is a flat UID
+    // array maintained alongside the richer participants objects.
+    const participatingAll = await safeQuery('participating', query(referralsRef, where("participantIds", "array-contains", profile.uid)));
 
     const mine = sentAll.filter(lead => lead.assignedAgentId === profile.uid);
     const sent = sentAll.filter(lead => lead.assignedAgentId !== profile.uid);
