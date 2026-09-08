@@ -149,6 +149,44 @@ export const dripRunner = onSchedule(
           continue;
         }
 
+        // ─── Non-opener branch assignment ──────────────────────────────
+        // A run that has still registered no open by the sequence's check day
+        // moves to the re-engagement branch, whatever segment it holds. A
+        // buyer-type click the recipient never saw is not a signal, so this
+        // deliberately overrides an existing segment — except 'applied',
+        // which means they converted and must not be re-engaged.
+        let segment: string = String(run.segment || 'unassigned');
+        const checkDay = seq.nonOpenerCheckDay;
+        if (
+          typeof checkDay === 'number' &&
+          segment !== 'non-opener' &&
+          segment !== 'applied' &&
+          run.openedAny !== true
+        ) {
+          const enrolledMs = run.enrolledAt?.toMillis?.() ?? 0;
+          const daysSince = enrolledMs > 0 ? Math.floor((Date.now() - enrolledMs) / 86400_000) : 0;
+          if (daysSince >= checkDay) {
+            segment = 'non-opener';
+            await runRef.update({
+              segment: 'non-opener',
+              segmentAssignedAt: admin.firestore.FieldValue.serverTimestamp(),
+              segmentAssignedBy: 'runner:non-opener-rule',
+            });
+          }
+        }
+
+        // ─── Branch gate ───────────────────────────────────────────────
+        // A step with requiresSegment only fires for runs on a matching
+        // branch. Everything else advances without sending, exactly like a
+        // disabled step. Steps with no gate fire for everyone, which is how
+        // every sequence written before branching existed behaves.
+        if (Array.isArray(step.requiresSegment) && step.requiresSegment.length > 0) {
+          if (!step.requiresSegment.includes(segment)) {
+            await advanceRun(db, runRef, run, stepIdx, steps, null);
+            continue;
+          }
+        }
+
         // Suppression check per-fire (recipient may have opted out
         // AFTER enrollment).
         if (seq.respectSuppression !== false) {
@@ -228,7 +266,11 @@ export const dripRunner = onSchedule(
 
         // Interpolate + enqueue.
         const subject = interpolate(String(tmpl.subject || ''), referral);
+        // Open pixel, then the CASL footer. Ordering matters only for
+        // aesthetics — both sit below the body.
+        const pixel = `<img src="${siteOrigin()}/api/track/open?run=${encodeURIComponent(runDoc.id)}&s=${stepIdx}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;" />`;
         const html = interpolate(String(tmpl.body || ''), referral)
+          + pixel
           + caslFooter(senderName, senderEmail, brokerageName, unsubUrl);
 
         const fromLine = brokerageName ? `${senderName} — ${brokerageName}` : senderName;

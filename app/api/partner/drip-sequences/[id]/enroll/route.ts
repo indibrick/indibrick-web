@@ -147,6 +147,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       enrolledAt: FieldValue.serverTimestamp(),
       totalSteps,
       fireHistory: [],
+      // Branch state. Every run starts unassigned; /api/segment moves it when
+      // the recipient picks a buyer type, and the runner forces 'non-opener'
+      // if nothing is opened by the sequence's nonOpenerCheckDay. Steps with
+      // no requiresSegment gate ignore this entirely, so sequences written
+      // before branching existed are unaffected.
+      segment: 'unassigned',
+      openedAny: false,
     });
     batchCount += 1;
     enrolled += 1;

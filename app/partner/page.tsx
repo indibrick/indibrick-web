@@ -1206,7 +1206,7 @@ export default function PartnerCRM() {
               ? <FormsPanel isAdmin={partnerRole === 'admin'} />
               : automationsView === 'campaigns'
               ? <CampaignsPanel currentUid={user?.uid} displayName={fullName || 'IndiBrick Partner'} />
-              : <DripsPanel currentUid={user?.uid} />}
+              : <DripsPanel currentUid={user?.uid} referrals={allReferrals} />}
           </div>
         )}
 

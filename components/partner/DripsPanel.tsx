@@ -6,12 +6,15 @@ import { useState } from 'react';
 import { Plus, Zap, Users, CheckCircle, Clock } from 'lucide-react';
 import { useDripSequences } from '../../hooks/useDripSequences';
 import DripSequenceEditor from './DripSequenceEditor';
+import DripEnrollPicker from './DripEnrollPicker';
 import { EmptyState, LoadingState } from '../ui/StateFeedback';
 import { useToast } from '../ui/ToastProvider';
 import type { DripSequenceDoc } from '../../lib/dripShape';
 
 interface DripsPanelProps {
   currentUid: string | undefined;
+  /** Live pipeline, passed from app/partner/page.tsx. Powers the client picker. */
+  referrals?: any[];
 }
 
 function formatTs(ts: any): string {
@@ -22,10 +25,21 @@ function formatTs(ts: any): string {
   return new Date(ms).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
-export default function DripsPanel({ currentUid }: DripsPanelProps) {
+export default function DripsPanel({ currentUid, referrals = [] }: DripsPanelProps) {
   const toast = useToast();
   const { sequences, loading, create, update, remove, enroll } = useDripSequences(currentUid);
   const [editing, setEditing] = useState<null | { mode: 'new' } | { mode: 'edit'; seq: DripSequenceDoc }>(null);
+  const [enrolling, setEnrolling] = useState<DripSequenceDoc | null>(null);
+
+  const enrollExplicit = async (seqId: string, referralIds: string[]) => {
+    const res = await enroll(seqId, { referralIds });
+    if (!res.ok) { toast.error('Enroll failed', res.error); return; }
+    const bits = [`${res.enrolled ?? 0} enrolled`];
+    if (res.suppressedCount) bits.push(`${res.suppressedCount} suppressed`);
+    if (res.alreadyEnrolledCount) bits.push(`${res.alreadyEnrolledCount} already in sequence`);
+    toast.success('Enrollment queued', bits.join(' · '));
+    setEnrolling(null);
+  };
 
   const enrollFromMyPipeline = async (seqId: string, filter: any) => {
     const res = await enroll(seqId, { recipientFilter: filter });
@@ -101,19 +115,40 @@ export default function DripsPanel({ currentUid }: DripsPanelProps) {
                   <button
                     onClick={() => {
                       if (!seq.enabled) { toast.warn('Enable the sequence first.'); return; }
+                      setEnrolling(seq);
+                    }}
+                    disabled={!seq.enabled}
+                    className="bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase tracking-widest px-3 py-2 rounded-lg transition disabled:opacity-50">
+                    Choose clients
+                  </button>
+                  {/* Filter-based enrollment kept as the bulk path — useful for
+                      "everyone at status X", which a picker makes tedious. */}
+                  <button
+                    onClick={() => {
+                      if (!seq.enabled) { toast.warn('Enable the sequence first.'); return; }
                       const status = window.prompt('Enroll everyone with which status? (Blank = every non-funded/non-lost)\nExamples: Contacted, In Progress, New', 'Contacted');
                       if (status === null) return;
                       enrollFromMyPipeline(seq.id, { status: status || undefined });
                     }}
                     disabled={!seq.enabled}
                     className="bg-white border border-gray-200 hover:border-slate-900 text-slate-900 text-[10px] font-black uppercase tracking-widest px-3 py-2 rounded-lg transition disabled:opacity-50">
-                    Enroll from pipeline
+                    By status
                   </button>
                 </div>
               </div>
             </div>
           ))}
         </div>
+      )}
+
+      {enrolling && (
+        <DripEnrollPicker
+          sequenceName={enrolling.name}
+          stepCount={enrolling.steps?.length || 0}
+          referrals={referrals}
+          onCancel={() => setEnrolling(null)}
+          onEnroll={(ids) => enrollExplicit(enrolling.id, ids)}
+        />
       )}
 
       {editing && (
