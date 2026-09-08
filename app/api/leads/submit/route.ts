@@ -79,6 +79,10 @@ export async function POST(request: Request) {
       status: 'New Web Lead',
       clientName: clientName,
       clientPhone: phone,
+      // Carried across from the lead so drip copy can address the buyer's
+      // market ({{city}} in the Simcoe sequence). Without it the tag has
+      // nothing to resolve against on the referral.
+      city: city || '',
       clientEmail: email || '',
       referralDate: timestamp,
       message: message || '', // <--- THE FIX: Explicitly save the message for the CRM UI

@@ -20,7 +20,10 @@ import { adminDb } from '@/lib/firebaseAdmin';
 // set, requiring an active run to exist, and restricting the redirect to
 // same-site paths so this cannot become an open redirect.
 
-const ALLOWED = new Set(['first-time', 'investor']);
+// Email 1 offers three buttons. 'move-up' has no branch copy, so it stays
+// on the core track — but it must be accepted, or the click is silently
+// rejected and the buyer looks unsegmented forever.
+const ALLOWED = new Set(['first-time', 'move-up', 'investor']);
 const DEFAULT_REDIRECT = '/listings';
 
 function safePath(raw: string | null): string {

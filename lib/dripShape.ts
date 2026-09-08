@@ -13,10 +13,19 @@
 //   day 14  → Call to action (template D)
 
 /** Segments a run can be in. Drives which branch steps fire. */
-export type DripSegment = 'unassigned' | 'first-time' | 'investor' | 'non-opener' | 'applied';
+// 'move-up' has a button in email 1 but no branch copy of its own — the
+// guide only wrote first-time and investor tracks. It is gated onto the
+// core sequence rather than dropped, so the click still registers.
+export type DripSegment =
+  | 'unassigned'
+  | 'first-time'
+  | 'move-up'
+  | 'investor'
+  | 'non-opener'
+  | 'applied';
 
 export const DRIP_SEGMENTS: DripSegment[] = [
-  'unassigned', 'first-time', 'investor', 'non-opener', 'applied',
+  'unassigned', 'first-time', 'move-up', 'investor', 'non-opener', 'applied',
 ];
 
 export interface DripStep {

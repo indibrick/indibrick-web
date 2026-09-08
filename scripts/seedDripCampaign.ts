@@ -21,22 +21,20 @@
 
 import { adminDb } from '../lib/firebaseAdmin';
 import { CAMPAIGNS, buildSteps, templateId } from '../data/dripCampaigns';
+import { SIMCOE_EMAILS } from '../data/simcoeCopy';
 import { validateDripSequence } from '../lib/dripShape';
 
 const APPLY = process.argv.includes('--apply');
 const FORCE = process.argv.includes('--force-templates');
 const OWNER = (process.argv.find((a) => a.startsWith('--owner=')) || '').split('=')[1] || '';
 
-const PLACEHOLDER = '<!-- PLACEHOLDER -->';
-
-function placeholderBody(campaign: string, label: string): string {
-  return `${PLACEHOLDER}
-<div style="font-family:sans-serif;font-size:15px;line-height:1.6;color:#0f172a;">
-  <p>Hi {{clientName}},</p>
-  <p>Placeholder copy for <strong>${campaign}</strong> — ${label}.</p>
-  <p>Replace <code>body</code> on this template with the real HTML from the design doc.</p>
-  <p>— IndiBrick</p>
-</div>`;
+// Re-running after someone edits copy in the CRM must not silently revert
+// it. A template is treated as hand-edited when its body differs from the
+// copy file, and is left alone unless --force-templates is passed.
+function bodyFor(id: string): { subject: string; body: string; label: string } {
+  const e = SIMCOE_EMAILS.find((x) => x.id === id);
+  if (!e) throw new Error(`no copy for email id ${id}`);
+  return { subject: e.subject, body: e.body, label: `${e.label} — ${e.subject}` };
 }
 
 async function main() {
@@ -79,28 +77,31 @@ async function main() {
     let kept = 0;
 
     for (const step of steps) {
+      // templateId encodes the email id as the last "__" segment.
+      const emailId = step.templateId.split('__').pop() as string;
+      const copy = bodyFor(emailId);
+
       const ref = adminDb.collection('email_templates').doc(step.templateId);
       const existing = await ref.get();
-      const hasRealCopy =
-        existing.exists &&
-        typeof (existing.data() as any)?.body === 'string' &&
-        !(existing.data() as any).body.includes(PLACEHOLDER);
+      const prevBody = existing.exists ? String((existing.data() as any)?.body || '') : '';
+      const handEdited = existing.exists && prevBody !== '' && prevBody !== copy.body;
 
-      if (hasRealCopy && !FORCE) {
+      if (handEdited && !FORCE) {
         kept += 1;
         console.log(`   ✓ keep     day ${String(step.waitDaysAfterEnroll).padStart(2)}  ${step.templateId}`);
+        console.log(`              (edited in the CRM — pass --force-templates to overwrite)`);
         continue;
       }
       created += 1;
-      console.log(`   + ${existing.exists ? 'refresh' : 'create '}  day ${String(step.waitDaysAfterEnroll).padStart(2)}  ${step.templateId}  [${step.requiresSegment ? step.requiresSegment.join('/') : 'all'}]`);
+      const gate = step.requiresSegment ? step.requiresSegment.join('/') : 'all';
+      console.log(`   + ${existing.exists ? 'update ' : 'create '}  day ${String(step.waitDaysAfterEnroll).padStart(2)}  ${step.templateId}  [${gate}]`);
 
       if (APPLY) {
         await ref.set({
-          name: step.label,
+          name: copy.label,
           channel: 'email',
-          subject: `[${c.name}] ${step.label}`,
-          altSubject: `[${c.name}] ${step.label} (variant B)`,
-          body: placeholderBody(c.name, step.label),
+          subject: copy.subject,
+          body: copy.body,
           ownerUid: OWNER,
           tenantId: 'indibrick',
           updatedAt: new Date().toISOString(),
@@ -113,7 +114,10 @@ async function main() {
       await adminDb.collection('drip_sequences').doc(c.id).set({
         name: c.name,
         description: c.description,
-        enabled: false, // Deliberately OFF until real copy is in. Flip in the CRM.
+        // Still seeded OFF. The copy is real, but email 7 quotes live
+        // builder incentives that must be re-checked before any send,
+        // and dripRunner has to be deployed for the branch gates to work.
+        enabled: false,
         ownerUid: OWNER,
         tenantId: 'indibrick',
         steps,
@@ -132,8 +136,8 @@ async function main() {
     console.log('  DRY RUN — nothing written. Re-run with --apply to commit.');
   } else {
     console.log('  ✅ Seeded. Next:');
-    console.log('     1. Paste real copy into each /email_templates doc (subject, body).');
-    console.log('     2. Partner portal → Automations → Drips → enable the sequence.');
+    console.log('     1. Re-check email 7 incentives against the builder sheets.');
+    console.log('     2. Deploy dripRunner, then enable the sequence in Automations.');
     console.log('     3. Pipeline → select clients → Enroll in sequence.');
     console.log('     4. dripRunner picks them up within 5 minutes.');
   }

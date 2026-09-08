@@ -24,6 +24,26 @@ const MAX_RUNS_PER_TICK = 500;
 
 // ─── Merge tags (dupe of lib/mergeTags.ts — see workflowInterpreter
 //     comment about why the functions project can't easily import from lib/).
+/**
+ * The campaign copy uses {{firstName}} and {{city}}; neither is a field on
+ * the referral. firstName is derived, city is copied onto the referral at
+ * creation (older referrals fall back to the linked lead's city).
+ *
+ * Both get a neutral fallback rather than an empty string: an unresolved
+ * tag renders "Hi ," or "coming from ," in a real client's inbox, which
+ * reads worse than a generic greeting.
+ *
+ * @param {Record<string, any>|null} referral The referral document.
+ * @return {Record<string, any>} Merge context with firstName and city.
+ */
+function enrichMergeContext(referral: Record<string, any> | null): Record<string, any> {
+  const r = referral || {};
+  const full = String(r.clientName || '').trim();
+  const firstName = full ? full.split(/\s+/)[0] : 'there';
+  const city = String(r.city || r.clientCity || '').trim() || 'the GTA';
+  return { ...r, firstName, city };
+}
+
 function interpolate(template: string, ctx: Record<string, any> | null): string {
   if (!template) return '';
   if (!ctx) return template;
@@ -265,11 +285,12 @@ export const dripRunner = onSchedule(
         const unsubUrl = `${siteOrigin()}/unsubscribe/${unsubToken}`;
 
         // Interpolate + enqueue.
-        const subject = interpolate(String(tmpl.subject || ''), referral);
+        const mergeCtx = enrichMergeContext(referral);
+        const subject = interpolate(String(tmpl.subject || ''), mergeCtx);
         // Open pixel, then the CASL footer. Ordering matters only for
         // aesthetics — both sit below the body.
         const pixel = `<img src="${siteOrigin()}/api/track/open?run=${encodeURIComponent(runDoc.id)}&s=${stepIdx}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;" />`;
-        const html = interpolate(String(tmpl.body || ''), referral) +
+        const html = interpolate(String(tmpl.body || ''), mergeCtx) +
           pixel +
           caslFooter(senderName, senderEmail, brokerageName, unsubUrl);
 
