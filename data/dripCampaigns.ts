@@ -79,7 +79,12 @@ export function buildSteps(campaign: CampaignDef) {
       // The opening email must reach every enrollee: it is the one that
       // asks which buyer they are, so gating it would strand anyone whose
       // segment was set before enrollment.
-      requiresSegment: email.id === 'e1' ? undefined : GATE[email.track],
+      //
+      // The key is OMITTED rather than set to undefined. Firestore rejects
+      // undefined outright, so `requiresSegment: undefined` fails the whole
+      // sequence write. An absent key reads identically to the runner,
+      // which tests `gate && gate.length` before applying it.
+      ...(email.id === 'e1' ? {} : { requiresSegment: GATE[email.track] }),
     }));
 }
 

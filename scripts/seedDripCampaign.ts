@@ -37,6 +37,21 @@ function bodyFor(id: string): { subject: string; body: string; label: string } {
   return { subject: e.subject, body: e.body, label: `${e.label} — ${e.subject}` };
 }
 
+/**
+ * Firestore rejects `undefined` anywhere in a document, and its own error
+ * points at a serializer frame rather than the field that caused it. This
+ * surfaces the path before the write is attempted.
+ */
+function assertNoUndefined(value: any, path = 'sequence'): void {
+  if (value === undefined) throw new Error(`undefined value at ${path}`);
+  if (value === null || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    value.forEach((v, i) => assertNoUndefined(v, `${path}[${i}]`));
+    return;
+  }
+  for (const [k, v] of Object.entries(value)) assertNoUndefined(v, `${path}.${k}`);
+}
+
 async function main() {
   if (!adminDb) {
     console.error('❌ adminDb unavailable — check FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY.');
@@ -111,7 +126,7 @@ async function main() {
 
     console.log('');
     if (APPLY) {
-      await adminDb.collection('drip_sequences').doc(c.id).set({
+      const seqDoc = {
         name: c.name,
         description: c.description,
         // Still seeded OFF. The copy is real, but email 7 quotes live
@@ -125,7 +140,9 @@ async function main() {
         stopIfReplies: false,
         nonOpenerCheckDay: c.nonOpenerCheckDay,
         updatedAt: new Date().toISOString(),
-      }, { merge: true });
+      };
+      assertNoUndefined(seqDoc);
+      await adminDb.collection('drip_sequences').doc(c.id).set(seqDoc, { merge: true });
       console.log(`   ✓ wrote /drip_sequences/${c.id}  (enabled: false)`);
     }
     console.log(`   templates created/refreshed: ${created}   kept: ${kept}`);
