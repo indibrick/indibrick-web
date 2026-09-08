@@ -42,6 +42,7 @@ const FAQ = [
 export default function Page() {
   return (
     <CalcChrome
+      slug="/reverse-mortgage-calculator"
       title="Reverse Mortgage Calculator"
       subtitle="How much tax-free cash can you access via a Canadian reverse mortgage? Age + home value + 20-year balance projection."
       accent="amber"

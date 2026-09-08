@@ -38,6 +38,7 @@ const FAQ = [
 export default function Page() {
   return (
     <CalcChrome
+      slug="/hst-rebate-calculator"
       title="Ontario HST New Housing Rebate Calculator"
       subtitle="Federal + Ontario portions of the New Housing HST rebate for new-build and pre-construction purchases."
       accent="purple"

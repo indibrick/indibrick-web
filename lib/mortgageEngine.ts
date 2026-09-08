@@ -584,3 +584,165 @@ export function formatPercent(n: number, decimals = 2): string {
   if (!isFinite(n)) return '0.00%';
   return `${n.toFixed(decimals)}%`;
 }
+
+// ─── Forward qualification (GDS + TDS against a specific property) ────
+//
+// calculateAffordability() above runs BACKWARDS: income in, maximum price out.
+// This runs FORWARDS: a specific property and a specific debt load in, a
+// pass/fail verdict out. That is the question the federal Mortgage Qualifier
+// Tool answers, and it is a different search intent — "can I afford this
+// house" versus "how much house can I afford".
+//
+// Methodology follows OSFI Guideline B-20 and the CMHC ratio definitions:
+//
+//   GDS = (P&I + property tax + heat + 50% of condo fees) / gross income
+//   TDS = GDS numerator + all other monthly debt obligations / gross income
+//
+// Note the 50% condo-fee treatment. Lenders include only half of a condo
+// maintenance fee in the ratios, because a portion covers utilities and
+// reserve contributions rather than shelter cost. Calculators that include
+// 100% understate what a borrower qualifies for.
+//
+// Ratios are computed at the STRESS TEST rate (the greater of the contract
+// rate + 2% or 5.25%), never the contract rate — that is the whole point of
+// B-20 and the single most common error in consumer mortgage calculators.
+
+export interface QualificationInputs {
+  propertyValue: number;
+  downPayment: number;
+  contractRatePercent: number;
+  amortYears: number;
+  householdIncomeAnnual: number;
+  propertyTaxAnnual: number;
+  heatingMonthly: number;
+  condoFeesMonthly: number;
+  /** Minimum monthly payments on cards and lines of credit. */
+  creditPaymentsMonthly: number;
+  carPaymentsMonthly: number;
+  otherDebtsMonthly: number;
+  gdsCap?: number;
+  tdsCap?: number;
+}
+
+export interface QualificationResult {
+  qualifies: boolean;
+  /** Which test failed, when one did. */
+  failedOn: ('GDS' | 'TDS' | 'DOWN_PAYMENT' | 'AMORTIZATION' | 'UNINSURABLE')[];
+  qualifyingRate: number;
+  contractRate: number;
+  mortgageAmount: number;
+  /** CMHC/Sagen premium added to the loan when down payment is under 20%. */
+  insurancePremium: number;
+  totalMortgage: number;
+  downPaymentPercent: number;
+  minDownPaymentRequired: number;
+  insured: boolean;
+  /** Payment used in the ratio tests — at the stress rate. */
+  qualifyingMonthlyPayment: number;
+  /** What they would actually pay at the contract rate. */
+  actualMonthlyPayment: number;
+  gdsPercent: number;
+  tdsPercent: number;
+  gdsCapPercent: number;
+  tdsCapPercent: number;
+  /** Monthly gross income the ratios were measured against. */
+  monthlyIncome: number;
+  /** Shelter cost components used in GDS. */
+  shelterMonthly: number;
+  totalDebtsMonthly: number;
+  /** Income needed to pass both tests at this property. Null when already passing. */
+  incomeNeededToQualify: number | null;
+}
+
+/** Federal minimum down payment: 5% to $500K, 10% on the portion above. */
+export function minimumDownPayment(price: number): number {
+  if (price <= 500_000) return price * 0.05;
+  if (price < 1_500_000) return 25_000 + (price - 500_000) * 0.10;
+  return price * 0.20;
+}
+
+export function qualifyMortgage(input: QualificationInputs): QualificationResult {
+  const gdsCap = input.gdsCap ?? 0.39;
+  const tdsCap = input.tdsCap ?? 0.44;
+
+  const failedOn: QualificationResult['failedOn'] = [];
+
+  const minDown = minimumDownPayment(input.propertyValue);
+  if (input.downPayment < minDown) failedOn.push('DOWN_PAYMENT');
+
+  const downPercent = input.propertyValue > 0
+    ? (input.downPayment / input.propertyValue) * 100
+    : 0;
+
+  // Default insurance is unavailable at or above $1.5M, and never needed at
+  // 20% down or more.
+  const insurable = input.propertyValue < 1_500_000;
+  const insured = downPercent < 20 && insurable;
+  if (downPercent < 20 && !insurable) failedOn.push('UNINSURABLE');
+
+  const baseMortgage = Math.max(0, input.propertyValue - input.downPayment);
+  const insurancePremium = insured
+    ? calculateCMHCPremium(input.propertyValue, input.downPayment)
+    : 0;
+  const totalMortgage = baseMortgage + insurancePremium;
+
+  // An insured mortgage caps out at 25 years unless the file is a first-time
+  // buyer or a new build, both of which now permit 30.
+  if (insured && input.amortYears > 30) failedOn.push('AMORTIZATION');
+
+  const qualifyingRate = stressTestRate(input.contractRatePercent);
+
+  const qualifyingMonthlyPayment = calculatePayment(
+    totalMortgage, qualifyingRate, input.amortYears, 'monthly',
+  );
+  const actualMonthlyPayment = calculatePayment(
+    totalMortgage, input.contractRatePercent, input.amortYears, 'monthly',
+  );
+
+  const monthlyIncome = input.householdIncomeAnnual / 12;
+  const monthlyPropertyTax = input.propertyTaxAnnual / 12;
+  // Only half of a condo fee counts toward the ratios — see the note above.
+  const condoInRatio = input.condoFeesMonthly * 0.5;
+
+  const shelterMonthly =
+    qualifyingMonthlyPayment + monthlyPropertyTax + input.heatingMonthly + condoInRatio;
+
+  const otherDebts =
+    input.creditPaymentsMonthly + input.carPaymentsMonthly + input.otherDebtsMonthly;
+
+  const gds = monthlyIncome > 0 ? shelterMonthly / monthlyIncome : Infinity;
+  const tds = monthlyIncome > 0 ? (shelterMonthly + otherDebts) / monthlyIncome : Infinity;
+
+  if (gds > gdsCap) failedOn.push('GDS');
+  if (tds > tdsCap) failedOn.push('TDS');
+
+  // Income that would bring BOTH ratios inside their caps.
+  const incomeForGds = (shelterMonthly / gdsCap) * 12;
+  const incomeForTds = ((shelterMonthly + otherDebts) / tdsCap) * 12;
+  const incomeNeeded = Math.ceil(Math.max(incomeForGds, incomeForTds) / 1000) * 1000;
+
+  const ratiosPass = gds <= gdsCap && tds <= tdsCap;
+
+  return {
+    qualifies: failedOn.length === 0,
+    failedOn,
+    qualifyingRate,
+    contractRate: input.contractRatePercent,
+    mortgageAmount: Math.round(baseMortgage),
+    insurancePremium: Math.round(insurancePremium),
+    totalMortgage: Math.round(totalMortgage),
+    downPaymentPercent: downPercent,
+    minDownPaymentRequired: Math.round(minDown),
+    insured,
+    qualifyingMonthlyPayment: Math.round(qualifyingMonthlyPayment),
+    actualMonthlyPayment: Math.round(actualMonthlyPayment),
+    gdsPercent: Number.isFinite(gds) ? gds * 100 : 0,
+    tdsPercent: Number.isFinite(tds) ? tds * 100 : 0,
+    gdsCapPercent: gdsCap * 100,
+    tdsCapPercent: tdsCap * 100,
+    monthlyIncome: Math.round(monthlyIncome),
+    shelterMonthly: Math.round(shelterMonthly),
+    totalDebtsMonthly: Math.round(otherDebts),
+    incomeNeededToQualify: ratiosPass ? null : incomeNeeded,
+  };
+}

@@ -9,8 +9,8 @@ import JsonLd from '../../components/JsonLd';
 import { buildMetadata } from '../../lib/buildMetadata';
 
 export const metadata = buildMetadata({
-  title: 'Financial Tools Hub — 10+ Canadian Mortgage & Wealth Calculators',
-  description: 'The most comprehensive financial toolkit for Ontario homeowners. Calculate mortgage payments, land transfer tax, trigger rates, and mortgage penalties.',
+  title: 'Canadian Mortgage Calculators — 15 Free Tools for Ontario Buyers',
+  description: 'Fifteen free Canadian mortgage calculators built on correct semi-annual compounding. Check if you qualify with GDS and TDS ratios, calculate payments, land transfer tax, CMHC premiums, break penalties and trigger rates.',
   slug: '/tools',
   keywords: ['Mortgage Calculator Ontario', 'Land Transfer Tax Calculator', 'Trigger Rate Calculator', 'Mortgage Penalty Calculator', 'Universal Life Calculator'],
 });
@@ -23,6 +23,7 @@ export default function ToolsPage() {
     "name": "IndiBrick Financial Tools",
     "description": "A suite of 11 professional financial calculators for Canadian real estate and wealth planning.",
     "hasPart": [
+      { "@type": "SoftwareApplication", "name": "Mortgage Qualifier Calculator", "url": "https://indibrick.ca/tools/mortgage-qualifier" },
       { "@type": "SoftwareApplication", "name": "Mortgage Payment Calculator", "url": "https://indibrick.ca/mortgage-payment-calculator" },
       { "@type": "SoftwareApplication", "name": "Reverse Mortgage Calculator", "url": "https://indibrick.ca/reverse-mortgage-calculator" },
       { "@type": "SoftwareApplication", "name": "Mortgage Penalty Calculator", "url": "https://indibrick.ca/mortgage-penalty-calculator" },
@@ -72,6 +73,22 @@ export default function ToolsPage() {
                  <h3 className="text-xl font-black uppercase mb-2">Reverse Mortgage (55+)</h3>
                  <p className="text-sm text-gray-500 mb-8 leading-relaxed">Calculate your tax-free equity release. No monthly payments required. Safe & regulated.</p>
                  <div className="mt-auto flex items-center gap-2 text-xs font-black uppercase tracking-widest group-hover:gap-4 transition-all">
+                    Launch Tool <ArrowRight size={14}/>
+                 </div>
+              </Link>
+
+              {/* Mortgage Qualifier — flagship. Answers the lender's question
+                  (do the ratios pass on this property) rather than "what does
+                  this cost", which is what the head-term queries want. */}
+              <Link href="/tools/mortgage-qualifier" className="group bg-slate-900 text-white rounded-[2rem] p-8 hover:shadow-2xl transition duration-300 flex flex-col h-full relative overflow-hidden">
+                 <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/20 rounded-full blur-2xl -mr-10 -mt-10"></div>
+                 <div className="mb-6 flex justify-between items-start relative z-10">
+                    <Calculator size={32} className="text-emerald-400 group-hover:text-white transition" />
+                    <span className="bg-emerald-500/20 text-emerald-300 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-500/30">Start Here</span>
+                 </div>
+                 <h3 className="text-xl font-black uppercase mb-2 relative z-10">Mortgage Qualifier</h3>
+                 <p className="text-sm text-gray-400 mb-8 leading-relaxed relative z-10">Do you actually qualify? GDS and TDS ratios against A-lender caps, stress-tested under OSFI B-20.</p>
+                 <div className="mt-auto flex items-center gap-2 text-xs font-black uppercase tracking-widest group-hover:gap-4 transition-all relative z-10">
                     Launch Tool <ArrowRight size={14}/>
                  </div>
               </Link>

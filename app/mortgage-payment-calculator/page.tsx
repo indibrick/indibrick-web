@@ -44,6 +44,7 @@ const FAQ = [
 export default function Page() {
   return (
     <CalcChrome
+      slug="/mortgage-payment-calculator"
       title="Mortgage Payment Calculator"
       subtitle="Canadian semi-annual compounding. Every payment frequency. Full amortization schedule + prepayment scenarios."
       accent="blue"

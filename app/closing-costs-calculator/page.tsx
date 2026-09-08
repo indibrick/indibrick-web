@@ -42,6 +42,7 @@ const FAQ = [
 export default function Page() {
   return (
     <CalcChrome
+      slug="/closing-costs-calculator"
       title="Ontario Closing Costs Calculator"
       subtitle="Every cash line item: LTT, PST on CMHC, legal, title, appraisal, inspection, and prepaid adjustments."
       accent="blue"

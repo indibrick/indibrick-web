@@ -38,6 +38,7 @@ const FAQ = [
 export default function Page() {
   return (
     <CalcChrome
+      slug="/trigger-rate-calculator"
       title="Variable Mortgage Trigger Rate Calculator"
       subtitle="At what interest rate does your fixed payment stop covering interest? See the trigger rate + payment shock."
       accent="amber"

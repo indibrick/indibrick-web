@@ -87,6 +87,9 @@ const STATIC_ROUTES: { path: string; priority?: number }[] = [
   { path: '/situations/reverse-mortgage', priority: 0.9 },
   // Calculators + tools
   { path: '/tools', priority: 0.7 },
+  // Flagship calculator — targets the "mortgage calculator" head terms while
+  // the specialist calculators below hold their long-tail.
+  { path: '/tools/mortgage-qualifier', priority: 0.9 },
   { path: '/mortgage-payment-calculator', priority: 0.75 },
   { path: '/land-transfer-tax-calculator-ontario', priority: 0.75 },
   { path: '/affordability-calculator', priority: 0.8 },

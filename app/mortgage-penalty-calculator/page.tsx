@@ -42,6 +42,7 @@ const FAQ = [
 export default function Page() {
   return (
     <CalcChrome
+      slug="/mortgage-penalty-calculator"
       title="Mortgage Penalty Calculator"
       subtitle="IRD vs 3-month interest, tuned for Big 6, monoline, and variable lenders. Side-by-side comparison."
       accent="red"

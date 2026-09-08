@@ -43,6 +43,7 @@ const FAQ = [
 export default function Page() {
   return (
     <CalcChrome
+      slug="/affordability-calculator"
       title="How Much House Can You Afford?"
       subtitle="Real B-20 stress test math. GDS + TDS ratios, insured vs uninsured, rate sensitivity across 3 scenarios."
       accent="blue"

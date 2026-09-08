@@ -38,6 +38,7 @@ const FAQ = [
 export default function Page() {
   return (
     <CalcChrome
+      slug="/down-payment-calculator"
       title="Down Payment Calculator"
       subtitle="Canadian tiered minimum rules, CMHC premium tiers, and 5%/10%/20%/25% side-by-side comparison."
       accent="blue"

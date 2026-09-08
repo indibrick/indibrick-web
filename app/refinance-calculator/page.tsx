@@ -43,6 +43,7 @@ const FAQ = [
 export default function Page() {
   return (
     <CalcChrome
+      slug="/refinance-calculator"
       title="Mortgage Refinance Calculator"
       subtitle="Full IRD or 3-month-interest penalty math + break-even month + net-savings verdict."
       accent="emerald"

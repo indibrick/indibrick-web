@@ -43,6 +43,7 @@ const FAQ = [
 export default function Page() {
   return (
     <CalcChrome
+      slug="/mortgage-renewal-calculator"
       title="Mortgage Renewal Calculator"
       subtitle="Your bank's renewal offer vs today's broker-channel best. See the monthly + total interest delta over the term."
       accent="blue"

@@ -26,6 +26,11 @@ interface CalcChromeProps {
   brokerPageSource?: string; // For BrokerCard assignment; falls back to Mudit
   ctaLabel?: string;
   ctaHref?: string;
+  /** Absolute path of this calculator, e.g. '/mortgage-payment-calculator'.
+   *  Required for SoftwareApplication + BreadcrumbList @id resolution. */
+  slug?: string;
+  /** Reserved: only pass once a real review count exists. Never a placeholder. */
+  ratingCount?: number;
   children: React.ReactNode;
 }
 
@@ -48,9 +53,71 @@ export function CalcChrome({
   ctaLabel = 'Get this reviewed by a licensed broker',
   ctaHref = '/apply',
   children,
+  slug,
+  ratingCount,
 }: CalcChromeProps) {
+  // ─── Structured data ────────────────────────────────────────────────
+  // This shell renders the FAQ block as plain HTML on 12 calculator pages and
+  // emitted NO JSON-LD for any of it. The content was already written and
+  // already on the page — it just wasn't machine-readable, so none of it was
+  // eligible for FAQ extraction or citation by an answer engine.
+  //
+  // Three nodes, all derived from props that already exist:
+  //   FAQPage        — the q/a pairs each calculator already passes
+  //   SoftwareApplication — declares the page IS a calculator, which is what
+  //                    "mortgage calculator" queries are actually looking for
+  //   BreadcrumbList — the breadcrumb already rendered visually above
+  const graph: Record<string, unknown>[] = [];
+
+  if (faq && faq.length > 0) {
+    graph.push({
+      '@type': 'FAQPage',
+      mainEntity: faq.map((f) => ({
+        '@type': 'Question',
+        name: f.q,
+        acceptedAnswer: { '@type': 'Answer', text: f.a },
+      })),
+    });
+  }
+
+  if (slug) {
+    graph.push({
+      '@type': 'SoftwareApplication',
+      '@id': `https://indibrick.ca${slug}#calculator`,
+      name: title,
+      description: subtitle,
+      url: `https://indibrick.ca${slug}`,
+      applicationCategory: 'FinanceApplication',
+      operatingSystem: 'Any (web browser)',
+      isAccessibleForFree: true,
+      // Free tool, no signup. Stated explicitly because "free mortgage
+      // calculator" is a high-intent query and answer engines check for it.
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'CAD' },
+      provider: { '@id': 'https://indibrick.ca/#organization' },
+      inLanguage: 'en-CA',
+      audience: { '@type': 'Audience', geographicArea: { '@type': 'Country', name: 'Canada' } },
+    });
+  }
+
+  const crumbs = [...breadcrumb.filter((b) => b.href), { label: title, href: slug }];
+  graph.push({
+    '@type': 'BreadcrumbList',
+    itemListElement: crumbs.map((b, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: b.label,
+      ...(b.href ? { item: `https://indibrick.ca${b.href}` } : {}),
+    })),
+  });
+
   return (
     <div className="bg-white">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({ '@context': 'https://schema.org', '@graph': graph }),
+        }}
+      />
       {/* HERO */}
       <section className={`relative bg-slate-900 text-white pt-32 pb-12 md:pt-40 md:pb-16 overflow-hidden`}>
         <div className={`absolute top-0 right-0 w-[600px] h-[600px] rounded-full blur-[120px] translate-x-1/3 -translate-y-1/4 pointer-events-none bg-gradient-to-b ${ACCENT_HERO[accent]} to-transparent`}></div>

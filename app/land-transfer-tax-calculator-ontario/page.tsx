@@ -42,6 +42,7 @@ const FAQ = [
 export default function Page() {
   return (
     <CalcChrome
+      slug="/land-transfer-tax-calculator-ontario"
       title="Ontario Land Transfer Tax Calculator"
       subtitle="Provincial + Toronto Municipal LTT with first-time buyer rebates. Full marginal breakdown + sample bands."
       accent="blue"
