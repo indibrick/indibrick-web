@@ -3,7 +3,6 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 // --- FIX: Use '@/' for robust imports ---
 import CityGate from '@/components/CityGate';
-import MarketTrendChart from '@/components/MarketTrendChart';
 import JsonLd from '@/components/JsonLd';
 import { MarketReportService } from '@/services/MarketReportService';
 // ----------------------------------------
@@ -18,12 +17,21 @@ interface Props {
 // ISR — market reports refresh hourly; report-data ages slowly so this is plenty.
 export const revalidate = 3600;
 
-// Pre-render a page for every known city so Google sees fully-static HTML on
-// first crawl. Unknown slugs render on demand (and 404 if MarketReportService
-// can't produce a report).
+// Pre-render ONLY cities that have a real stored market report.
+//
+// This previously pre-rendered all ~41 cities, which was safe only because
+// MarketReportService returned hardcoded mock data for every miss — so
+// every city published the same invented $1.05M / 432-listings / 18-DOM
+// report. Now that the mock is gone, a city without a report 404s, and
+// pre-rendering a known-404 wastes build time and generates soft-404
+// signals in Search Console. Cities gain a page automatically once their
+// report lands in Firestore.
 export async function generateStaticParams() {
   const cities = await CityService.getAllCities();
-  return cities.map((c) => ({ slug: c.slug }));
+  const withReports = await Promise.all(
+    cities.map(async (c) => ((await MarketReportService.getReport(c.slug)) ? c.slug : null)),
+  );
+  return withReports.filter((slug): slug is string => slug !== null).map((slug) => ({ slug }));
 }
 
 // 1. DYNAMIC SEO METADATA (Visible to Google)
@@ -37,10 +45,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     });
   }
 
+  // NOINDEX until the underlying data has a cited source.
+  //
+  // The outright fabrications are gone — the constant-valued six-month price
+  // chart, the "ROI +12%" figures that were literally `12 - arrayIndex`, and
+  // the hardcoded "Confidence: HIGH" were all removed. What remains comes from
+  // the `market_reports` Firestore collection, which is sparsely populated and
+  // carries no source attribution, so these pages are not yet something to put
+  // in front of search or answer engines on a regulated site.
+  //
+  // noindex,follow rather than deletion: the pages stay live and readable and
+  // any inbound link equity still flows. Remove this flag once the reports
+  // carry a named, dated source.
   return buildMetadata({
-    title: `${report.cityName} Real Estate Market Report 2026 — AI Forecast`,
-    description: `Is now a good time to buy in ${report.cityName}? Access our 2026 AI-driven market analysis, price trends, and investor scores.`,
+    title: `${report.cityName} Real Estate Market Report 2026`,
+    description: `Market context for ${report.cityName}, Ontario — pricing, velocity and buyer considerations for 2026.`,
     slug: `/city-data/${params.slug}`,
+    noindex: true,
   });
 }
 
@@ -48,12 +69,19 @@ export default async function CityReportPage({ params }: Props) {
   const report = await MarketReportService.getReport(params.slug);
   if (!report) notFound();
 
+  // Author is the licensed brokerage entity, not "IndiBrick AI".
+  // Advertising machine authorship on YMYL financial content actively
+  // suppresses E-E-A-T — Google's quality raters are instructed to weigh
+  // who is accountable for the claims, and "AI" is not an accountable
+  // party. Reference the single Organization node declared in layout.tsx
+  // so the credential graph (FSRA #12830) resolves.
   const reportSchema = {
     "@context": "https://schema.org",
     "@type": "Article",
     "headline": `${report.cityName} Market Analysis 2026`,
-    "datePublished": new Date().toISOString(),
-    "author": { "@type": "Organization", "name": "IndiBrick AI" }
+    "datePublished": report.reportDate || new Date().toISOString(),
+    "author": { "@id": "https://indibrick.ca/#organization" },
+    "publisher": { "@id": "https://indibrick.ca/#organization" },
   };
 
   return (
@@ -123,10 +151,6 @@ export default async function CityReportPage({ params }: Props) {
                            <span className="text-sm font-bold text-gray-500 mb-2">/ 10</span>
                         </div>
                      </div>
-                     <div>
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Confidence</p>
-                        <span className="text-green-400 font-bold uppercase tracking-wider text-sm">High</span>
-                     </div>
                   </div>
                </div>
             </div>
@@ -141,14 +165,13 @@ export default async function CityReportPage({ params }: Props) {
                      {report.investorHotspots.map((spot, i) => (
                         <li key={i} className="flex justify-between items-center border-b border-gray-100 pb-3 last:border-0">
                            <span className="font-bold text-slate-800">{spot}</span>
-                           <span className="text-xs font-black bg-green-100 text-green-700 px-2 py-1 rounded">ROI +{12 - i}%</span>
+
                         </li>
                      ))}
                   </ul>
                </div>
 
                {/* 3. PRICE CHART (Reusing your component) */}
-               <MarketTrendChart city={report.cityName} />
             </div>
 
          </CityGate>

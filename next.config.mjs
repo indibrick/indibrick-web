@@ -1,3 +1,5 @@
+import { BLOG_REDIRECTS } from './data/blogPrunePlan.mjs';
+
 /** @type {import('next').NextConfig} */
 
 // Security headers applied site-wide. CSP ships in Report-Only mode first —
@@ -72,6 +74,47 @@ const nextConfig = {
   transpilePackages: ['undici', 'firebase', '@firebase/auth', '@firebase/component', '@firebase/util'],
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
+  async redirects() {
+    return [
+      // Canonical host enforcement: www → apex, 301.
+      //
+      // MUST STAY FIRST. The blog 301s below use host-relative destinations,
+      // so if they matched first a www blog URL would take two hops
+      // (www/blog/x → www/target → apex/target). Redirect chains dilute the
+      // signal and burn crawl budget. Host normalisation first means every
+      // later rule is already operating on the apex.
+      //
+      // metadataBase already emits apex canonicals on every page, so Google
+      // was correctly declining to index the www duplicates — but it still
+      // spent crawl budget on them and they cluttered the "Crawled - currently
+      // not indexed" report.
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.indibrick.ca' }],
+        destination: 'https://indibrick.ca/:path*',
+        permanent: true,
+      },
+      // Pre-construction city pages: the per-city data behind these was
+      // fabricated and was removed (PRE_CON_CITIES is now empty), which left
+      // generateStaticParams returning [] and every one of these URLs hard
+      // 404ing. A 404 discards the inbound link equity these had accumulated;
+      // a 301 to the real, hand-maintained projects hub preserves it and gives
+      // the visitor the page they were actually looking for.
+      {
+        source: '/pre-construction-condos/:city',
+        destination: '/pre-construction-projects',
+        permanent: true,
+      },
+      // Blog prune — 301s for consolidated / retired posts. Sourced from
+      // data/blogPrunePlan.mjs so the redirect set, the sitemap filter and the
+      // Firestore noindex flags all read from one list.
+      ...BLOG_REDIRECTS.map((p) => ({
+        source: `/blog/${p.slug}`,
+        destination: p.to,
+        permanent: true,
+      })),
+    ];
+  },
   async headers() {
     return [
       { source: '/:path*', headers: securityHeaders },

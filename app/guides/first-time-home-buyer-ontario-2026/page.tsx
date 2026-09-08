@@ -72,7 +72,7 @@ const STEPS = [
   {
     n: 5,
     title: 'Get pre-approved by a licensed Ontario mortgage broker',
-    body: `A real pre-approval — not a "how much can I afford" calculator estimate — requires income documents, credit pull, and a licensed mortgage agent to underwrite the file against 40+ lenders. Turnaround: 1 business hour at IndiBrick (see /rates for current wholesale rates), 24–48 hours at most traditional brokers. Ontario sellers weigh pre-approval letters by broker credibility — get one from a licensed brokerage (FSRA-registered) and confirm the letter names your maximum purchase price + rate hold. Rate holds are typically 90–120 days.`,
+    body: `A real pre-approval — not a "how much can I afford" calculator estimate — requires income documents, credit pull, and a licensed mortgage agent to underwrite the file against 50+ lenders. Turnaround: 1 business hour at IndiBrick (see /rates for current wholesale rates), 24–48 hours at most traditional brokers. Ontario sellers weigh pre-approval letters by broker credibility — get one from a licensed brokerage (FSRA-registered) and confirm the letter names your maximum purchase price + rate hold. Rate holds are typically 90–120 days.`,
   },
   {
     n: 6,
@@ -259,13 +259,13 @@ export default function FirstTimeHomeBuyerOntarioGuide() {
                       Skip the shopping — start the pre-approval now.
                     </h3>
                     <p className="text-xs md:text-sm text-gray-400 mb-5">
-                      A licensed Ontario mortgage advisor will call you back within 1 business hour with your maximum purchase price + rate options from 40+ lenders. No hard credit check.
+                      A licensed Ontario mortgage advisor will call you back within 1 business hour with your maximum purchase price + rate options from 50+ lenders. No hard credit check.
                     </p>
                     <div className="bg-white p-2 rounded-2xl">
                       <LeadForm
                         type="Mortgage"
                         title="Ontario FTHB Pre-Approval"
-                        subtitle="Licensed agent callback · 40+ lenders · No hard credit check"
+                        subtitle="Licensed agent callback · 50+ lenders · No hard credit check"
                         ctaText="Get My Pre-Approval"
                       />
                     </div>
@@ -348,7 +348,7 @@ export default function FirstTimeHomeBuyerOntarioGuide() {
               Ready for a real pre-approval?
             </h2>
             <p className="text-gray-400 text-sm md:text-base mb-6">
-              A licensed Ontario mortgage agent will call you back within 1 business hour with your actual maximum purchase price and 40+ lender rate options.
+              A licensed Ontario mortgage agent will call you back within 1 business hour with your actual maximum purchase price and 50+ lender rate options.
             </p>
             <div className="bg-white p-2 rounded-[2rem] shadow-xl border border-gray-100 text-left">
               <LeadForm

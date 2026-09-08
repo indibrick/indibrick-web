@@ -12,49 +12,31 @@ import {
 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/firebase';
+import { getLiveRates } from '../lib/getLiveRates';
 
 export const revalidate = 60; 
 
 // Metadata pulls the live insured-variable 5yr rate from Firestore so the
-// description never goes stale. Falls back to DEFAULT_RATES if the read fails.
+// description never goes stale. When no rate sheet is available the sentence
+// is dropped entirely rather than quoting a constant — this description is
+// what an answer engine reads as our advertised rate.
 export async function generateMetadata(): Promise<Metadata> {
   const rates = await getLiveRates();
-  const headlineRate = rates.insured_variable_5yr || DEFAULT_RATES.insured_variable_5yr;
+  const rateSentence = rates
+    ? ` Live 5yr insured variable from ${rates.insured_variable_5yr}%.`
+    : '';
   // Title: 51 chars, keyword in first 24, brand suffix, "Compare Rates"
   // is a compliance-safe action verb (not a superlative). Paired with H1
   // below at ~65% word overlap to prevent Google title rewriting.
   return buildMetadata({
     title: 'Mortgage Broker Ontario | Compare Rates — IndiBrick',
     titleAbsolute: true,
-    description: `Ontario mortgage broker — compare rates from 45+ lenders and get fast approvals. FSRA-licensed. Live 5yr insured variable from ${headlineRate}%. Serving GTA, Vaughan & Brampton.`,
+    description: `Ontario mortgage broker — compare rates from 50+ lenders and get fast approvals. FSRA-licensed.${rateSentence} Serving GTA, Vaughan & Brampton.`,
     slug: '/',
     keywords: ['Mortgage Broker Ontario', 'Compare Mortgage Rates Ontario', 'Ontario Mortgage Rates', 'Best Mortgage Broker GTA', 'Vaughan Mortgage Broker', 'Brampton Mortgage Broker', 'Toronto Mortgage Broker'],
   });
 }
 
-const DEFAULT_RATES = {
-  insured_variable_5yr: '3.39',
-  insured_fixed_5yr: '3.79',
-  insured_fixed_3yr: '4.09',
-  uninsured_fixed_5yr: '4.39',
-  uninsured_variable_5yr: '4.59',
-  b_lender: '4.79',
-  private_1st: '5.49',
-  second_mortgage: '4.99'
-};
-
-async function getLiveRates() {
-  try {
-    const docRef = doc(db, 'site_settings', 'mortgage_rates');
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      return { ...DEFAULT_RATES, ...docSnap.data() };
-    }
-  } catch (e) {
-    console.error("⚠️ Failed to fetch rates, using defaults:", e);
-  }
-  return DEFAULT_RATES;
-}
 
 export default async function HomePage() {
   const rates = await getLiveRates();
@@ -97,7 +79,7 @@ export default async function HomePage() {
               the geo + primary keyword ("Ontario Mortgage Broker · Compare
               Rates") without competing with the brand line. */}
           <p className="text-base md:text-2xl font-black text-slate-700 tracking-tight mb-4 md:mb-5">
-            Ontario Mortgage Broker · <span className="text-blue-600">Compare Rates from 45+ Lenders</span>
+            Ontario Mortgage Broker · <span className="text-blue-600">Compare Rates from 50+ Lenders</span>
           </p>
 
           {/* Factual entity descriptor for LLMs + Google. Small on the page,
@@ -126,12 +108,11 @@ export default async function HomePage() {
       {/* --- 2. LIVE TICKER --- */}
       <div className="bg-slate-900 text-white overflow-hidden py-3 border-y border-slate-800">
         <div className="flex gap-12 animate-marquee whitespace-nowrap text-[10px] font-black uppercase tracking-widest opacity-80">
-           <span className="flex items-center gap-2"><span className="text-green-400">●</span> Mortgage: {rates.insured_variable_5yr}%* (Low)</span>
+           <span className="flex items-center gap-2"><span className="text-green-400">●</span> {rates ? `Mortgage: ${rates.insured_variable_5yr}%* (Low)` : 'Mortgage: Wholesale Panel'}</span>
            <span className="flex items-center gap-2"><span className="text-blue-400">●</span> Legal: Tech-Enabled Closings</span>
-           <span className="flex items-center gap-2"><span className="text-green-400">●</span> Toronto Detached: $1.4M (-2.1%)</span>
            <span className="flex items-center gap-2"><span className="text-yellow-400">●</span> Renovations: Licensed Pros</span>
            <span className="flex items-center gap-2"><span className="text-purple-400">●</span> Wealth: Tax Strategy</span>
-           <span className="flex items-center gap-2"><span className="text-green-400">●</span> Mortgage: {rates.insured_variable_5yr}%* (Low)</span>
+           <span className="flex items-center gap-2"><span className="text-green-400">●</span> {rates ? `Mortgage: ${rates.insured_variable_5yr}%* (Low)` : 'Mortgage: Wholesale Panel'}</span>
         </div>
       </div>
 
@@ -268,7 +249,7 @@ export default async function HomePage() {
                      <span className="text-gray-400 transition group-open:rotate-180"><ChevronDown size={20}/></span>
                   </summary>
                   <p className="text-gray-500 mt-4 leading-relaxed">
-                     Absolutely. Start with our <strong>{rates.insured_variable_5yr}% Mortgage Rate</strong> or an <strong>Architecture Consult</strong>. Most clients naturally expand to other services once they see the value and efficiency we provide.
+                     Absolutely. Start with {rates ? <><strong>our {rates.insured_variable_5yr}% Mortgage Rate</strong></> : <><strong>a mortgage rate quote</strong></>} or an <strong>Architecture Consult</strong>. Most clients naturally expand to other services once they see the value and efficiency we provide.
                   </p>
                </details>
                

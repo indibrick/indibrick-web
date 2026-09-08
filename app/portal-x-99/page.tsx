@@ -833,7 +833,7 @@ export default function AdminPage() {
                  {externalPartners.map(p => (
                    <tr key={p.uid} className="hover:bg-slate-50 transition">
                      <td className="p-4 font-bold">{p.displayName}<br/><span className="text-xs text-gray-400 font-normal">{p.organization}</span></td>
-                     <td className="p-4"><span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${p.role === 'partner_lawyer' ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600'}`}>{p.role === 'partner_lawyer' ? 'Lawyer' : 'Realtor'}</span></td>
+                     <td className="p-4"><span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${p.role === 'partner_lawyer' ? 'bg-purple-50 text-purple-600' : p.role === 'partner_mortgage' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>{p.role === 'partner_lawyer' ? 'Lawyer' : p.role === 'partner_mortgage' ? 'Mortgage' : 'Realtor'}</span></td>
                      <td className="p-4 text-xs font-medium text-gray-600">{p.email}<br/>{p.phone}</td>
                      <td className="p-4 font-mono font-bold text-green-600">{p.referralVolume || '$0.00'}</td>
                      <td className="p-4 text-right">
@@ -1187,6 +1187,7 @@ export default function AdminPage() {
                     <select className="w-full bg-gray-50 p-3 rounded-lg font-bold outline-none" value={currentPartner.role} onChange={e => setCurrentPartner({...currentPartner, role: e.target.value})}>
                        <option value="partner_realtor">Realtor</option>
                        <option value="partner_lawyer">Lawyer</option>
+                       <option value="partner_mortgage">Mortgage partner</option>
                     </select>
                  </div>
                  <div>

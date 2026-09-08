@@ -9,33 +9,22 @@ import {
   Briefcase, TrendingUp, AlertTriangle, HelpCircle, ChevronDown, ArrowRight
 } from 'lucide-react';
 import { buildMetadata } from '../../lib/buildMetadata';
+import { getLiveRates } from '../../lib/getLiveRates';
 
-export const metadata = buildMetadata({
-  title: 'Bad Credit Mortgages & Private Lenders Ontario — Approval in 24h',
-  description: 'Denied by the bank? We specialize in Bad Credit, Self-Employed, and Private Mortgages. Rates from 4.79%*. No income verification options available. Approved on Equity, not Credit.',
-  slug: '/bad-credit-private-mortgages',
-  keywords: ['Bad Credit Mortgage Ontario', 'Private Lender Toronto', 'B Lender Mortgage Rates', 'Self Employed Mortgage No Income Verification', 'Second Mortgage Ontario', 'Stop Power of Sale'],
-});
-
-// --- DATA FETCHING ---
-const DEFAULT_RATES = {
-  b_lender: '4.79',
-  private_1st: '5.49',
-  second_mortgage: '4.99'
-};
-
-async function getLiveRates() {
-  try {
-    const docRef = doc(db, 'site_settings', 'mortgage_rates');
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      return { ...DEFAULT_RATES, ...docSnap.data() };
-    }
-  } catch (e) {
-    console.error("Using Default Rates", e);
-  }
-  return DEFAULT_RATES;
+// The description used to hardcode "Rates from 4.79%*", which drifted from the
+// live sheet (currently 4.89%). A meta description is what an answer engine
+// quotes as our advertised rate, so it reads from the sheet or says nothing.
+export async function generateMetadata() {
+  const rates = await getLiveRates();
+  const rateClause = rates ? ` Rates from ${rates.b_lender}%*.` : '';
+  return buildMetadata({
+    title: 'Bad Credit Mortgages & Private Lenders Ontario — Approval in 24h',
+    description: `Denied by the bank? We specialize in Bad Credit, Self-Employed, and Private Mortgages.${rateClause} No income verification options available. Approved on Equity, not Credit.`,
+    slug: '/bad-credit-private-mortgages',
+    keywords: ['Bad Credit Mortgage Ontario', 'Private Lender Toronto', 'B Lender Mortgage Rates', 'Self Employed Mortgage No Income Verification', 'Second Mortgage Ontario', 'Stop Power of Sale'],
+  });
 }
+
 
 export default async function AlternativeLendingPage() {
   const rates = await getLiveRates();
@@ -45,7 +34,7 @@ export default async function AlternativeLendingPage() {
     "@type": "FinancialProduct",
     "name": "Alternative Mortgage Lending",
     "description": "Mortgage solutions for borrowers who do not qualify for traditional bank financing due to credit, income, or debt ratios.",
-    "interestRate": rates.b_lender,
+    ...(rates ? { "interestRate": rates.b_lender } : {}),
     "provider": { "@type": "Organization", "name": "IndiBrick Financial" },
     "areaServed": "Ontario"
   };
@@ -59,7 +48,7 @@ export default async function AlternativeLendingPage() {
         "name": "What is the difference between a B-Lender and a Private Lender?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "A B-Lender is a regulated financial institution (like a bank) that allows for higher debt ratios and bruised credit, typically offering rates around 4.79%. A Private Lender is an individual or investment corporation that lends purely based on property equity, ignoring credit scores entirely, with rates starting around 5.49%."
+          "text": `A B-Lender is a regulated financial institution (like a bank) that allows for higher debt ratios and bruised credit${rates ? `, typically offering rates around ${rates.b_lender}%` : ''}. A Private Lender is an individual or investment corporation that lends purely based on property equity, ignoring credit scores entirely${rates ? `, with rates starting around ${rates.private_1st}%` : ''}.`
         }
       },
       {
@@ -169,7 +158,7 @@ export default async function AlternativeLendingPage() {
                      <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest">Best Value</span>
                      <h3 className="text-3xl font-black mt-4 mb-2">B-Lender</h3>
                      <div className="flex items-baseline gap-1">
-                        <span className="text-5xl font-black text-slate-900">{rates.b_lender}%</span>
+                        <span className="text-5xl font-black text-slate-900">{rates ? `${rates.b_lender}%` : <span className="text-2xl">On request</span>}</span>
                         <span className="text-sm font-bold text-gray-400">*</span>
                      </div>
                   </div>
@@ -193,7 +182,7 @@ export default async function AlternativeLendingPage() {
                      <span className="bg-blue-600 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest">Easiest Approval</span>
                      <h3 className="text-3xl font-black mt-4 mb-2">Private 1st</h3>
                      <div className="flex items-baseline gap-1">
-                        <span className="text-5xl font-black">{rates.private_1st}%</span>
+                        <span className="text-5xl font-black">{rates ? `${rates.private_1st}%` : <span className="text-2xl">On request</span>}</span>
                         <span className="text-sm font-bold text-gray-400">*</span>
                      </div>
                      <p className="text-sm text-gray-400 mb-8 mt-4 leading-relaxed">
@@ -217,7 +206,7 @@ export default async function AlternativeLendingPage() {
                      <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest">Cash Out</span>
                      <h3 className="text-3xl font-black mt-4 mb-2">2nd Mortgage</h3>
                      <div className="flex items-baseline gap-1">
-                        <span className="text-5xl font-black text-slate-900">{rates.second_mortgage}%</span>
+                        <span className="text-5xl font-black text-slate-900">{rates ? `${rates.second_mortgage}%` : <span className="text-2xl">On request</span>}</span>
                         <span className="text-sm font-bold text-gray-400">*</span>
                      </div>
                   </div>

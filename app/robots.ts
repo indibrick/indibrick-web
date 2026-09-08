@@ -27,14 +27,22 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: '*',
-        allow: '/',
+        // The housing-index Dataset declares its distribution URLs under
+        // /api/housing-index/ (see app/housing-index/page.tsx). Blanket-
+        // disallowing /api/ made those DataDownload nodes resolve to a
+        // forbidden URL — worse than not declaring them at all. Longest-match
+        // wins for Google, OpenAI and Perplexity, so this allow beats the
+        // /api/ disallow below it.
+        allow: ['/', '/api/housing-index/'],
         disallow: ['/api/', '/admin/', '/portal-x-99/', '/partner/', '/lender/', '/secure-portal/'],
       },
       // Explicit allow-blocks for AI crawlers. Same permissions as the
       // wildcard, but the named entry is what these operators log + honor.
       ...AI_CRAWLERS.map((userAgent) => ({
         userAgent,
-        allow: '/',
+        // Same carve-out as the wildcard block — these are precisely the
+        // crawlers the machine-readable index exists for.
+        allow: ['/', '/api/housing-index/'],
         disallow: ['/api/', '/admin/', '/portal-x-99/', '/partner/', '/lender/', '/secure-portal/'],
       })),
     ],

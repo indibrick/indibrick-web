@@ -139,25 +139,40 @@ export default async function RootLayout({
       { '@type': 'City', name: 'Mississauga' },
       { '@type': 'City', name: 'Hamilton' },
     ],
-    // FSRA license held by the brokerage IndiBrick submits deals through.
-    // Named as an Organization identifier so LLMs can disambiguate.
-    identifier: [
-      { '@type': 'PropertyValue', propertyID: 'FSRA', value: '12830' },
-    ],
-    hasCredential: {
-      '@type': 'EducationalOccupationalCredential',
-      credentialCategory: 'license',
-      name: 'FSRA Mortgage Brokerage License',
-      recognizedBy: {
-        '@type': 'Organization',
-        name: 'Financial Services Regulatory Authority of Ontario',
-      },
-      identifier: '12830',
-    },
-    parentOrganization: {
+    // FSRA #12830 belongs to Pineapple Financial Inc., NOT to IndiBrick.
+    //
+    // This node previously carried `identifier: FSRA 12830` AND a
+    // `hasCredential` naming an "FSRA Mortgage Brokerage License" — which
+    // asserted that IndiBrick itself holds a brokerage licence it does not
+    // hold. Every human-readable surface on the site says the opposite
+    // (public/llms.txt, lib/authors.ts, the blog disclosure block), so the
+    // structured data was the one place contradicting the disclosure. On a
+    // regulated site that is an advertising exposure, and it is exactly the
+    // assertion an answer engine lifts verbatim for "is IndiBrick licensed?".
+    //
+    // The credential now lives on the Pineapple node where it belongs, and
+    // the relationship is modelled as `memberOf` rather than
+    // `parentOrganization` — Pineapple is the brokerage of record, not the
+    // corporate parent.
+    memberOf: {
       '@type': 'FinancialService',
+      '@id': 'https://indibrick.ca/#brokerage-of-record',
       name: 'Pineapple Financial Inc.',
-      identifier: 'FSRA #12830',
+      identifier: [
+        { '@type': 'PropertyValue', propertyID: 'FSRA', value: '12830' },
+      ],
+      hasCredential: {
+        '@type': 'EducationalOccupationalCredential',
+        credentialCategory: 'license',
+        name: 'FSRA Mortgage Brokerage Licence',
+        identifier: '12830',
+        recognizedBy: {
+          '@type': 'GovernmentOrganization',
+          name: 'Financial Services Regulatory Authority of Ontario',
+          alternateName: 'FSRA',
+          url: 'https://www.fsrao.ca/',
+        },
+      },
     },
     contactPoint: [
       {

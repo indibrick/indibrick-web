@@ -3,8 +3,8 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Metadata } from 'next';
 import {
-  MapPin, TrendingUp, TrendingDown, Activity, Home as HomeIcon,
-  ArrowRight, Phone, ShieldCheck, ChevronDown,
+  TrendingUp, TrendingDown, Activity, Home as HomeIcon,
+  ArrowRight, Phone, ShieldCheck, ChevronDown, Info, Calculator,
 } from 'lucide-react';
 import { CITIES } from '../../../../../data/cityData';
 import {
@@ -14,11 +14,10 @@ import { MarketDataService } from '../../../../../services/MarketDataService';
 import LeadForm from '../../../../../components/LeadForm';
 import JsonLd from '../../../../../components/JsonLd';
 import { buildMetadata } from '../../../../../lib/buildMetadata';
-import { getCityProof } from '../../../../../lib/socialProof';
 import { getLiveRates } from '../../../../../lib/getLiveRates';
+import { computeBandMath, cad, type BandMath } from '../../../../../lib/canadianMortgageMath';
 
-// ISR — every matrix cell page regenerates at most once per hour. Market
-// snapshot numbers stay fresh; build time stays sane for ~800 pages.
+// ISR — every matrix cell page regenerates at most once per hour.
 export const revalidate = 3600;
 
 interface Params {
@@ -27,8 +26,11 @@ interface Params {
   priceRange: string;
 }
 
-// Pre-render every (city × type × priceRange) tuple at build time. With 40
-// cities × 4 types × 5 bands that's 800 static HTML pages on first build.
+// Pre-render every (city × type × priceRange) tuple. Note that rendering is NOT
+// the same as indexing: only the cells that pass
+// MarketDataService.getCellIndexability() ship an indexable robots tag, and only
+// those appear in the sitemap. The rest stay reachable (noindex,follow) so users
+// who land on them get a real answer and link equity still flows through.
 export async function generateStaticParams(): Promise<Params[]> {
   return MarketDataService.enumerateCells().map((t) => ({
     city: t.city,
@@ -44,6 +46,31 @@ function resolveCell(p: Params) {
   return { city, type, range };
 }
 
+/** Compact price label used in titles + stat cards. */
+const priceK = (n: number) =>
+  n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(2)}M` : `$${Math.round(n / 1000)}K`;
+
+/**
+ * The three purchase prices a band page runs its mortgage math at: the band
+ * floor, midpoint and ceiling. These are illustrative purchase prices — clearly
+ * labelled as such — not claims about what anything sold for.
+ */
+function bandPricePoints(min: number, max: number): number[] {
+  const low = min === 0 ? 250_000 : min;
+  // PRICE_RANGES bands are HALF-OPEN — withinBand() tests `price < hi`, and
+  // the next band's `min` equals this band's `max`. Using `max` as the ceiling
+  // price point therefore prices a home that belongs to the NEXT band.
+  //
+  // This mattered most on $1M–$1.5M, where `max` landed exactly on the CMHC
+  // insurability cliff: the page quoted $300,000 (20%, uninsurable) when the
+  // true band ceiling of $1,499,999 needs $125,000 (8.33%) WITH insurance
+  // available — a 2.4x overstatement of required cash, in visible copy and in
+  // FAQPage structured data, across 168 pages.
+  const high = max === Number.MAX_SAFE_INTEGER ? 3_000_000 : max - 1;
+  const mid = Math.round((low + high) / 2 / 1000) * 1000;
+  return [low, mid, high];
+}
+
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { city, type, range } = resolveCell(params);
   if (!city || !type || !range) {
@@ -53,96 +80,150 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
       slug: `/real-estate/${params.city}/${params.type}/${params.priceRange}`,
     });
   }
-  const title = `${type.plural} for Sale in ${city.name} — ${range.label}`;
-  const description = `Browse ${type.plural.toLowerCase()} for sale in ${city.name}, Ontario ${range.label.toLowerCase()}. Live market snapshot, median pricing, days on market and active inventory updated hourly via IndiBrick.`;
-  return buildMetadata({
+
+  const slug = `/real-estate/${params.city}/${params.type}/${params.priceRange}`;
+  const [snap, verdict, rates] = await Promise.all([
+    MarketDataService.getSnapshot(params.city, params.type, params.priceRange),
+    MarketDataService.getCellIndexability(params.city, params.type, params.priceRange),
+    getLiveRates(),
+  ]);
+
+  // Title + description are built from the REAL benchmark, the CREA release
+  // month and band-specific federal down-payment / land-transfer-tax math. Two
+  // sibling pages therefore differ by actual figures rather than by a swapped
+  // city token — which is what a title-tag-level duplicate looks like to Google.
+  const [low, , high] = bandPricePoints(range.min, range.max);
+  const contractRate = rates ? parseFloat(rates.insured_fixed_5yr) || 5.25 : 5.25;
+  const mathLow = computeBandMath(low, contractRate, city.slug);
+  const mathHigh = computeBandMath(high, contractRate, city.slug);
+
+  const title = snap.benchmark
+    ? `${type.plural} in ${city.name} ${range.short} | ${priceK(snap.benchmark)} Benchmark`
+    : `${type.plural} in ${city.name} ${range.short}`;
+
+  const yoyBit =
+    snap.yoyChangePct !== null
+      ? `, ${snap.yoyChangePct >= 0 ? '+' : ''}${snap.yoyChangePct.toFixed(1)}% YoY`
+      : '';
+
+  // Kept close to 160 characters so Google renders it whole, and front-loaded
+  // with the two figures that differ most between sibling URLs — the regional
+  // benchmark and the band's minimum down payment.
+  const description = snap.benchmark
+    ? `${snap.regionLabel} ${type.label.toLowerCase()} benchmark ${cad(snap.benchmark)} (${snap.asOfLabel}${yoyBit}). ${range.short} in ${city.name}: ${cad(mathLow.minDown)}–${cad(mathHigh.minDown)} min down, ${cad(mathLow.totalLtt)}–${cad(mathHigh.totalLtt)} land transfer tax.`
+    : `${range.short} ${type.plural.toLowerCase()} in ${city.name}, Ontario: ${cad(mathLow.minDown)}–${cad(mathHigh.minDown)} minimum down payment, ${cad(mathLow.totalLtt)}–${cad(mathHigh.totalLtt)} land transfer tax, plus the B-20 stress-test math for this band.`;
+
+  const meta = buildMetadata({
     title,
     description,
-    slug: `/real-estate/${params.city}/${params.type}/${params.priceRange}`,
+    slug,
+    titleAbsolute: true,
     keywords: [
       `${type.plural} for sale ${city.name}`,
       `${city.name} ${type.label.toLowerCase()} ${range.short}`,
-      `${type.label} ${city.name} ${range.label}`,
-      `${city.name} ${type.label.toLowerCase()} prices`,
-      `MLS ${city.name} ${type.plural.toLowerCase()}`,
-      `${city.name} real estate ${range.label}`,
+      `${city.name} ${type.label.toLowerCase()} down payment`,
+      `${city.name} ${type.label.toLowerCase()} benchmark price`,
+      `land transfer tax ${city.name}`,
     ],
   });
+
+  // Cells with no honest headline number stay crawlable but out of the index.
+  if (!verdict.indexable) {
+    meta.robots = { index: false, follow: true };
+  }
+  return meta;
 }
 
 export default async function MatrixCellPage({ params }: { params: Params }) {
   const { city, type, range } = resolveCell(params);
   if (!city || !type || !range) notFound();
 
-  const snap = await MarketDataService.getSnapshot(params.city, params.type, params.priceRange);
-  const sourceLabel = await MarketDataService.getSourceLabel(params.city, params.type);
-  const proof = getCityProof(params.city);
-  const liveRates = await getLiveRates();
+  const [snap, verdict, liveRates, comparableMarkets] = await Promise.all([
+    MarketDataService.getSnapshot(params.city, params.type, params.priceRange),
+    MarketDataService.getCellIndexability(params.city, params.type, params.priceRange),
+    getLiveRates(),
+    MarketDataService.getComparableMarkets(params.city, 6),
+  ]);
 
-  // Direct-answer copy for AEO. Google AI Overviews + Perplexity pull from
-  // visible H2/H3 → paragraph patterns, not from accordions or JSON-LD alone.
   const currentYear = new Date().getFullYear();
-  const trendUp = snap.yoyChangePct >= 0;
-  const marketCondition =
-    snap.daysOnMarket < 21 && trendUp ? 'seller'
-    : snap.daysOnMarket > 35 && !trendUp ? 'buyer'
-    : 'balanced';
-  const marketVerdict =
-    marketCondition === 'seller'
-      ? `${snap.cityName} is currently a seller's market for ${snap.typeLabel.toLowerCase()}s in this band.`
-      : marketCondition === 'buyer'
-      ? `${snap.cityName} is currently a buyer's market for ${snap.typeLabel.toLowerCase()}s in this band.`
-      : `${snap.cityName} is currently a balanced market for ${snap.typeLabel.toLowerCase()}s in this band.`;
-  const marketReason =
-    marketCondition === 'seller'
-      ? `Active inventory is moving in only ${snap.daysOnMarket} days on market with prices up ${snap.yoyChangePct.toFixed(1)}% year-over-year. Expect competition, escalation clauses, and unconditional offers on well-priced product.`
-      : marketCondition === 'buyer'
-      ? `Listings are sitting ${snap.daysOnMarket} days on average and prices are ${Math.abs(snap.yoyChangePct).toFixed(1)}% lower year-over-year. Buyers have negotiating leverage on price, closing date, and condition periods.`
-      : `Inventory is turning over in ${snap.daysOnMarket} days with prices ${trendUp ? 'up' : 'down'} ${Math.abs(snap.yoyChangePct).toFixed(1)}% year-over-year. Neither side has decisive leverage right now.`;
+  const contractRate = liveRates ? parseFloat(liveRates.insured_fixed_5yr) || 5.25 : 5.25;
+  // A rate we cannot source is a rate we do not quote. Every "Live"/"Today"
+  // badge below is gated on this — see lib/getLiveRates.ts for why the module
+  // returns null instead of falling back to constants.
+  const fixed5 = liveRates?.insured_fixed_5yr ?? null;
 
-  const priceK = (n: number) =>
-    n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(2)}M` : `$${Math.round(n / 1000)}K`;
+  // ─── Band-specific Canadian mortgage math ───
+  // This is the content that actually differs from band to band. The federal
+  // rules step at $500K (5% → 10% marginal down payment) and $1.5M (insurance
+  // unavailable, 20% minimum, 30-yr amortization), and Ontario LTT steps at
+  // $55K / $250K / $400K / $2M — so the numbers below are genuinely different
+  // per band rather than the same paragraph with a different dollar token.
+  const pricePoints = bandPricePoints(range.min, range.max);
+  const bandMath: BandMath[] = pricePoints.map((p) => computeBandMath(p, contractRate, city.slug));
+  const midMath = bandMath[1];
+  const isToronto = city.slug === 'toronto';
+
+  // Where does the real benchmark actually sit? Used both for the honest
+  // "this band isn't where this market trades" answer and to route the reader
+  // (and Google) to the one band page that IS worth ranking for this market.
+  const homeBand = snap.benchmark
+    ? PRICE_RANGES.find((r) => snap.benchmark! >= r.min && snap.benchmark! < r.max) || null
+    : null;
+  const benchmarkElsewhere = Boolean(snap.benchmark && homeBand && homeBand.slug !== range.slug);
+
+  const trendUp = (snap.yoyChangePct ?? 0) >= 0;
 
   // Cross-link sets for internal SEO + on-page nav.
   const otherTypes = PROPERTY_TYPES.filter((t) => t.slug !== type.slug);
   const otherRanges = PRICE_RANGES.filter((r) => r.slug !== range.slug);
-  // Pick 6 other cities of similar tier for "Same band, other cities" block.
-  const otherCities = CITIES.filter((c) => c.slug !== city.slug).slice(0, 6);
 
-  // Proper monthly-payment math used in the FAQ. 25-year amortization on the
-  // 80%-LTV mortgage at the qualifying rate. The previous version round-tripped
-  // through toLocaleString() and produced "$NaN" — caught by the audit.
-  const mortgageAmount = Math.round(snap.medianPrice * 0.8);
-  const qualifyingAnnualRate = 0.0545;
-  const qualifyingMonthlyRate = qualifyingAnnualRate / 12;
-  const monthlyPayment = Math.round(
-    (mortgageAmount * qualifyingMonthlyRate) /
-    (1 - Math.pow(1 + qualifyingMonthlyRate, -300)),
-  );
+  // ─── FAQ ───
+  // Every answer below resolves to either a published CREA figure or a federal
+  // /provincial rule. Nothing here is modelled.
+  const faqs: { q: string; a: string }[] = [];
 
-  // FAQ schema — drives AI Overviews / People Also Ask.
-  const faqs = [
-    {
-      q: `What is the median price for ${type.plural.toLowerCase()} in ${city.name} ${range.label.toLowerCase()}?`,
-      a: `As of ${snap.asOfDate}, the median list price for ${type.plural.toLowerCase()} in ${city.name} priced ${range.label.toLowerCase()} sits at approximately ${priceK(snap.medianPrice)} based on active MLS inventory.`,
-    },
-    {
-      q: `How many ${type.plural.toLowerCase()} are currently for sale in ${city.name} in this price range?`,
-      a: `There are roughly ${snap.activeListings} active ${type.plural.toLowerCase()} for sale in ${city.name} priced ${range.label.toLowerCase()}. Inventory typically refreshes weekly via the local MLS board.`,
-    },
-    {
-      q: `How long do ${type.plural.toLowerCase()} stay on the market in ${city.name}?`,
-      a: `${type.plural} in ${city.name} priced ${range.label.toLowerCase()} are averaging ${snap.daysOnMarket} days on market. ${snap.daysOnMarket < 21 ? 'That signals a seller-leaning market — buyers should expect competition and pre-approved offers.' : 'That gives buyers time to compare options and negotiate condition removal periods.'}`,
-    },
-    {
-      q: `Are ${city.name} ${type.label.toLowerCase()} prices going up or down?`,
-      a: `Year-over-year median ${type.label.toLowerCase()} prices in ${city.name} (this band) are ${trendUp ? 'up' : 'down'} ${Math.abs(snap.yoyChangePct).toFixed(1)}%. Six-month trend data is available on this page.`,
-    },
-    {
-      q: `What mortgage do I need to buy a ${type.label.toLowerCase()} at this price in ${city.name}?`,
-      a: `On a ${priceK(snap.medianPrice)} purchase with 20% down, you'd carry a mortgage of about ${priceK(mortgageAmount)}. At today's qualifying rate (~5.45%) on a 25-year amortization, that's roughly $${monthlyPayment.toLocaleString('en-CA')} / month before taxes and insurance. Use the IndiBrick affordability calculator to model your specific scenario.`,
-    },
-  ];
+  if (snap.benchmark) {
+    faqs.push({
+      q: `What is the benchmark price for a ${type.label.toLowerCase()} in ${city.name}?`,
+      a: `The CREA MLS® Home Price Index benchmark for ${type.label.toLowerCase()}s in the ${snap.regionLabel} area — the reporting region that covers ${city.name} — is ${cad(snap.benchmark)} as of the ${snap.asOfLabel} release${snap.yoyChangePct !== null ? `, ${trendUp ? 'up' : 'down'} ${Math.abs(snap.yoyChangePct).toFixed(1)}% year-over-year` : ''}. CREA publishes the HPI at the board/region level, not per municipality, so this figure covers ${city.name} together with the rest of the ${snap.regionLabel} reporting area.`,
+    });
+  }
+
+  faqs.push({
+    q: `What is the minimum down payment on a ${range.label.toLowerCase()} home in Ontario?`,
+    a: `Federal minimums are 5% on the first $500,000 and 10% on the portion between $500,000 and $1,499,999; at $1,500,000 and above mortgage default insurance is unavailable and 20% down is required. In the ${range.short} band that works out to ${cad(bandMath[0].minDown)} at ${cad(pricePoints[0])} and ${cad(bandMath[2].minDown)} at ${cad(pricePoints[2])}.`,
+  });
+
+  faqs.push({
+    q: `How much land transfer tax will I pay on a ${range.label.toLowerCase()} purchase in ${city.name}?`,
+    a: isToronto
+      ? `Toronto buyers pay both provincial and municipal land transfer tax. On a ${cad(midMath.price)} purchase that is ${cad(midMath.provincialLtt)} provincial plus ${cad(midMath.municipalLtt)} municipal — ${cad(midMath.totalLtt)} in total. First-time buyers can claim up to $4,000 provincially and up to $4,475 municipally, which on this purchase price reduces the bill by ${cad(midMath.fthbRefund)}.`
+      : `Ontario land transfer tax on a ${cad(midMath.price)} purchase in ${city.name} is ${cad(midMath.provincialLtt)}. ${city.name} does not levy a municipal land transfer tax — only the City of Toronto does. First-time buyers can claim a provincial refund of up to $4,000, worth ${cad(midMath.fthbRefund)} on this purchase price.`,
+  });
+
+  faqs.push({
+    q: `What income do I need to qualify for a ${range.label.toLowerCase()} home in ${city.name}?`,
+    a: `Federally regulated lenders qualify you at the greater of your contract rate plus 2% or 5.25% — currently ${midMath.qualifyingRatePct.toFixed(2)}% against a ${contractRate.toFixed(2)}% contract rate. On a ${cad(midMath.price)} purchase with 20% down (a ${cad(midMath.conventionalPrincipal)} mortgage), principal and interest is ${cad(midMath.paymentAtContract)}/month at the contract rate but ${cad(midMath.paymentAtQualifying)}/month at the qualifying rate — and the qualifying figure is the one your gross debt service ratio is measured against. Property tax, heat and condo fees are additional and vary by property, so speak to a licensed advisor for a figure on your specific file.`,
+  });
+
+  if (range.min >= 1_500_000) {
+    faqs.push({
+      q: `Can I buy a ${cad(range.min)}+ home with less than 20% down?`,
+      a: `No. Mortgage default insurance from CMHC, Sagen and Canada Guaranty is capped at a $1,500,000 purchase price, so any purchase at or above that figure requires a minimum 20% down payment and is written as a conventional (uninsured) mortgage. Uninsured mortgages can be amortized up to 30 years, and the lender panel that funds them is narrower than at lower price points.`,
+    });
+  } else {
+    faqs.push({
+      q: `Is CMHC insurance required in the ${range.short} band?`,
+      a: `Mortgage default insurance is required whenever you put down less than 20%. At ${cad(midMath.price)} the minimum down payment is ${cad(midMath.minDown)} (${midMath.minDownPct}%), which puts the premium at ${midMath.cmhcPremiumPct ? `${midMath.cmhcPremiumPct.toFixed(2)}% of the loan — about ${cad(midMath.cmhcPremium)}, added to the mortgage rather than paid up front` : 'nil, because that down payment is already 20% or more'}. Insured mortgages amortize over 25 years, extended to 30 for first-time buyers and newly built homes.`,
+    });
+  }
+
+  if (benchmarkElsewhere && homeBand) {
+    faqs.push({
+      q: `Do ${type.plural.toLowerCase()} in ${city.name} actually trade in the ${range.short} range?`,
+      a: `Not typically. The ${snap.regionLabel} ${type.label.toLowerCase()} benchmark of ${cad(snap.benchmark!)} sits in the ${homeBand.label} band, so that is where the bulk of ${city.name} ${type.plural.toLowerCase()} transactions cluster. ${range.short} inventory exists but is not representative of this market. For the figures that describe where this market actually trades, see our ${city.name} ${type.plural.toLowerCase()} ${homeBand.label} page.`,
+    });
+  }
 
   const faqSchema = {
     '@context': 'https://schema.org',
@@ -154,24 +235,26 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
     })),
   };
 
-  const itemListSchema = {
-    '@context': 'https://schema.org',
-    '@type': 'ItemList',
-    itemListElement: snap.comparables.map((c, i) => ({
-      '@type': 'ListItem',
-      position: i + 1,
-      item: {
-        '@type': 'Residence',
-        name: c.address,
-        address: { '@type': 'PostalAddress', addressLocality: snap.cityName, addressRegion: 'ON' },
-      },
-    })),
-  };
+  // Dataset schema replaces the old ItemList of invented "Residence" comparables.
+  // We now describe what we actually publish: a derived view of the CREA HPI.
+  const datasetSchema = snap.benchmark
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'Dataset',
+        name: `${snap.regionLabel} ${type.label} benchmark price — ${snap.asOfLabel}`,
+        description: `CREA MLS® Home Price Index benchmark price for ${type.plural.toLowerCase()} in the ${snap.regionLabel} reporting region, as applied to ${city.name}, Ontario.`,
+        temporalCoverage: snap.asOfDate ?? undefined,
+        spatialCoverage: { '@type': 'Place', name: `${city.name}, Ontario, Canada` },
+        isBasedOn: 'https://www.crea.ca/housing-market-stats/mls-home-price-index/',
+        creator: { '@id': 'https://indibrick.ca/#organization' },
+        url: `https://indibrick.ca/real-estate/${city.slug}/${type.slug}/${range.slug}`,
+      }
+    : null;
 
   return (
     <div className="bg-white min-h-screen">
       <JsonLd data={faqSchema} />
-      <JsonLd data={itemListSchema} />
+      {datasetSchema && <JsonLd data={datasetSchema} />}
 
       {/* === HERO === */}
       <section className="relative pt-28 md:pt-32 pb-16 px-6 bg-slate-900 text-white overflow-hidden">
@@ -190,19 +273,18 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
           </nav>
 
           <div className="inline-flex flex-wrap items-center gap-2 mb-6">
-            <span className="inline-flex items-center gap-2 bg-blue-500/15 border border-blue-400/30 text-blue-300 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.3em] backdrop-blur-md">
-              <Activity size={12} /> Live Market Snapshot · {snap.asOfDate}
-            </span>
-            {/* Link the source badge into the named index so both crawlers and
-                LLMs see the matrix cell as an application of the named
-                dataset — cements IndiBrick as the publisher of record, not
-                a downstream consumer. */}
-            <Link
-              href={`/housing-index#${params.city}`}
-              className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-gray-200 hover:bg-white/20 hover:text-white transition px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.3em] backdrop-blur-md"
-            >
-              Source · IndiBrick Ontario Housing Index · {sourceLabel}
-            </Link>
+            {snap.hasRealData ? (
+              <Link
+                href={`/housing-index#${params.city}`}
+                className="inline-flex items-center gap-2 bg-blue-500/15 border border-blue-400/30 text-blue-300 hover:bg-blue-500/25 transition px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.3em] backdrop-blur-md"
+              >
+                <Activity size={12} /> CREA MLS® HPI · {snap.asOfLabel}
+              </Link>
+            ) : (
+              <span className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-gray-300 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.3em] backdrop-blur-md">
+                <Info size={12} /> No published benchmark for this market
+              </span>
+            )}
           </div>
 
           <h1 className="text-4xl md:text-6xl font-black uppercase tracking-tighter leading-[1.05] mb-4">
@@ -210,18 +292,29 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-indigo-400">{range.label}</span>
           </h1>
 
-          {/* Live-rate hook — single trust signal directly under the H1. Pulled
-              from Firestore site_settings/mortgage_rates with safe defaults. */}
+          {/* Live-rate hook — pulled from Firestore site_settings/mortgage_rates. */}
           <div className="inline-flex items-center gap-2 mb-5 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-200 text-[11px] md:text-xs font-bold uppercase tracking-widest">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
             </span>
-            Today: 5-yr fixed from {liveRates.insured_fixed_5yr}% · 5-yr variable from {liveRates.insured_variable_5yr}%
+            {liveRates ? `Today: 5-yr fixed from ${liveRates.insured_fixed_5yr}% · 5-yr variable from ${liveRates.insured_variable_5yr}%` : 'Licensed advisor callback in 1 business hour'}
           </div>
 
           <p className="text-base md:text-lg text-gray-300 max-w-3xl font-medium mb-8">
-            {type.blurb} Median list price in {city.name} this band: <strong className="text-white">{priceK(snap.medianPrice)}</strong> · <strong className="text-white">{snap.activeListings}</strong> active · avg <strong className="text-white">{snap.daysOnMarket}</strong> days on market.
+            {snap.benchmark ? (
+              <>
+                {snap.regionLabel} {type.label.toLowerCase()} benchmark: <strong className="text-white">{cad(snap.benchmark)}</strong>
+                {snap.yoyChangePct !== null && (
+                  <> · <strong className="text-white">{trendUp ? '+' : ''}{snap.yoyChangePct.toFixed(1)}%</strong> year-over-year</>
+                )}
+                {' '}· minimum down payment in this band <strong className="text-white">{cad(bandMath[0].minDown)}–{cad(bandMath[2].minDown)}</strong>.
+              </>
+            ) : (
+              <>
+                CREA does not publish an MLS® HPI benchmark covering {city.name} {type.plural.toLowerCase()}, so this page shows no price figure. What it does show is exact: the federal down-payment rules, CMHC premium tiers and Ontario land transfer tax for the {range.short} band.
+              </>
+            )}
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4">
@@ -235,156 +328,244 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
         </div>
       </section>
 
-      {/* === MOBILE INLINE LEAD FORM (above stats per audit 2B) === */}
-      {/* On mobile the lead form is the first thing after the hero so paid
-          traffic doesn't have to scroll past the stats grid to convert. */}
+      {/* === MOBILE INLINE LEAD FORM === */}
       <section className="md:hidden px-6 -mt-6 mb-6 relative z-20">
         <div className="bg-white border border-gray-200 rounded-[2rem] shadow-xl p-5">
           <div className="inline-flex items-center gap-2 bg-blue-500/10 text-blue-700 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.3em] mb-3">
             Get the live list
           </div>
           <h2 className="text-lg font-black tracking-tight text-slate-900 mb-1 leading-tight">
-            {snap.activeListings} active · median {priceK(snap.medianPrice)}
+            {city.name} {type.plural.toLowerCase()} · {range.short}
           </h2>
           <p className="text-xs text-gray-600 mb-3">
-            Sent within 1 business hour with today's {liveRates.insured_fixed_5yr}% 5-yr fixed rate.
+            Current MLS® inventory sent within 1 business hour{fixed5 ? ` with today's ${fixed5}% 5-yr fixed rate` : ''}.
           </p>
           <LeadForm
             type="Realtor"
             title={`${type.plural} in ${city.name} ${range.label}`}
-            subtitle={`${snap.activeListings} active · median ${priceK(snap.medianPrice)}`}
+            subtitle={fixed5 ? `${range.short} · ${fixed5}% 5-yr fixed` : range.short}
             ctaText="Get Live MLS List + Rate"
           />
         </div>
       </section>
 
-      {/* === KEY STATS === */}
-      <section className="py-12 md:py-16 px-6 bg-white border-b border-gray-100">
-        <div className="container mx-auto max-w-6xl">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Stat label="Median List Price" value={priceK(snap.medianPrice)} accent="text-slate-900" />
-            <Stat label="Active Listings" value={String(snap.activeListings)} accent="text-blue-600" />
-            <Stat label="Avg Days on Market" value={`${snap.daysOnMarket} days`} accent="text-slate-900" />
-            <Stat
-              label="YoY Change"
-              value={`${trendUp ? '+' : ''}${snap.yoyChangePct.toFixed(1)}%`}
-              accent={trendUp ? 'text-green-600' : 'text-red-600'}
-              icon={trendUp ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
-            />
-          </div>
-
-          {/* Six-month trend line as a simple inline mini-chart. */}
-          <div className="mt-10 bg-gray-50 border border-gray-100 rounded-3xl p-6 md:p-8">
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-4">6-Month Median Price Trend</h3>
-            <div className="flex items-end gap-2 md:gap-4 h-32">
-              {snap.priceTrend.map((m, i) => {
-                const max = Math.max(...snap.priceTrend.map((x) => x.price));
-                const min = Math.min(...snap.priceTrend.map((x) => x.price));
-                const range = max - min || 1;
-                const h = 20 + ((m.price - min) / range) * 80;
-                return (
-                  <div key={i} className="flex-1 flex flex-col items-center justify-end">
-                    <div className="w-full bg-gradient-to-t from-blue-600 to-indigo-400 rounded-t-lg transition-all" style={{ height: `${h}%` }} />
-                    <p className="text-[9px] font-bold text-gray-500 mt-2 uppercase">{m.month.split(' ')[0]}</p>
-                    <p className="text-[10px] font-black text-slate-900">{priceK(m.price)}</p>
-                  </div>
-                );
-              })}
+      {/* === REAL BENCHMARK STATS ===
+          Only rendered when CREA actually publishes a figure for this market.
+          The four-stat grid this replaced showed a seeded median price, a seeded
+          active-listing count and a seeded days-on-market — none of which came
+          from any market. */}
+      {snap.benchmark && (
+        <section className="py-12 md:py-16 px-6 bg-white border-b border-gray-100">
+          <div className="container mx-auto max-w-6xl">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Stat label="CREA Benchmark" value={cad(snap.benchmark)} accent="text-slate-900" />
+              <Stat
+                label="Year-over-Year"
+                value={snap.yoyChangePct !== null ? `${trendUp ? '+' : ''}${snap.yoyChangePct.toFixed(1)}%` : 'Not published'}
+                accent={snap.yoyChangePct === null ? 'text-gray-400' : trendUp ? 'text-green-600' : 'text-red-600'}
+                icon={snap.yoyChangePct === null ? undefined : trendUp ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+              />
+              <Stat label="Reporting Region" value={snap.regionLabel || '—'} accent="text-slate-900" />
+              <Stat label="Release" value={snap.asOfLabel || '—'} accent="text-blue-600" />
             </div>
-          </div>
-        </div>
-      </section>
 
-      {/* === AEO ANSWER BLOCKS — direct H2 → paragraph answers Google's AI Overviews scrape === */}
-      <section className="py-16 px-6 bg-white border-b border-gray-100">
-        <div className="container mx-auto max-w-4xl space-y-12">
-          <div>
-            <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-slate-900 mb-4">
-              What is the average {type.label.toLowerCase()} price in {city.name} in {currentYear}?
-            </h2>
-            <p className="text-lg text-gray-700 leading-relaxed font-medium">
-              The benchmark price for a {type.label.toLowerCase()} in {city.name} in {currentYear} is approximately <strong className="text-slate-900">{priceK(snap.medianPrice)}</strong> based on the latest CREA MLS® HPI release. Within the {range.label.toLowerCase()} band there are currently {snap.activeListings} active listings, moving in an average of {snap.daysOnMarket} days on market. Prices are {trendUp ? 'up' : 'down'} <strong className="text-slate-900">{Math.abs(snap.yoyChangePct).toFixed(1)}%</strong> year-over-year.
-            </p>
-          </div>
-
-          <div>
-            <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-slate-900 mb-4">
-              Is {city.name} a buyer&apos;s or seller&apos;s market right now?
-            </h2>
-            <p className="text-lg text-gray-700 leading-relaxed font-medium">
-              <strong className="text-slate-900">{marketVerdict}</strong> {marketReason}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* === SOCIAL PROOF — per-city counter + testimonial === */}
-      <section className="py-12 px-6 bg-slate-900 text-white border-b border-slate-800">
-        <div className="container mx-auto max-w-5xl grid md:grid-cols-2 gap-8 items-center">
-          <div className="flex items-center gap-6">
-            <div className="bg-blue-500/20 border border-blue-400/30 rounded-2xl px-6 py-5">
-              <p className="text-[10px] font-black uppercase tracking-widest text-blue-300 mb-1">Families helped in {city.name}</p>
-              <p className="text-5xl font-black text-white tracking-tighter">{proof.familiesHelped}+</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Licensed Mortgage Brokerage</p>
-              <p className="text-base font-bold text-white">Pineapple Financial · LIC #12830</p>
-            </div>
-          </div>
-          <blockquote className="border-l-4 border-blue-400 pl-6 italic text-gray-300 leading-relaxed">
-            “{proof.testimonial.quote}”
-            <footer className="not-italic text-[10px] font-black uppercase tracking-widest text-blue-300 mt-3">
-              — {proof.testimonial.author}, {city.name}
-            </footer>
-          </blockquote>
-        </div>
-      </section>
-
-      {/* === MARKET INSIGHT === */}
-      <section className="py-16 md:py-20 px-6 bg-[#FAFAFA] border-b border-gray-100">
-        <div className="container mx-auto max-w-4xl">
-          <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tight text-slate-900 mb-6">
-            What {priceK(snap.medianPrice)} gets you in {city.name}.
-          </h2>
-          <p className="text-lg text-gray-700 leading-relaxed font-medium mb-8 whitespace-pre-line">{snap.insight}</p>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="bg-white border border-gray-100 rounded-2xl p-6">
-              <p className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-2">Typical Size</p>
-              <p className="text-xl font-black text-slate-900">{type.typicalSize}</p>
-            </div>
-            <div className="bg-white border border-gray-100 rounded-2xl p-6">
-              <p className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-2">Bedroom Range</p>
-              <p className="text-xl font-black text-slate-900">{type.typicalBeds}</p>
-            </div>
-            <div className="bg-white border border-gray-100 rounded-2xl p-6">
-              <p className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-2">Ownership Style</p>
-              <p className="text-xl font-black text-slate-900 capitalize">{type.ownership === 'mixed' ? 'Freehold or condo' : type.ownership}</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* === COMPARABLES === */}
-      <section className="py-16 md:py-20 px-6 bg-white border-b border-gray-100">
-        <div className="container mx-auto max-w-6xl">
-          <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tight text-slate-900 mb-8">
-            Sample comparables in this band.
-          </h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            {snap.comparables.map((c, i) => (
-              <div key={i} className="bg-gray-50 border border-gray-100 rounded-3xl p-6 hover:border-blue-400 transition">
-                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">
-                  <MapPin size={12} className="text-blue-600" /> {c.address}
+            {/* Real 13-month CREA benchmark series. The previous chart on this
+                page was generated by seeding a PRNG with the URL slug. */}
+            {snap.benchmarkTrend.length > 1 && (
+              <div className="mt-10 bg-gray-50 border border-gray-100 rounded-3xl p-6 md:p-8">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">
+                  {snap.regionLabel} {type.label} Benchmark — Last {snap.benchmarkTrend.length} Months
+                </h3>
+                <p className="text-[11px] text-gray-400 font-medium mb-5">
+                  Source: CREA MLS® Home Price Index, not seasonally adjusted.
+                </p>
+                <div className="flex items-end gap-1.5 md:gap-3 h-32">
+                  {snap.benchmarkTrend.map((m, i) => {
+                    const prices = snap.benchmarkTrend.map((x) => x.price);
+                    const max = Math.max(...prices);
+                    const min = Math.min(...prices);
+                    const spread = max - min || 1;
+                    const h = 20 + ((m.price - min) / spread) * 80;
+                    return (
+                      <div key={i} className="flex-1 flex flex-col items-center justify-end" title={`${m.month}: ${cad(m.price)}`}>
+                        <div className="w-full bg-gradient-to-t from-blue-600 to-indigo-400 rounded-t-lg transition-all" style={{ height: `${h}%` }} />
+                        <p className="text-[8px] md:text-[9px] font-bold text-gray-500 mt-2 uppercase">{m.month.split(' ')[0]}</p>
+                      </div>
+                    );
+                  })}
                 </div>
-                <p className="text-3xl font-black text-slate-900 mb-4">{priceK(c.price)}</p>
-                <div className="flex gap-4 text-sm font-bold text-gray-700">
-                  <span>{c.beds} bed</span><span>{c.baths} bath</span><span>{c.sqft.toLocaleString()} sqft</span>
+                <div className="flex justify-between mt-3 text-[10px] font-black text-slate-900">
+                  <span>{snap.benchmarkTrend[0].month} · {priceK(snap.benchmarkTrend[0].price)}</span>
+                  <span>{snap.benchmarkTrend[snap.benchmarkTrend.length - 1].month} · {priceK(snap.benchmarkTrend[snap.benchmarkTrend.length - 1].price)}</span>
                 </div>
               </div>
-            ))}
+            )}
           </div>
-          <p className="text-[11px] text-gray-400 mt-6 font-medium">Sample comparables only — request the live MLS report for current availability and pricing.</p>
+        </section>
+      )}
+
+      {/* === HONEST BAND-MISMATCH ANSWER ===
+          When the real benchmark sits in a different band, saying so plainly is
+          both the truthful answer and the fix for a doorway-page pattern: the
+          page stops pretending to be the authority for a price range this market
+          doesn't trade in, and routes the reader to the page that is. */}
+      {benchmarkElsewhere && homeBand && (
+        <section className="py-10 px-6 bg-amber-50 border-b border-amber-100">
+          <div className="container mx-auto max-w-4xl flex flex-col md:flex-row md:items-center gap-4">
+            <Info size={28} className="text-amber-600 shrink-0" />
+            <p className="text-sm md:text-base text-amber-900 leading-relaxed font-medium flex-1">
+              <strong>{city.name} {type.plural.toLowerCase()} do not typically trade in the {range.short} range.</strong>{' '}
+              The {snap.regionLabel} {type.label.toLowerCase()} benchmark is {cad(snap.benchmark!)}, which falls in the {homeBand.label} band. This page still gives you the exact down-payment, insurance and land-transfer-tax rules for a {range.short} purchase — but for market figures,{' '}
+              <Link href={`/real-estate/${city.slug}/${type.slug}/${homeBand.slug}`} className="underline font-black hover:text-amber-700">
+                see {city.name} {type.plural.toLowerCase()} {homeBand.label}
+              </Link>.
+            </p>
+          </div>
+        </section>
+      )}
+
+      {/* === AEO ANSWER BLOCKS === */}
+      <section className="py-16 px-6 bg-white border-b border-gray-100">
+        <div className="container mx-auto max-w-4xl space-y-12">
+          {snap.benchmark && (
+            <div>
+              <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-slate-900 mb-4">
+                What does a {type.label.toLowerCase()} cost in {city.name} in {currentYear}?
+              </h2>
+              <p className="text-lg text-gray-700 leading-relaxed font-medium">
+                The CREA MLS® Home Price Index benchmark for {type.plural.toLowerCase()} in the {snap.regionLabel} reporting region — which covers {city.name} — is <strong className="text-slate-900">{cad(snap.benchmark)}</strong> as of the {snap.asOfLabel} release
+                {snap.yoyChangePct !== null && (
+                  <>, {trendUp ? 'up' : 'down'} <strong className="text-slate-900">{Math.abs(snap.yoyChangePct).toFixed(1)}%</strong> year-over-year</>
+                )}
+                . The HPI benchmark describes a typical home for the region rather than an average of what sold, and CREA publishes it per real estate board rather than per municipality — so this figure covers {city.name} alongside the rest of the {snap.regionLabel} area. IndiBrick does not currently license an MLS® feed, so we do not publish active listing counts or days-on-market for this market; a licensed advisor pulls those live for you on request.
+              </p>
+            </div>
+          )}
+
+          <div>
+            <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-slate-900 mb-4">
+              How much do you need to buy a {range.label.toLowerCase()} {type.label.toLowerCase()} in {city.name}?
+            </h2>
+            <p className="text-lg text-gray-700 leading-relaxed font-medium">
+              On a <strong className="text-slate-900">{cad(midMath.price)}</strong> purchase you need a minimum down payment of <strong className="text-slate-900">{cad(midMath.minDown)}</strong> ({midMath.minDownPct}%){midMath.cmhcPremiumPct
+                ? <>, plus a mortgage default insurance premium of {midMath.cmhcPremiumPct.toFixed(2)}% — about {cad(midMath.cmhcPremium)}, capitalized into the mortgage rather than paid at closing. </>
+                : <>. At this price mortgage default insurance is unavailable, so 20% down is a hard floor and the mortgage is written as conventional. </>}
+              Land transfer tax adds <strong className="text-slate-900">{cad(midMath.totalLtt)}</strong>{isToronto ? ' (Ontario plus the City of Toronto municipal levy),' : ' provincially,'} reduced by up to {cad(midMath.fthbRefund)} if you are a first-time buyer. Lenders will qualify you at {midMath.qualifyingRatePct.toFixed(2)}% under the B-20 stress test, not the {contractRate.toFixed(2)}% contract rate — a difference of {cad(midMath.paymentAtQualifying - midMath.paymentAtContract)} per month on the same {cad(midMath.conventionalPrincipal)} mortgage.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* === BAND MATH TABLE ===
+          The genuinely band-specific content. Federal down-payment rules step at
+          $500K and $1.5M; Ontario LTT steps at $55K/$250K/$400K/$2M; CMHC premium
+          tiers step at 85% and 90% LTV. A table structured this way is also the
+          shape Google lifts into featured snippets for "down payment on a $X home". */}
+      <section className="py-16 md:py-20 px-6 bg-[#FAFAFA] border-b border-gray-100">
+        <div className="container mx-auto max-w-5xl">
+          <Calculator size={32} className="text-blue-600 mb-4" />
+          <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tight text-slate-900 mb-3">
+            {range.label} in {city.name}: the actual numbers.
+          </h2>
+          <p className="text-sm md:text-base text-gray-600 leading-relaxed mb-8 max-w-3xl">
+            Illustrative purchase prices across the {range.short} band. Payments are principal and interest at the {midMath.qualifyingRatePct.toFixed(2)}% B-20 qualifying rate
+            (today&apos;s {contractRate.toFixed(2)}% insured 5-year fixed plus 2%) on a 25-year amortization, using the mortgage you would carry at the minimum down payment — with the CMHC premium capitalized where one applies.
+            Canadian semi-annual compounding is used throughout. Property tax, heat and condo fees are excluded; they vary by property and municipality.
+          </p>
+
+          <div className="overflow-x-auto -mx-6 px-6">
+            <table className="w-full min-w-[720px] text-left border-collapse">
+              <thead>
+                <tr className="border-b-2 border-slate-900">
+                  <th className="py-3 pr-4 text-[10px] font-black uppercase tracking-widest text-gray-500">Purchase price</th>
+                  <th className="py-3 pr-4 text-[10px] font-black uppercase tracking-widest text-gray-500">Minimum down</th>
+                  <th className="py-3 pr-4 text-[10px] font-black uppercase tracking-widest text-gray-500">CMHC premium</th>
+                  <th className="py-3 pr-4 text-[10px] font-black uppercase tracking-widest text-gray-500">
+                    {isToronto ? 'Land transfer tax (ON + TO)' : 'Ontario land transfer tax'}
+                  </th>
+                  <th className="py-3 pr-4 text-[10px] font-black uppercase tracking-widest text-gray-500">
+                    Payment at min. down, {midMath.qualifyingRatePct.toFixed(2)}%
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {bandMath.map((m) => (
+                  <tr key={m.price} className="border-b border-gray-200">
+                    <td className="py-4 pr-4 font-black text-slate-900">{cad(m.price)}</td>
+                    <td className="py-4 pr-4 text-gray-700 font-medium">
+                      {cad(m.minDown)} <span className="text-gray-400">({m.minDownPct}%)</span>
+                    </td>
+                    <td className="py-4 pr-4 text-gray-700 font-medium">
+                      {m.cmhcPremiumPct ? `${cad(m.cmhcPremium)} (${m.cmhcPremiumPct.toFixed(2)}%)` : <span className="text-gray-400">Not available — 20% down required</span>}
+                    </td>
+                    <td className="py-4 pr-4 text-gray-700 font-medium">{cad(m.totalLtt)}</td>
+                    <td className="py-4 pr-4 text-gray-700 font-medium">{cad(m.paymentAtQualifyingMinDown)}/mo</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6 mt-10">
+            <div className="bg-white border border-gray-100 rounded-2xl p-6">
+              <p className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-2">Max amortization</p>
+              <p className="text-xl font-black text-slate-900">{midMath.insurable ? '25–30 years' : '30 years'}</p>
+              <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+                {midMath.insurable
+                  ? '25 years on an insured mortgage, extended to 30 for first-time buyers and newly built homes.'
+                  : 'Above the $1.5M insurance ceiling the mortgage is conventional, so 30-year amortizations are available.'}
+              </p>
+            </div>
+            <div className="bg-white border border-gray-100 rounded-2xl p-6">
+              <p className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-2">Typical {type.label.toLowerCase()}</p>
+              <p className="text-xl font-black text-slate-900">{type.typicalSize}</p>
+              <p className="text-xs text-gray-500 mt-2 leading-relaxed">{type.typicalBeds} · {type.ownership === 'mixed' ? 'freehold or condo' : type.ownership}</p>
+            </div>
+            <div className="bg-white border border-gray-100 rounded-2xl p-6">
+              <p className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-2">Stress-test gap</p>
+              <p className="text-xl font-black text-slate-900">{cad(midMath.paymentAtQualifying - midMath.paymentAtContract)}/mo</p>
+              <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+                Difference between the {contractRate.toFixed(2)}% contract rate and the {midMath.qualifyingRatePct.toFixed(2)}% B-20 qualifying rate.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* === PROVENANCE ===
+          Replaces a social-proof block that rendered an invented "families helped
+          in {city}" counter and attributed one of ten stock testimonials to
+          whichever city the URL named. Stating precisely what is measured, by
+          whom, and what we deliberately do not publish is a stronger E-E-A-T
+          signal than either. */}
+      <section className="py-12 px-6 bg-slate-900 text-white border-b border-slate-800">
+        <div className="container mx-auto max-w-5xl">
+          <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight mb-6">How this page is sourced.</h2>
+          <div className="grid md:grid-cols-3 gap-6 text-sm">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-blue-300 mb-2">Price data</p>
+              <p className="text-gray-300 leading-relaxed">
+                {snap.hasRealData
+                  ? `CREA MLS® Home Price Index, ${snap.regionLabel} region, ${snap.asOfLabel} release. Benchmark prices, not averages of sold listings.`
+                  : `CREA does not publish an MLS® HPI series covering ${city.name} ${type.plural.toLowerCase()}, so no price figure is shown on this page.`}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-blue-300 mb-2">Mortgage rules</p>
+              <p className="text-gray-300 leading-relaxed">
+                Department of Finance Canada down-payment minimums, CMHC premium schedule, OSFI Guideline B-20 qualifying rate, and the Ontario Land Transfer Tax Act{isToronto ? ' plus the City of Toronto MLTT by-law' : ''}.
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-blue-300 mb-2">Not published here</p>
+              <p className="text-gray-300 leading-relaxed">
+                Active inventory counts, days-on-market and comparable sales require a licensed MLS® feed. We don&apos;t estimate them — a licensed advisor pulls them live for your search.
+              </p>
+            </div>
+          </div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mt-8">
+            IndiBrick brokers through Pineapple Financial Inc. · FSRA #12830 · Verify at fsrao.ca
+          </p>
         </div>
       </section>
 
@@ -392,7 +573,7 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
       <section className="py-16 px-6 bg-[#FAFAFA] border-b border-gray-100">
         <div className="container mx-auto max-w-6xl">
           <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-slate-900 mb-6">
-            Where these {type.plural.toLowerCase()} are clustered in {city.name}.
+            {city.name} neighbourhoods.
           </h2>
           <div className="flex flex-wrap gap-3">
             {city.neighborhoods.map((nbr) => (
@@ -421,7 +602,10 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
                   <li key={r.slug}>
                     <Link href={`/real-estate/${city.slug}/${type.slug}/${r.slug}`}
                       className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl hover:bg-slate-900 hover:text-white border border-gray-100 transition group">
-                      <span className="font-black text-sm uppercase tracking-wide">{type.plural} {r.label}</span>
+                      <span className="font-black text-sm uppercase tracking-wide">
+                        {type.plural} {r.label}
+                        {homeBand?.slug === r.slug && <span className="ml-2 text-blue-600 group-hover:text-blue-300">· benchmark band</span>}
+                      </span>
                       <ArrowRight size={16} className="opacity-50 group-hover:opacity-100" />
                     </Link>
                   </li>
@@ -445,17 +629,24 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
             </div>
           </div>
 
-          <div className="mt-12">
-            <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-4">Same band in other cities</p>
-            <div className="flex flex-wrap gap-3">
-              {otherCities.map((c) => (
-                <Link key={c.slug} href={`/real-estate/${c.slug}/${type.slug}/${range.slug}`}
-                  className="px-5 py-3 rounded-xl bg-gray-50 border border-gray-100 hover:border-black hover:bg-slate-900 hover:text-white text-sm font-black uppercase tracking-wide transition">
-                  {c.name} · {type.plural}
-                </Link>
-              ))}
+          {/* Comparable markets — same CREA reporting region first, then nearest
+              price tier. Previously this block listed the same six cities on
+              every page in the matrix. */}
+          {comparableMarkets.length > 0 && (
+            <div className="mt-12">
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-4">
+                Comparable Ontario markets{snap.regionLabel ? ` · ${snap.regionLabel} region and nearby` : ''}
+              </p>
+              <div className="flex flex-wrap gap-3">
+                {comparableMarkets.map((c) => (
+                  <Link key={c.slug} href={`/real-estate/${c.slug}/${type.slug}/${range.slug}`}
+                    className="px-5 py-3 rounded-xl bg-gray-50 border border-gray-100 hover:border-black hover:bg-slate-900 hover:text-white text-sm font-black uppercase tracking-wide transition">
+                    {c.name} · {type.plural}
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </section>
 
@@ -464,7 +655,7 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
         <div className="container mx-auto max-w-4xl">
           <ShieldCheck size={32} className="text-blue-400 mb-4" />
           <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tighter mb-10">
-            {city.name} {type.label} FAQ
+            {city.name} {type.label} · {range.short} FAQ
           </h2>
           <div className="space-y-4">
             {faqs.map((f, i) => (
@@ -480,11 +671,11 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
         </div>
       </section>
 
-      {/* === DUAL CTA — listings capture (primary) + mortgage pre-approval (secondary) === */}
+      {/* === DUAL CTA === */}
       <section id="request" className="py-20 px-6 bg-white">
         <div className="container mx-auto max-w-6xl">
           <div className="grid md:grid-cols-2 gap-6">
-            {/* PRIMARY: see active listings (matches buyer-intent ad copy) */}
+            {/* PRIMARY: see active listings */}
             <div className="bg-slate-900 text-white rounded-[2.5rem] p-8 md:p-10 shadow-2xl relative overflow-hidden">
               <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/15 rounded-full blur-[80px] pointer-events-none -mr-16 -mt-16" />
               <div className="relative">
@@ -493,23 +684,23 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
                 </div>
                 <HomeIcon size={32} className="text-blue-400 mb-4" />
                 <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight mb-3 leading-tight">
-                  Get the Live List — {snap.activeListings} active, median {priceK(snap.medianPrice)}.
+                  Get the live {city.name} {type.label.toLowerCase()} list.
                 </h2>
                 <p className="text-gray-400 text-sm md:text-base mb-6">
-                  Live MLS inventory + today's rate ({liveRates.insured_fixed_5yr}% 5-yr fixed) sent by a licensed {city.name} advisor within 1 business hour.
+                  We don&apos;t publish inventory counts we can&apos;t verify — a licensed {city.name} advisor pulls current MLS® {range.short} inventory{fixed5 ? ` and today's rate (${fixed5}% 5-yr fixed)` : ' and current rates'} within 1 business hour.
                 </p>
                 <div className="bg-white p-2 rounded-[2rem] shadow-xl">
                   <LeadForm
                     type="Realtor"
                     title={`${type.plural} in ${city.name} ${range.label}`}
-                    subtitle={`Median ${priceK(snap.medianPrice)} · ${snap.activeListings} active · ${liveRates.insured_fixed_5yr}% 5-yr fixed`}
+                    subtitle={fixed5 ? `${range.short} · ${fixed5}% 5-yr fixed` : range.short}
                     ctaText="Get Live MLS List + Rate"
                   />
                 </div>
               </div>
             </div>
 
-            {/* SECONDARY: pre-approval (matches mortgage-intent ad copy + raises page intent diversity for QS) */}
+            {/* SECONDARY: pre-approval */}
             <div className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-[2.5rem] p-8 md:p-10 shadow-2xl relative overflow-hidden flex flex-col">
               <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-[80px] pointer-events-none -mr-16 -mt-16" />
               <div className="relative flex flex-col flex-1">
@@ -518,10 +709,10 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
                 </div>
                 <ShieldCheck size={32} className="text-white mb-4" />
                 <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight mb-3 leading-tight">
-                  Get pre-approved for a {priceK(Math.round(snap.medianPrice * 0.8))} mortgage.
+                  Get pre-approved for a {cad(midMath.conventionalPrincipal)} mortgage.
                 </h2>
                 <p className="text-blue-100 text-sm md:text-base mb-6">
-                  Based on {priceK(snap.medianPrice)} median list × 20% down. Compare offers from 50+ Canadian lenders. No hard credit check. Pre-approval letter within 1 business hour — same letter sellers see in multi-offers.
+                  Based on a {cad(midMath.price)} purchase with 20% down. We&apos;ll qualify you at the {midMath.qualifyingRatePct.toFixed(2)}% B-20 rate, not the headline rate, so your pre-approval holds. Compare offers across 50+ Canadian lenders. No hard credit check.
                 </p>
                 <div className="mt-auto space-y-3">
                   <a href="/apply" className="block w-full bg-white text-slate-900 hover:bg-gray-100 text-center py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition shadow-lg flex items-center justify-center gap-2">
@@ -537,22 +728,20 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
         </div>
       </section>
 
-      {/* === DESKTOP STICKY SIDEBAR CTA (audit 2B) === */}
-      {/* Fixed bottom-right CTA card for desktop. Always-on conversion anchor
-          for paid traffic so the form path is one click from any scroll depth. */}
+      {/* === DESKTOP STICKY SIDEBAR CTA === */}
       <aside className="hidden md:block fixed bottom-6 right-6 z-30 w-72 bg-white border border-gray-200 rounded-[2rem] shadow-2xl p-5">
         <div className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.3em] mb-3">
           <span className="relative flex h-1.5 w-1.5">
             <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75 animate-ping" />
             <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
           </span>
-          Live · {liveRates.insured_fixed_5yr}% 5-yr fixed
+          {fixed5 ? `Live · ${fixed5}% 5-yr fixed` : 'Licensed advisor callback'}
         </div>
         <p className="text-sm font-black text-slate-900 leading-snug mb-1">
-          {snap.activeListings} active · {priceK(snap.medianPrice)} median
+          {cad(midMath.minDown)} minimum down
         </p>
         <p className="text-[11px] text-gray-600 mb-3 leading-snug">
-          {city.name} {type.label.toLowerCase()}s — sent within 1 hr.
+          {city.name} {type.label.toLowerCase()}s, {range.short} band.
         </p>
         <a
           href="#request"
@@ -563,18 +752,19 @@ export default async function MatrixCellPage({ params }: { params: Params }) {
       </aside>
 
       {/* === MOBILE STICKY CTA BAR === */}
-      {/* Always-visible Apply Now on mobile. Single CTA — no Call button per
-          spec, since the form path converts higher than the click-to-call. */}
       <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-slate-900/95 backdrop-blur border-t border-white/10 px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.35)]">
         <a
           href="/apply"
           className="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-500 text-white px-6 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs transition shadow-lg shadow-blue-500/40"
         >
-          Apply Now · {liveRates.insured_fixed_5yr}% 5-yr Fixed <ArrowRight size={14} />
+          {fixed5 ? `Apply Now · ${fixed5}% 5-yr Fixed` : 'Apply Now'} <ArrowRight size={14} />
         </a>
       </div>
-      {/* Reserve space so the bar doesn't cover footer content on mobile. */}
       <div className="md:hidden h-20" aria-hidden="true" />
+
+      {/* Rendered only so the indexability decision is auditable from the HTML
+          without re-running the build. Not visible to users. */}
+      <span data-indexable={String(verdict.indexable)} data-reason={verdict.reason} hidden />
     </div>
   );
 }

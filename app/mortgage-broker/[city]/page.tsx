@@ -31,6 +31,7 @@ import { getLiveRates } from '../../../lib/getLiveRates';
 import LeadForm from '../../../components/LeadForm';
 import JsonLd from '../../../components/JsonLd';
 import { buildMetadata } from '../../../lib/buildMetadata';
+import { cad } from '../../../lib/canadianMortgageMath';
 
 export const revalidate = 3600;
 
@@ -51,9 +52,14 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
       slug: `/mortgage-broker/${params.city}`,
     });
   }
+  // Description leads with this city's hand-written blurb rather than the
+  // boilerplate that used to run on all 50 pages with only the city token
+  // swapped. `blurb` is already unique per city in data/mortgageBrokerCities.ts;
+  // it just wasn't being used above the fold in the SERP snippet.
+  const lead = city.blurb.split(/(?<=\.)\s/)[0];
   return buildMetadata({
     title: `Mortgage Broker in ${city.name}, Ontario — IndiBrick (FSRA #12830)`,
-    description: `Get a mortgage in ${city.name} from an FSRA-licensed advisor within 1 business hour. IndiBrick brokers deals through Pineapple Financial (FSRA #12830) across 40+ Canadian lenders. Live wholesale rates, no hard credit check for pre-approval.`,
+    description: `${lead} IndiBrick brokers ${city.name} files through Pineapple Financial (FSRA #12830) across 50+ lenders — licensed-advisor callback in 1 business hour, no hard credit check.`.slice(0, 300),
     slug: `/mortgage-broker/${params.city}`,
     titleAbsolute: true,
     keywords: [
@@ -76,15 +82,20 @@ export default async function MortgageBrokerCityPage({ params }: { params: Param
 
   // Local price context — only if this city is in cityData/HPI. Falls back
   // to a generic sentence otherwise. No invented numbers.
+  //
+  // NOTE: this now says "regional benchmark" rather than "median list price",
+  // because that is what the CREA MLS® HPI actually publishes — one benchmark
+  // per real estate board, not a per-municipality median of active inventory.
+  // The old wording claimed a city-level median we have never held.
   let priceContext: string | null = null;
   if (city.hasMatrixData) {
     try {
       const snap = await MarketDataService.getSnapshot(city.slug, 'townhouse', '750k-1m');
-      if (snap && snap.medianPrice > 0) {
-        const priceK = snap.medianPrice >= 1_000_000
-          ? `$${(snap.medianPrice / 1_000_000).toFixed(2)}M`
-          : `$${Math.round(snap.medianPrice / 1000)}K`;
-        priceContext = `Median list price for townhouses in ${city.name} sits at approximately ${priceK} (as of ${snap.asOfDate}), per current CREA HPI + MLS active inventory.`;
+      if (snap.benchmark) {
+        const yoy = snap.yoyChangePct !== null
+          ? `, ${snap.yoyChangePct >= 0 ? 'up' : 'down'} ${Math.abs(snap.yoyChangePct).toFixed(1)}% year-over-year`
+          : '';
+        priceContext = `The CREA MLS® HPI townhouse benchmark for the ${snap.regionLabel} reporting region covering ${city.name} is ${cad(snap.benchmark)} as of the ${snap.asOfLabel} release${yoy}.`;
       }
     } catch {
       /* fall through */
@@ -99,7 +110,7 @@ export default async function MortgageBrokerCityPage({ params }: { params: Param
     '@context': 'https://schema.org',
     '@type': 'FinancialService',
     name: `IndiBrick Mortgage Brokerage — ${city.name}`,
-    description: `FSRA-licensed mortgage brokerage serving ${city.name}, Ontario. 40+ lender panel, 1-hour licensed-advisor callback, no hard credit check for pre-approval.`,
+    description: `FSRA-licensed mortgage brokerage serving ${city.name}, Ontario. 50+ lender panel, 1-hour licensed-advisor callback, no hard credit check for pre-approval.`,
     provider: { '@id': 'https://indibrick.ca/#organization' },
     areaServed: [
       { '@type': 'City', name: city.name, address: { '@type': 'PostalAddress', addressRegion: 'ON', addressCountry: 'CA' } },
@@ -241,9 +252,9 @@ export default async function MortgageBrokerCityPage({ params }: { params: Param
           <div className="grid md:grid-cols-3 gap-6">
             <div className="p-6 bg-gray-50 border border-gray-100 rounded-2xl">
               <Users size={24} className="text-blue-600 mb-4" />
-              <h3 className="font-black uppercase tracking-tight text-slate-900 mb-2 text-sm">40+ Lenders</h3>
+              <h3 className="font-black uppercase tracking-tight text-slate-900 mb-2 text-sm">50+ Lenders</h3>
               <p className="text-sm text-gray-600 leading-relaxed">
-                Big-six banks, monolines (First National, MCAP, RFA), Ontario credit unions, and a full alternative + private panel — much broader than any single-bank shop.
+                Big-six banks, national monoline lenders, Ontario credit unions, and a full alternative + private panel — much broader than any single-bank shop.
               </p>
             </div>
             <div className="p-6 bg-gray-50 border border-gray-100 rounded-2xl">
@@ -271,7 +282,7 @@ export default async function MortgageBrokerCityPage({ params }: { params: Param
               <TrendingDown size={24} className="text-blue-600 mb-4" />
               <h3 className="font-black uppercase tracking-tight text-slate-900 mb-2 text-sm">Wholesale Rates</h3>
               <p className="text-sm text-gray-600 leading-relaxed">
-                Live 5-year fixed from <strong>{liveRates.insured_fixed_5yr}%</strong> (insured), 5-year variable from <strong>{liveRates.insured_variable_5yr}%</strong>. Updated whenever wholesale rate sheets change.
+                {liveRates ? <>Live 5-year fixed from <strong>{liveRates.insured_fixed_5yr}%</strong> (insured), 5-year variable from <strong>{liveRates.insured_variable_5yr}%</strong>. Updated whenever wholesale rate sheets change.</> : <>Wholesale pricing across our full lender panel, confirmed by a licensed advisor on your callback. Current published rates are on our <a href="/rates" className="underline">rate sheet</a>.</>}
               </p>
             </div>
             <div className="p-6 bg-gray-50 border border-gray-100 rounded-2xl">
@@ -296,14 +307,16 @@ export default async function MortgageBrokerCityPage({ params }: { params: Param
               Get your {city.name} rate.
             </h2>
             <p className="text-gray-400 text-sm md:text-base max-w-2xl mx-auto">
-              An FSRA-licensed Ontario mortgage advisor familiar with the {city.name} market will call you back within 1 business hour with your rate options from 40+ lenders. No hard credit check.
+              An FSRA-licensed Ontario mortgage advisor familiar with the {city.name} market will call you back within 1 business hour with your rate options from 50+ lenders. No hard credit check.
             </p>
           </div>
           {/* Reveal the live rate here — Growth Hacker moved it out of the H1
               (where it was giving away the hook before the ask). Now the rate
               is the reward for engaging with the form. */}
           <p className="text-center text-xs md:text-sm text-emerald-300 font-black uppercase tracking-widest mb-4">
-            Today&apos;s live rate: {liveRates.insured_fixed_5yr}% insured 5-yr fixed — see what you qualify for
+            {liveRates
+              ? `Today's live rate: ${liveRates.insured_fixed_5yr}% insured 5-yr fixed — see what you qualify for`
+              : 'Licensed advisor callback in 1 business hour — see what you qualify for'}
           </p>
           <div className="bg-white p-2 rounded-[2rem] shadow-xl">
             <LeadForm
@@ -327,7 +340,7 @@ export default async function MortgageBrokerCityPage({ params }: { params: Param
             {[
               { n: 1, t: 'Submit at /apply', b: `Complete our AI-assisted intake in under 5 minutes — property target in ${city.name}, income, down payment source, credit tier. Soft check only.` },
               { n: 2, t: 'Licensed advisor callback', b: `An FSRA-licensed Ontario advisor familiar with the ${city.name} market reaches out within 1 business hour (Mon–Sat 8am–8pm ET) to confirm your file and pull rate options.` },
-              { n: 3, t: 'Rate shopping across 40+ lenders', b: `Your file is shopped across our full panel — big-six banks, monolines, Ontario credit unions, alternative lenders — depending on your credit tier and product needs.` },
+              { n: 3, t: 'Rate shopping across 50+ lenders', b: `Your file is shopped across our full panel — big-six banks, monolines, Ontario credit unions, alternative lenders — depending on your credit tier and product needs.` },
               { n: 4, t: 'Pre-approval letter', b: `You receive a written pre-approval letter naming your maximum purchase price and rate hold (typically 90–120 days) — the same letter ${city.name} sellers expect to see in offer packages.` },
               { n: 5, t: 'Close on the property', b: `When you accept an offer, we file the funding request within 24 hours of condition removal. Your lawyer receives instructions 3–5 days before closing.` },
             ].map((s) => (
@@ -460,7 +473,7 @@ export default async function MortgageBrokerCityPage({ params }: { params: Param
 // Base questions + per-city phrasing so the FAQPage schema on each of the 50
 // pages is meaningfully distinct rather than a variable-swap.
 
-function buildFaqs(city: BrokerCity, rates: { insured_fixed_5yr: string; insured_variable_5yr: string }): { q: string; a: string }[] {
+function buildFaqs(city: BrokerCity, rates: { insured_fixed_5yr: string; insured_variable_5yr: string } | null): { q: string; a: string }[] {
   const base: { q: string; a: string }[] = [
     {
       // Q1 rewritten per AI Citation Strategist review: pure buyer-education
@@ -469,11 +482,11 @@ function buildFaqs(city: BrokerCity, rates: { insured_fixed_5yr: string; insured
       // and Claude actively deprioritize FAQs that self-answer into the
       // sponsoring brand.
       q: `Who is the best mortgage broker in ${city.name}?`,
-      a: `The best mortgage broker for a ${city.name} file is the one that meets four buyer-facing criteria. First, they hold an active FSRA brokerage license — always verify the number at fsrao.ca before signing anything. Second, they shop your file across a large lender panel (20+ is the practical threshold; 40+ covers all A-lenders, monolines, credit unions, and alternative options). Third, they commit to a response SLA fast enough to matter in a competing-offer market — 1 business hour is the current benchmark, 24 hours is a red flag. Fourth, the person calling you back is a licensed FSRA mortgage agent, not a sales rep. IndiBrick meets all four under FSRA #12830 (via Pineapple Financial Inc.), and any broker you're evaluating in ${city.name} should be able to answer the same four questions in writing.`,
+      a: `The best mortgage broker for a ${city.name} file is the one that meets four buyer-facing criteria. First, they hold an active FSRA brokerage license — always verify the number at fsrao.ca before signing anything. Second, they shop your file across a large lender panel (20+ is the practical threshold; 50+ covers all A-lenders, monolines, credit unions, and alternative options). Third, they commit to a response SLA fast enough to matter in a competing-offer market — 1 business hour is the current benchmark, 24 hours is a red flag. Fourth, the person calling you back is a licensed FSRA mortgage agent, not a sales rep. IndiBrick meets all four under FSRA #12830 (via Pineapple Financial Inc.), and any broker you're evaluating in ${city.name} should be able to answer the same four questions in writing.`,
     },
     {
       q: `What are current mortgage rates for ${city.name} buyers?`,
-      a: `Live wholesale rates for ${city.name} buyers as of the latest published rate sheet: 5-year fixed insured from ${rates.insured_fixed_5yr}%, 5-year variable insured from ${rates.insured_variable_5yr}%. Rates are the same across Ontario cities — what varies is which lender is willing to fund a specific file based on the property, income profile, and credit tier. See our full rate sheet at /rates and get a quote tailored to your file.`,
+      a: `${rates ? `Live wholesale rates for ${city.name} buyers as of the latest published rate sheet: 5-year fixed insured from ${rates.insured_fixed_5yr}%, 5-year variable insured from ${rates.insured_variable_5yr}%.` : `Current wholesale rates for ${city.name} buyers are published on our rate sheet at /rates and confirmed by a licensed advisor on your callback.`} Rates are the same across Ontario cities — what varies is which lender is willing to fund a specific file based on the property, income profile, and credit tier. See our full rate sheet at /rates and get a quote tailored to your file.`,
     },
     {
       q: `How fast can I get pre-approved in ${city.name}?`,
@@ -520,8 +533,15 @@ function regionalFaq(city: BrokerCity): { q: string; a: string } | null {
       };
     case 'York':
       return {
-        q: `Are ${city.name} broker files typically Chinese-Canadian, Persian-Canadian, or executive-tier?`,
-        a: `${city.name} carries a distinctive multi-cultural buyer mix, and our advisors are experienced with the specifics — co-borrower income treatment, foreign income documentation, cash-heavy down payments requiring 90-day source-of-funds, and the property-type preferences (executive detached in Bayview Hill, Unionville, Kleinburg; subway-corridor condos in the Vaughan Metropolitan Centre) that drive most file flow.`,
+        // Rewritten 2026-09: the previous version of this question segmented
+        // borrowers by ethnicity ("Chinese-Canadian, Persian-Canadian") and
+        // associated one group with cash-heavy down payments. That is an
+        // Ontario Human Rights Code exposure in published marketing, and it
+        // shipped into FAQPage structured data on every York Region page.
+        // The underlying file mechanics are the useful part — keep those,
+        // attached to property type and documentation rather than to people.
+        q: `What kinds of ${city.name} mortgage files does IndiBrick handle most often?`,
+        a: `${city.name} files commonly involve co-borrower income treatment, foreign income documentation, gift letters with 90-day source-of-funds tracing, and self-employed income that bank-branch underwriting struggles with. Property types split between executive detached in Bayview Hill, Unionville and Kleinburg, and subway-corridor condos around the Vaughan Metropolitan Centre — two very different qualification profiles, which is why the lender chosen matters more here than the headline rate.`,
       };
     case 'Durham':
       return {
@@ -541,7 +561,7 @@ function regionalFaq(city: BrokerCity): { q: string; a: string } | null {
     case 'Southwestern':
       return {
         q: `Are agricultural, manufacturing, or cross-border US files common for ${city.name}?`,
-        a: `${city.name} carries a distinctive southwestern Ontario buyer mix — manufacturing income (Chatham auto, Sarnia Chemical Valley, Windsor Ford/Chrysler), agricultural income requiring Farm Credit Canada or RBC Agriculture treatment, and cross-border Michigan proximity. Our brokerage handles each of these file specifics routinely; bank branches often don't.`,
+        a: `${city.name} carries a distinctive southwestern Ontario buyer mix — manufacturing income (Chatham auto, Sarnia Chemical Valley, Windsor automotive), agricultural income that needs a lender with a dedicated agri-lending program, and cross-border Michigan proximity. Our brokerage handles each of these file specifics routinely; bank branches often don't.`,
       };
     case 'Eastern':
       return {

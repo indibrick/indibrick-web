@@ -1,35 +1,38 @@
 // services/MarketDataService.ts
 //
-// Provides per-cell market snapshots for the pSEO matrix.
+// Provides per-cell market data for the pSEO matrix.
 //
-// CURRENT STATE: deterministic mock data. Same (city, type, priceRange) input
-//   always returns the same numbers — so pages don't visibly change unless we
-//   regenerate, and so reviewers can verify each URL renders sensibly.
+// CURRENT STATE: every figure returned by this service is a real CREA MLS® HPI
+//   benchmark parsed out of data/market/. There is no synthetic fallback. When
+//   we have no CREA coverage for a (city × type) the snapshot reports
+//   hasRealData=false and the page must not publish a number.
 //
-// HOW TO WIRE A REAL FEED:
-//   1. Get credentials for a feed provider:
-//        - CREA DDF (Canadian Real Estate Association — full national MLS)
-//        - Repliers (https://repliers.com — REST API over CREA, easier auth)
-//        - Realtor.ca aggregators (third-party scrapers — not recommended)
-//   2. Add env vars to .env.local / Cloud Run:
-//        REPLIERS_API_KEY=...      // or DDF_USERNAME / DDF_PASSWORD
-//   3. Replace `fetchMockSnapshot()` calls in `getSnapshot()` with a real call,
-//      e.g. `await fetchRepliersSnapshot(...)`.
-//   4. Keep `fetchMockSnapshot()` as the fallback for when the live API fails
-//      or returns no results — that way pages never crash.
+//   This is a deliberate reversal of the previous design, which returned
+//   deterministic pseudo-random "median price / active listings / days on
+//   market / comparables" for all 800 matrix cells. Those figures were seeded
+//   from the URL string, so `activeListings` on
+//   /real-estate/king-city/condo/1-1.5m ("71 active") was a hash of the slug,
+//   not a count of anything. Publishing them as market facts was both an
+//   accuracy problem for a licensed brokerage and the clearest possible
+//   "programmatically generated, no added value" signal to Google.
+//
+// WHAT'S STILL MISSING (and what it would unlock):
+//   - Active inventory counts, days-on-market, sale-to-list ratios, and real
+//     comparable listings require an MLS feed. Options:
+//        · CREA DDF (national MLS distribution — requires REALTOR® membership)
+//        · Repliers (https://repliers.com — REST over CREA/TRREB, simplest auth)
+//        · TRREB VOW/IDX feed (GTA only, board-member gated)
+//     Wire one of these and re-add the fields as REAL data; until then the
+//     templates render "not published" rather than a number.
+//   - Municipal property tax rates (needed for true GDS/TDS qualifying math).
+//     Source: each municipality's annual by-law / MPAC.
 
 import { PROPERTY_TYPES, PRICE_RANGES, getPriceRangeBySlug, getTypeBySlug } from '../data/matrixData';
 import { CITIES } from '../data/cityData';
 import { getMarketData } from '../lib/marketData/loader';
+import { fetchListingStats, repliersTypeFor, isRepliersConfigured } from '../lib/repliersClient';
+import type { BenchmarkPoint } from '../lib/marketData/loader';
 import type { TRREBAggregate } from '../lib/marketData/parseTRREB';
-
-export interface ComparableListing {
-  address: string;
-  price: number;
-  beds: number;
-  baths: number;
-  sqft: number;
-}
 
 export interface MarketSnapshot {
   citySlug: string;
@@ -39,29 +42,65 @@ export interface MarketSnapshot {
   priceRangeSlug: string;
   priceRangeLabel: string;
 
-  /** Median active list price within the band, rounded to the nearest $1k. */
-  medianPrice: number;
-  /** Active listing count for the band — used as the headline supply number. */
-  activeListings: number;
-  /** Average days-on-market for sold inventory in the band over the last 90 days. */
-  daysOnMarket: number;
-  /** Year-over-year median price change as a percent (signed). */
-  yoyChangePct: number;
-  /** Six-month median-price trend ending in the current month, oldest first. */
-  priceTrend: { month: string; price: number }[];
-  /** Three comparable active or recently-sold listings used as social proof. */
-  comparables: ComparableListing[];
-  /** A short market summary written for both human readers and AI Overviews. */
-  insight: string;
+  /**
+   * The real CREA MLS® HPI benchmark for this city's region × property type.
+   * Null when the city has no HPI coverage. NOTE: this is a regional benchmark,
+   * not a city-level median — the page copy must say so.
+   */
+  benchmark: number | null;
+  /** Signed YoY % change on that benchmark. Null when the 12-month-prior reading is missing. */
+  yoyChangePct: number | null;
+  /** CREA sheet the benchmark came from, e.g. "GREATER_TORONTO". */
+  region: string | null;
+  /** Human-readable region label, e.g. "Greater Toronto". */
+  regionLabel: string | null;
+  /** True when `benchmark` actually falls inside this page's price band. */
+  benchmarkInBand: boolean;
+  /** Trailing real monthly benchmark series (oldest first). Empty without coverage. */
+  benchmarkTrend: BenchmarkPoint[];
+  /** True when at least one real CREA figure backs this snapshot. */
+  hasRealData: boolean;
 
-  /** Where the snapshot came from. Useful for debugging in prod. */
-  source: 'mock' | 'crea-ddf' | 'repliers';
-  /** ISO date the data was generated. */
-  asOfDate: string;
+  /**
+   * Live MLS inventory for this exact city × type × band, via Repliers.
+   * Null when REPLIERS_API_KEY is unset or the call failed — callers MUST
+   * render an honest absence rather than substituting an estimate.
+   *
+   * This is the field that makes CITY-level pages defensible: CREA gives
+   * us one benchmark per REGION, so without it 41 cities collapse to 12
+   * distinct figures.
+   */
+  inventory: {
+    activeCount: number;
+    medianDaysOnMarket: number | null;
+    medianListPrice: number | null;
+    sampleSize: number;
+  } | null;
+
+  source: 'crea-hpi' | 'none';
+  /** ISO date of the CREA release. Null when there is no real data. */
+  asOfDate: string | null;
+  /** e.g. "June 2026". Null when there is no real data. */
+  asOfLabel: string | null;
 }
 
-// City tier weighting — drives base prices and momentum so each cell is plausible.
-// Hand-tuned for relative GTA / Ontario pricing.
+/**
+ * Whether a matrix cell has earned the right to be in Google's index.
+ * See MarketDataService.getCellIndexability() for the rules and rationale.
+ */
+export interface CellIndexability {
+  indexable: boolean;
+  /** Machine-readable reason, surfaced in logs + the sitemap build. */
+  reason:
+    | 'ok'
+    | 'no-crea-coverage'
+    | 'duplicate-of-detached'
+    | 'benchmark-outside-band';
+}
+
+// City tier weighting. NO LONGER USED for pricing — kept only as the ordering
+// key for "nearby comparable markets" cross-links, where a rough relative
+// price tier is a legitimate way to pick which cities to link to.
 const CITY_TIER: Record<string, number> = {
   'toronto': 1.45,
   'oakville': 1.30,
@@ -106,96 +145,90 @@ const CITY_TIER: Record<string, number> = {
   'orleans': 0.72,
 };
 
-const TYPE_FACTOR: Record<string, number> = {
-  'condo': 0.55,
-  'townhouse': 0.85,
-  'semi-detached': 0.95,
-  'detached': 1.15,
-};
+/**
+ * CREA publishes ONE benchmark per region per home type, and only three home
+ * types we can map (single family, townhouse, apartment). Semi-detached has no
+ * CREA series — the loader currently aliases it to single family, which makes
+ * every /semi-detached/ page a byte-for-byte twin of the matching /detached/
+ * page. Rather than publish the duplicate, semi-detached cells render for users
+ * but are excluded from the index. Re-enable them the day a feed with a real
+ * semi-detached benchmark (TRREB per-municipality, or an MLS feed) is wired.
+ */
+const TYPES_WITHOUT_OWN_BENCHMARK = new Set(['semi-detached']);
 
-// Simple deterministic PRNG so every (city,type,price) cell yields stable numbers.
-function seed(str: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0) / 4294967296; // 0..1
-}
-function pick(seedStr: string, lo: number, hi: number): number {
-  return lo + seed(seedStr) * (hi - lo);
+/**
+ * Tolerance applied to the band edges when deciding indexability. Without it a
+ * page would flip between index and noindex month to month as the benchmark
+ * drifts across a round-number boundary; 10% gives roughly a year of hysteresis
+ * at current rates of change.
+ */
+const BAND_EDGE_TOLERANCE = 0.10;
+
+/** "GREATER_TORONTO" → "Greater Toronto". */
+/**
+ * Live MLS inventory for one matrix cell, via Repliers.
+ *
+ * Returns null in every failure mode — unconfigured key, unknown city,
+ * unmapped property type, network error, non-200. That null is the
+ * honest signal; callers render "we don't publish this" rather than
+ * substituting an estimate. This is the same discipline that removed the
+ * hashed `activeListings` field: an absent number beats a fake one.
+ */
+async function fetchInventory(
+  citySlug: string,
+  typeSlug: string,
+  range: { min: number; max: number },
+): Promise<MarketSnapshot['inventory']> {
+  if (!isRepliersConfigured()) return null;
+
+  const city = CITIES.find((c) => c.slug === citySlug);
+  if (!city) return null;
+
+  // An unmapped type would silently return zero listings, which reads as
+  // "no inventory" rather than "wrong filter" — so bail instead.
+  const propertyType = repliersTypeFor(typeSlug);
+  if (!propertyType) return null;
+
+  const stats = await fetchListingStats({
+    city: city.name,
+    propertyType,
+    minPrice: range.min,
+    // PRICE_RANGES uses Infinity for the open-ended top band; Repliers
+    // needs the param omitted rather than a non-finite value.
+    maxPrice: Number.isFinite(range.max) ? range.max : undefined,
+  });
+  if (!stats) return null;
+
+  return {
+    activeCount: stats.activeCount,
+    medianDaysOnMarket: stats.medianDaysOnMarket,
+    medianListPrice: stats.medianListPrice,
+    sampleSize: stats.sampleSize,
+  };
 }
 
-/** Generates the offline / fallback snapshot used when no live feed is wired. */
-function fetchMockSnapshot(citySlug: string, typeSlug: string, priceSlug: string): MarketSnapshot {
+function humanizeRegion(region: string): string {
+  return region
+    .toLowerCase()
+    .split('_')
+    .map((w) => (w === 'and' ? 'and' : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(' ');
+}
+
+/** True when `price` sits inside the band, allowing BAND_EDGE_TOLERANCE slack. */
+function withinBand(price: number, min: number, max: number): boolean {
+  const lo = min * (1 - BAND_EDGE_TOLERANCE);
+  const hi = max === Number.MAX_SAFE_INTEGER ? Number.MAX_SAFE_INTEGER : max * (1 + BAND_EDGE_TOLERANCE);
+  return price >= lo && price < hi;
+}
+
+function emptySnapshot(citySlug: string, typeSlug: string, priceSlug: string): MarketSnapshot {
   const city = CITIES.find((c) => c.slug === citySlug);
   const type = getTypeBySlug(typeSlug);
   const range = getPriceRangeBySlug(priceSlug);
-
   if (!city || !type || !range) {
     throw new Error(`MarketDataService: unknown cell ${citySlug}/${typeSlug}/${priceSlug}`);
   }
-
-  const tier = CITY_TIER[citySlug] ?? 0.85;
-  const typeFactor = TYPE_FACTOR[typeSlug] ?? 1.0;
-
-  // Anchor the median price inside the band, weighted toward what's realistic
-  // for the city tier × type factor. Cap at the band edges so it stays sensible.
-  const blendedBaseline = 850_000 * tier * typeFactor;
-  const band = (range.max === Number.MAX_SAFE_INTEGER ? range.min * 1.5 : range.max);
-  const medianRaw = Math.max(range.min * 1.05, Math.min(band * 0.95, blendedBaseline));
-  const medianPrice = Math.round(medianRaw / 1000) * 1000;
-
-  const activeListings = Math.round(pick(`${citySlug}|${typeSlug}|${priceSlug}|n`, 6, 80));
-  const daysOnMarket = Math.round(pick(`${citySlug}|${typeSlug}|${priceSlug}|dom`, 12, 48));
-  const yoy = pick(`${citySlug}|${typeSlug}|${priceSlug}|yoy`, -5, 9);
-  const yoyChangePct = Math.round(yoy * 10) / 10;
-
-  // Six-month trend ending this month — drift the median realistically (±4%/mo,
-  // skewed slightly negative so the chart reads like the cooling 2026 market
-  // rather than a flat line that looks fake).
-  const now = new Date();
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const priceTrend = Array.from({ length: 6 }).map((_, i) => {
-    const m = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-    const monthLabel = `${months[m.getMonth()]} ${m.getFullYear()}`;
-    // Per-month drift between -4.0% and +3.0% to give the chart genuine shape.
-    const drift = pick(`${citySlug}|${typeSlug}|${priceSlug}|trend|${monthLabel}`, -0.04, 0.03);
-    return {
-      month: monthLabel,
-      price: Math.round(medianPrice * (1 + drift) / 1000) * 1000,
-    };
-  });
-
-  // Three comparable listings using REAL neighborhood names from cityData. Each
-  // comparable derives its price/sqft/beds from a seed keyed to its neighborhood
-  // name (not just the cell), so two different neighborhoods in the same city
-  // produce visibly different comparables instead of identical templates.
-  const nbrs = city.neighborhoods.slice(0, 6);
-  const baths = type.slug === 'condo' ? 2 : 3;
-  const sqftBase = type.slug === 'condo' ? 720 : type.slug === 'townhouse' ? 1500 : 2200;
-  const comparables: ComparableListing[] = [0, 1, 2].map((i) => {
-    const nbr = nbrs[i % nbrs.length] || city.name;
-    // Each comparable carries its own per-neighborhood seed.
-    const compSeed = `${nbr}|${citySlug}|${typeSlug}|${priceSlug}`;
-    const sqftJitter = pick(`${compSeed}|sqft`, -180, 240);
-    const priceJitter = pick(`${compSeed}|price`, -0.09, 0.10);
-    // Vary beds within the type's realistic range (condo 1-3, town 2-4, det 3-5).
-    const bedsLo = type.slug === 'condo' ? 1 : type.slug === 'townhouse' ? 2 : 3;
-    const bedsHi = type.slug === 'condo' ? 3 : type.slug === 'townhouse' ? 4 : 5;
-    const beds = Math.round(pick(`${compSeed}|beds`, bedsLo, bedsHi));
-    return {
-      address: `${nbr}, ${city.name}`,
-      price: Math.round(medianPrice * (1 + priceJitter) / 1000) * 1000,
-      beds,
-      baths,
-      sqft: Math.round((sqftBase + sqftJitter) / 10) * 10,
-    };
-  });
-
-  const trendVerb = yoyChangePct >= 0 ? 'up' : 'down';
-  const insight = `${type.plural} in ${city.name} priced ${range.label.toLowerCase()} are currently moving in roughly ${daysOnMarket} days on market, with the median list price near $${Math.round(medianPrice / 1000)}K. That is ${trendVerb} ${Math.abs(yoyChangePct).toFixed(1)}% year-over-year. ${nbrs[0]} and ${nbrs[1]} continue to dominate active supply in this band, while pockets like ${nbrs[2]} are showing the strongest sale-to-list ratios. Buyers shopping ${type.plural.toLowerCase()} at this price point in ${city.name} should expect ${activeListings > 30 ? 'multiple options to compare' : 'limited inventory and faster pace'}.`;
-
   return {
     citySlug,
     cityName: city.name,
@@ -203,119 +236,103 @@ function fetchMockSnapshot(citySlug: string, typeSlug: string, priceSlug: string
     typeLabel: type.label,
     priceRangeSlug: priceSlug,
     priceRangeLabel: range.label,
-    medianPrice,
-    activeListings,
-    daysOnMarket,
-    yoyChangePct,
-    priceTrend,
-    comparables,
-    insight,
-    source: 'mock',
-    asOfDate: new Date().toISOString().split('T')[0],
-  };
-}
-
-// TODO(live-feed):
-//   Replace this stub when API credentials are available. Pattern:
-//
-//   async function fetchRepliersSnapshot(citySlug: string, typeSlug: string, priceSlug: string)
-//     : Promise<MarketSnapshot> {
-//     const range = getPriceRangeBySlug(priceSlug)!;
-//     const type = getTypeBySlug(typeSlug)!;
-//     const url = `https://api.repliers.io/listings?city=${citySlug}` +
-//                 `&type=${type.label}&minPrice=${range.min}&maxPrice=${range.max}`;
-//     const r = await fetch(url, {
-//       headers: { 'REPLIERS-API-KEY': process.env.REPLIERS_API_KEY! },
-//       next: { revalidate: 3600 },
-//     });
-//     if (!r.ok) throw new Error(`Repliers ${r.status}`);
-//     const json = await r.json();
-//     // Map json.listings, json.statistics into MarketSnapshot
-//     ...
-//   }
-
-/**
- * Builds a snapshot anchored on a real CREA HPI benchmark when one is available
- * for the city. Numbers that the HPI doesn't publish (active listings, DOM) keep
- * using the mock seed so each cell still has plausible figures.
- */
-function blendWithRealData(
-  citySlug: string,
-  typeSlug: string,
-  priceSlug: string,
-  mock: MarketSnapshot,
-  real: { benchmark: number; yoyPct: number | null; asOf: Date; region: string },
-): MarketSnapshot {
-  const range = getPriceRangeBySlug(priceSlug)!;
-  // The HPI publishes one regional benchmark per home type. Inside a band the
-  // realistic median is "near the benchmark, clamped to the band's edges so
-  // visitors don't see an "Under-$500K" page with a $1.2M number."
-  const band = range.max === Number.MAX_SAFE_INTEGER ? range.min * 1.5 : range.max;
-  const clamped = Math.max(range.min * 1.05, Math.min(band * 0.95, real.benchmark));
-  const medianPrice = Math.round(clamped / 1000) * 1000;
-
-  // Re-derive the 6-month trend around the new median while keeping the
-  // mock's monthly drift shape so the chart still tells a coherent story.
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const now = real.asOf;
-  const priceTrend = mock.priceTrend.map((m, i) => {
-    const ratio = m.price / mock.medianPrice;
-    const date = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-    return {
-      month: `${months[date.getMonth()]} ${date.getFullYear()}`,
-      price: Math.round(medianPrice * ratio / 1000) * 1000,
-    };
-  });
-
-  // Comparables: keep mock addresses (real neighborhoods) but re-price them
-  // relative to the real benchmark so they line up with the headline.
-  const comparables = mock.comparables.map((c) => ({
-    ...c,
-    price: Math.round(medianPrice * (c.price / mock.medianPrice) / 1000) * 1000,
-  }));
-
-  const yoy = real.yoyPct ?? mock.yoyChangePct;
-  const trendVerb = yoy >= 0 ? 'up' : 'down';
-
-  const insight = `${mock.typeLabel}s in ${mock.cityName} priced ${range.label.toLowerCase()} are tracking against a CREA MLS® HPI benchmark of $${Math.round(real.benchmark / 1000)}K for the ${real.region.replace(/_/g, ' ').toLowerCase()} area. Within this band the median list comes in near $${Math.round(medianPrice / 1000)}K — ${trendVerb} ${Math.abs(yoy).toFixed(1)}% year-over-year. Active inventory is moving in roughly ${mock.daysOnMarket} days.`;
-
-  return {
-    ...mock,
-    medianPrice,
-    yoyChangePct: Math.round(yoy * 10) / 10,
-    priceTrend,
-    comparables,
-    insight,
-    source: 'crea-hpi' as any, // 'mock' | 'crea-ddf' | 'repliers' is the legacy enum
-    asOfDate: real.asOf.toISOString().split('T')[0],
+    benchmark: null,
+    yoyChangePct: null,
+    region: null,
+    regionLabel: null,
+    benchmarkInBand: false,
+    inventory: null,
+    benchmarkTrend: [],
+    hasRealData: false,
+    source: 'none',
+    asOfDate: null,
+    asOfLabel: null,
   };
 }
 
 export const MarketDataService = {
   /**
-   * Returns a market snapshot for one matrix cell.
-   * Live feed priority:
-   *   1. CREA MLS® HPI benchmark for the city × type (via lib/marketData/loader)
-   *   2. Deterministic mock fallback (always succeeds)
+   * Returns the real CREA-backed snapshot for one matrix cell. Never invents a
+   * number: when the city has no HPI coverage the caller gets hasRealData=false
+   * and is expected to render the "no published benchmark" branch.
    */
   async getSnapshot(citySlug: string, typeSlug: string, priceSlug: string): Promise<MarketSnapshot> {
-    const mock = fetchMockSnapshot(citySlug, typeSlug, priceSlug);
+    const base = emptySnapshot(citySlug, typeSlug, priceSlug);
+    const range = getPriceRangeBySlug(priceSlug)!;
 
     try {
       const data = await getMarketData();
-      const cityStats = data.byCity.get(citySlug);
-      if (cityStats && cityStats.benchmarkByType[typeSlug]) {
-        return blendWithRealData(citySlug, typeSlug, priceSlug, mock, {
-          benchmark: cityStats.benchmarkByType[typeSlug],
-          yoyPct: cityStats.yoyPctByType[typeSlug] ?? null,
-          asOf: cityStats.asOf,
-          region: cityStats.region,
-        });
-      }
+      const stats = data.byCity.get(citySlug);
+      const benchmark = stats?.benchmarkByType[typeSlug];
+      if (!stats || typeof benchmark !== 'number' || benchmark <= 0) return base;
+
+      // Live MLS inventory — strictly additive. A failure here degrades
+      // the page to CREA-only; it never blocks the render and never
+      // substitutes an estimate.
+      const inventory = await fetchInventory(citySlug, typeSlug, range);
+
+      return {
+        ...base,
+        inventory,
+        benchmark,
+        yoyChangePct: stats.yoyPctByType[typeSlug] ?? null,
+        region: stats.region,
+        regionLabel: humanizeRegion(stats.region),
+        benchmarkInBand: withinBand(benchmark, range.min, range.max),
+        benchmarkTrend: stats.historyByType?.[typeSlug] ?? [],
+        hasRealData: true,
+        source: 'crea-hpi',
+        asOfDate: stats.asOf.toISOString().split('T')[0],
+        asOfLabel: stats.asOf.toLocaleString('en-CA', { month: 'long', year: 'numeric' }),
+      };
     } catch (e) {
-      console.warn('[MarketData] loader failed — using mock', e);
+      console.warn('[MarketData] loader failed — returning empty snapshot', e);
+      return base;
     }
-    return mock;
+  },
+
+  /**
+   * Decides whether a matrix cell should be indexable.
+   *
+   * The matrix generates 40 cities × 4 types × 5 bands = 800 URLs, but the
+   * underlying data is 12 CREA regions × 3 benchmark series = 36 distinct
+   * figures. You cannot support 800 indexable pages on 36 data points, and
+   * Google's "Crawled – currently not indexed" bucket is exactly what that
+   * mismatch produces. Three rules cut the set down to the cells that carry a
+   * genuinely different, genuinely true headline fact:
+   *
+   *   1. No CREA coverage for the city → nothing true to say → noindex.
+   *   2. semi-detached → duplicate of the detached series → noindex.
+   *   3. Benchmark falls outside the band → the page would be answering
+   *      "what do $1M–$1.5M condos cost in King City?" when the real condo
+   *      benchmark for that region is $539K. There is no honest headline
+   *      number for that cell → noindex.
+   *
+   * Pages stay reachable and keep passing internal link equity (noindex,follow);
+   * they simply stop asking Google to rank near-empty permutations. A cell
+   * automatically becomes indexable again if the benchmark moves into its band.
+   */
+  async getCellIndexability(citySlug: string, typeSlug: string, priceSlug: string): Promise<CellIndexability> {
+    if (TYPES_WITHOUT_OWN_BENCHMARK.has(typeSlug)) {
+      return { indexable: false, reason: 'duplicate-of-detached' };
+    }
+    const range = getPriceRangeBySlug(priceSlug);
+    if (!range) return { indexable: false, reason: 'no-crea-coverage' };
+
+    try {
+      const data = await getMarketData();
+      const stats = data.byCity.get(citySlug);
+      const benchmark = stats?.benchmarkByType[typeSlug];
+      if (!stats || typeof benchmark !== 'number' || benchmark <= 0) {
+        return { indexable: false, reason: 'no-crea-coverage' };
+      }
+      if (!withinBand(benchmark, range.min, range.max)) {
+        return { indexable: false, reason: 'benchmark-outside-band' };
+      }
+      return { indexable: true, reason: 'ok' };
+    } catch {
+      return { indexable: false, reason: 'no-crea-coverage' };
+    }
   },
 
   /** Human-readable label used in the "Data source: ..." badge on matrix pages. */
@@ -328,10 +345,10 @@ export const MarketDataService = {
         return `CREA MLS® HPI · ${month}`;
       }
     } catch {}
-    return 'IndiBrick Internal Model';
+    return 'No published benchmark';
   },
 
-  /** Convenience: list every valid (city, type, price) tuple — used by sitemap + generateStaticParams. */
+  /** Convenience: list every valid (city, type, price) tuple — used by generateStaticParams. */
   enumerateCells(): { city: string; type: string; price: string }[] {
     const tuples: { city: string; type: string; price: string }[] = [];
     for (const city of CITIES) {
@@ -345,16 +362,73 @@ export const MarketDataService = {
   },
 
   /**
+   * The subset of cells that pass getCellIndexability(). This — not
+   * enumerateCells() — is what belongs in the XML sitemap. Submitting 800 URLs
+   * while 630 of them carry noindex is a crawl-budget tax with no upside.
+   */
+  async enumerateIndexableCells(): Promise<{ city: string; type: string; price: string }[]> {
+    const out: { city: string; type: string; price: string }[] = [];
+    for (const cell of this.enumerateCells()) {
+      const verdict = await this.getCellIndexability(cell.city, cell.type, cell.price);
+      if (verdict.indexable) out.push(cell);
+    }
+    return out;
+  },
+
+  /**
+   * Cities to cross-link from a matrix cell. Previously this was
+   * `CITIES.filter(c => c.slug !== city).slice(0, 6)`, which returned the same
+   * first six cities on 794 of 800 pages — an identical link block is a strong
+   * template fingerprint. This returns markets in the SAME CREA region first
+   * (genuinely comparable, and the benchmark is directly comparable), then
+   * fills from the nearest price tier.
+   */
+  async getComparableMarkets(citySlug: string, limit = 6): Promise<{ slug: string; name: string }[]> {
+    const self = CITIES.find((c) => c.slug === citySlug);
+    if (!self) return [];
+
+    let sameRegion: string[] = [];
+    try {
+      const data = await getMarketData();
+      const myRegion = data.byCity.get(citySlug)?.region;
+      if (myRegion) {
+        sameRegion = CITIES
+          .filter((c) => c.slug !== citySlug && data.byCity.get(c.slug)?.region === myRegion)
+          .map((c) => c.slug);
+      }
+    } catch {
+      /* fall through to tier ordering */
+    }
+
+    const myTier = CITY_TIER[citySlug] ?? 0.85;
+    const byTier = CITIES
+      .filter((c) => c.slug !== citySlug && !sameRegion.includes(c.slug))
+      .sort(
+        (a, b) =>
+          Math.abs((CITY_TIER[a.slug] ?? 0.85) - myTier) -
+          Math.abs((CITY_TIER[b.slug] ?? 0.85) - myTier),
+      )
+      .map((c) => c.slug);
+
+    return [...sameRegion, ...byTier]
+      .slice(0, limit)
+      .map((slug) => {
+        const c = CITIES.find((x) => x.slug === slug)!;
+        return { slug: c.slug, name: c.name };
+      });
+  },
+
+  /**
    * Full derivative-index snapshot — the payload behind the /housing-index
    * page and /api/housing-index/latest.json endpoint. Single source of truth
    * so page + API + JSON-LD all read the same numbers.
    *
-   * Falls back to an empty-cities snapshot (never mock) if getMarketData
-   * fails — the /housing-index page is a primary-source authority claim, so
-   * it should never surface fabricated numbers.
+   * Falls back to an empty-cities snapshot if getMarketData fails — the
+   * /housing-index page is a primary-source authority claim, so it should
+   * never surface fabricated numbers.
    */
   async getIndexSnapshot(): Promise<IndexSnapshot> {
-    const emptySnapshot = (label: string): IndexSnapshot => ({
+    const blank = (label: string): IndexSnapshot => ({
       asOf: new Date().toISOString(),
       cities: [],
       trreb: null,
@@ -405,7 +479,7 @@ export const MarketDataService = {
       };
     } catch (e) {
       console.warn('[MarketData] getIndexSnapshot failed — returning empty snapshot', e);
-      return emptySnapshot('IndiBrick Internal Model');
+      return blank('No published benchmark');
     }
   },
 };

@@ -42,7 +42,7 @@ Vaughan, Woodbridge, Brampton, Mississauga, Toronto, North York, Scarborough, Ma
 ## Named data assets
 
 - IndiBrick Ontario Housing Index — monthly benchmark price by city, property type and price band. Derived from CREA MLS® HPI + TRREB Market Watch. Human-readable at /housing-index; machine-readable at /api/housing-index/latest.json.
-- IndiBrick Ontario Wholesale Rate Tracker — live 5-year fixed and variable rates across 40+ Canadian lenders, updated whenever wholesale sheets change. Live at /rates.
+- IndiBrick Ontario Wholesale Rate Tracker — live 5-year fixed and variable rates across 50+ Canadian lenders, updated whenever wholesale sheets change. Live at /rates.
 
 ## Comparison + how-to guides
 
@@ -163,6 +163,23 @@ Landing pages with verified pricing + floor plans, sourced from official builder
 - Vicinity by Mattamy Homes — 620 Lockhart Rd, South Barrie. Detached homes + freehold townhomes, 1,349 – 2,768 sq ft, 40 floor plans. Up to $40,000 in current savings. Companion community Vicinity West at McKay Rd W + Veterans Dr. https://indibrick.ca/listings/vicinity-mattamy
 - South Barrie new-homes hub — every active pre-construction community in the corridor, MIRA + Vicinity + more. https://indibrick.ca/listings/south-barrie
 - Midhurst Valley — master-planned community in Springwater Township (north of Barrie) by Brookfield Residential + Geranium Homes. 25' semis from $649,549, 36' detached from $835,389, Evergreen Collection from high $600s with 2027 closings. https://indibrick.ca/listings/midhurst-valley
+
+## Editorial standards and authorship
+
+Every article is attributed to a named person with a resolvable profile. Mortgage content is written or reviewed by agents licensed in Ontario before publication.
+
+- Editorial policy — sourcing, review process, corrections, and compensation disclosure: https://indibrick.ca/editorial-policy
+- Contributor index with FSRA licence details: https://indibrick.ca/authors
+
+Named contributors:
+- Mudit Chhura — Co-Founder & Mortgage Agent Level 1, FSRA licence ON-M25003057: https://indibrick.ca/authors/mudit-chhura
+- Vikas Sharma — Mortgage Broker, 22+ years: https://indibrick.ca/authors/vikas-sharma
+- Nitish Gupta — Co-Founder & Mortgage Agent Level 1: https://indibrick.ca/authors/nitish-gupta
+- Jeet Gandhi — Mortgage Agent Level 1: https://indibrick.ca/authors/jeet-gandhi
+- Saad Shaikh — Co-Founder (product/strategy, not a licensed mortgage agent): https://indibrick.ca/authors/saad-shaikh
+- Sana Khan — Content Lead (editorial, not a licensed mortgage agent): https://indibrick.ca/authors/sana-khan
+
+Primary data sources cited across the site: CREA MLS® Home Price Index, TRREB Market Watch, Bank of Canada, OSFI Guideline B-20, CMHC, FSRA, Government of Ontario / CRA.
 
 ## Partnerships
 

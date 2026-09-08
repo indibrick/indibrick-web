@@ -48,7 +48,7 @@ const CRITERIA = [
     body: 'How many wholesale lenders the broker can shop your file to. More lenders = more likely to find a fit on rate, product, or credit profile. 20+ is the practical threshold — that\'s enough coverage across A-lenders, monolines (First National, MCAP, RFA), credit unions, and alternative lenders.',
     icon: TrendingUp,
     question: 'How many lenders are on your active panel, and does that include monolines, credit unions, and alternative lenders?',
-    indibrickAnswer: '40+ active lenders including the big-six banks, all major monolines, most Ontario credit unions, and a full alternative + private panel for credit-challenged files.',
+    indibrickAnswer: '50+ active lenders including the big-six banks, all major monolines, most Ontario credit unions, and a full alternative + private panel for credit-challenged files.',
   },
   {
     label: 'Response time',
@@ -286,7 +286,7 @@ export default function ChooseMortgageBrokerOntarioGuide() {
               Ready to apply the framework?
             </h2>
             <p className="text-gray-400 text-sm md:text-base mb-6">
-              A licensed Ontario mortgage agent will call you back within 1 business hour with your rate options from 40+ lenders — no hard credit check.
+              A licensed Ontario mortgage agent will call you back within 1 business hour with your rate options from 50+ lenders — no hard credit check.
             </p>
             <div className="bg-white p-2 rounded-[2rem] shadow-xl">
               <LeadForm

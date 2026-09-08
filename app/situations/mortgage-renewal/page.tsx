@@ -4,7 +4,7 @@ import { buildMetadata } from '../../../lib/buildMetadata';
 import SituationForm from '../../../components/SituationForm';
 import { StatStrip, FAQ, BottomCTA, HeroTag, RelatedSituations } from '../../../components/SituationChrome';
 import CiteBlock from '../../../components/CiteBlock';
-import TrustBar from '../../../components/TrustBar';
+import TrustBarLive from '../../../components/TrustBarLive';
 import BrokerCard from '../../../components/BrokerCard';
 import RateMatchPromise from '../../../components/RateMatchPromise';
 
@@ -97,7 +97,7 @@ export default function MortgageRenewalPage() {
         </div>
       </section>
 
-      <TrustBar variant="light" scaleClaim={{ value: '$18M+', label: 'placed in 2025 at renewal' }} />
+      <TrustBarLive variant="light" scaleClaim={{ value: '$18M+', label: 'placed in 2025 at renewal' }} />
 
       <StatStrip stats={STATS} accentTextClass="text-blue-400" />
 

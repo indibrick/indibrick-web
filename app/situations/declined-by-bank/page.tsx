@@ -2,13 +2,14 @@ import React from 'react';
 import { buildMetadata } from '../../../lib/buildMetadata';
 import SituationForm from '../../../components/SituationForm';
 import { StatStrip, FAQ, BottomCTA, HeroTag, RelatedSituations } from '../../../components/SituationChrome';
+import { getLiveRates, type LiveRates } from '../../../lib/getLiveRates';
 import CiteBlock from '../../../components/CiteBlock';
-import TrustBar from '../../../components/TrustBar';
+import TrustBarLive from '../../../components/TrustBarLive';
 import BrokerCard from '../../../components/BrokerCard';
 
 export const metadata = buildMetadata({
   title: 'Declined by the Bank? Your Mortgage Isn\'t Dead',
-  description: 'Getting rejected by your bank doesn\'t mean you don\'t qualify — it means you don\'t qualify at THAT bank. IndiBrick quotes 45+ A, B, and private lenders. Send us the decline letter, get a real answer in 24 hours.',
+  description: 'Getting rejected by your bank doesn\'t mean you don\'t qualify — it means you don\'t qualify at THAT bank. IndiBrick quotes 50+ A, B, and private lenders. Send us the decline letter, get a real answer in 24 hours.',
   slug: '/situations/declined-by-bank',
   keywords: [
     'mortgage rejection Ontario',
@@ -22,28 +23,58 @@ export const metadata = buildMetadata({
   ],
 });
 
+// The middle stat was previously "68% of bank-declined files we place with an
+// alt-A or B lender". Nothing in the business produces that number, so it was
+// an invented performance claim on a regulated page. Replaced with the
+// capability it was trying to express, which is verifiable: we quote all three
+// lender tiers, and alt-A/B is where declined files actually get placed.
 const STATS = [
-  { value: '45+', label: 'A, B, and private lenders quoted per file' },
-  { value: '68%', label: 'of bank-declined files we place with an alt-A or B lender' },
+  { value: '50+', label: 'A, B, and private lenders quoted per file' },
+  { value: 'Alt-A + B', label: 'specialist panel — where declined bank files get placed' },
   { value: '24hr', label: 'to a real answer — send the decline letter' },
 ];
 
 const REJECTION_REASONS = [
   { reason: 'Self-employed / BFS income', why: 'Your bank uses net income after write-offs. B-lenders and alt-A lenders use bank statements or stated income — same person, different underwriting.' },
-  { reason: 'Bruised credit (below 660)', why: 'A 620 file that\'s cash-flow strong closes at 45+ B-lender programs we quote. Your bank\'s branch doesn\'t know they exist because they can\'t sell them.' },
+  { reason: 'Bruised credit (below 660)', why: 'A 620 file that\'s cash-flow strong closes at alternative and B-lender programs we quote. Your bank\'s branch doesn\'t know they exist because they can\'t sell them.' },
   { reason: 'New to Canada / no credit history', why: 'Every Big 6 has a newcomer program with internal exceptions, plus 3 B-lenders specialize in ITIN-only or 6-month-in-country files. Most branch reps don\'t escalate.' },
   { reason: 'GDS/TDS ratios over 44%', why: 'A-lender stress-test caps you at ~44% TDS. B-lenders regularly approve at 50%+ with compensating factors — 20%+ down, cash reserves, or a co-signer.' },
   { reason: 'Non-traditional property (rural, small, mixed-use)', why: 'A-lender appraisals refuse marketable-title issues. Private lenders and select credit unions actively lend on these files.' },
   { reason: 'Contract or gig income under 2 years', why: 'Bank policy demands 2-year tenure. B-lenders will work with 12 months + bank statement flow. Alt-A programs will work with T4A + contract terms.' },
 ];
 
-const LENDER_TIERS = [
-  { tier: 'A-Lenders', rate: '4.29% – 5.29%', criteria: 'T4 income, 660+ credit, GDS/TDS in range. What your bank denied you for.', color: 'bg-blue-50 border-blue-100 text-blue-700' },
-  { tier: 'Alt-A / B-Lenders', rate: '5.99% – 7.99%', criteria: 'Self-employed, bruised credit (580+), extended amortization, higher TDS. Fees ~1%.', color: 'bg-amber-50 border-amber-100 text-amber-700' },
-  { tier: 'MICs / Private', rate: '8.99% – 12.99%', criteria: 'Equity-based. 65% LTV cap. Short-term (1–2 yr) bridge while you fix the file for A-lender return.', color: 'bg-red-50 border-red-100 text-red-700' },
-];
+// Rates come from the same Firestore rate sheet that powers /rates — not from
+// hardcoded ranges. The previous constants (4.29-5.29 / 5.99-7.99 / 8.99-12.99)
+// contradicted the site's own live A-lender rate and violated the rule this
+// site publishes at /editorial-policy: quoting a rate in evergreen content
+// misleads readers once it drifts. When no rate sheet is available the tier
+// still renders — with its qualification criteria, minus a price.
+function buildLenderTiers(rates: LiveRates | null) {
+  return [
+    {
+      tier: 'A-Lenders',
+      rate: rates ? `from ${rates.insured_fixed_5yr}%` : null,
+      criteria: 'T4 income, 660+ credit, GDS/TDS in range. What your bank denied you for.',
+      color: 'bg-blue-50 border-blue-100 text-blue-700',
+    },
+    {
+      tier: 'Alt-A / B-Lenders',
+      rate: rates ? `from ${rates.b_lender}%` : null,
+      criteria: 'Self-employed, bruised credit (580+), extended amortization, higher TDS. Fees ~1%.',
+      color: 'bg-amber-50 border-amber-100 text-amber-700',
+    },
+    {
+      tier: 'MICs / Private',
+      rate: rates ? `from ${rates.private_1st}%` : null,
+      criteria: 'Equity-based. 65% LTV cap. Short-term (1-2 yr) bridge while you fix the file for A-lender return.',
+      color: 'bg-red-50 border-red-100 text-red-700',
+    },
+  ];
+}
 
-export default function DeclinedByBankPage() {
+export default async function DeclinedByBankPage() {
+  const liveRates = await getLiveRates();
+  const LENDER_TIERS = buildLenderTiers(liveRates);
   return (
     <div className="bg-white">
       {/* HERO */}
@@ -59,7 +90,7 @@ export default function DeclinedByBankPage() {
               <span className="text-emerald-400">Your file isn't dead.</span>
             </h1>
             <p className="text-base md:text-lg text-gray-300 leading-relaxed mb-6 max-w-lg">
-              A rejection at your branch isn't a rejection at <strong className="text-white">45+ other lenders</strong>. We work all three lender tiers — A, B, and private — and we don't get paid unless your deal funds. Send us the decline letter and we'll tell you in <strong className="text-white">24 hours</strong> whether your file is dead or just misplaced.
+              A rejection at your branch isn't a rejection at <strong className="text-white">50+ other lenders</strong>. We work all three lender tiers — A, B, and private — and we don't get paid unless your deal funds. Send us the decline letter and we'll tell you in <strong className="text-white">24 hours</strong> whether your file is dead or just misplaced.
             </p>
             <ul className="space-y-2.5 text-sm text-gray-300 mb-4">
               <li className="flex items-start gap-2"><span className="text-emerald-400 font-black mt-0.5">✓</span> Self-employed, new to Canada, bruised credit — all fixable</li>
@@ -100,7 +131,7 @@ export default function DeclinedByBankPage() {
         </div>
       </section>
 
-      <TrustBar variant="light" scaleClaim={{ value: '45+', label: 'A, B & private lender panel' }} />
+      <TrustBarLive variant="light" scaleClaim={{ value: '50+', label: 'A, B & private lender panel' }} />
 
       <StatStrip stats={STATS} accentTextClass="text-emerald-400" />
 
@@ -111,18 +142,11 @@ export default function DeclinedByBankPage() {
           <p className="text-[10px] font-black uppercase tracking-widest text-red-600 mb-4 text-center">Sources &amp; Methodology</p>
           <div className="space-y-3">
             <CiteBlock
-              value="45+"
+              value="50+"
               claim="A-lender, B-lender, and private lender relationships accessible through the IndiBrick broker channel via our brokerage partner network."
               source="IndiBrick lender panel, internal register"
-              sourceUrl="/methodology"
+              sourceUrl="/editorial-policy"
               asOf="2026-07"
-            />
-            <CiteBlock
-              value="~68%"
-              claim="of bank-declined mortgage files reviewed by IndiBrick were subsequently placed with an alt-A or B-lender in the 2024–25 vintage."
-              source="IndiBrick internal file review, 2024–25 vintage"
-              sourceUrl="/methodology"
-              asOf="2026-06"
             />
             <CiteBlock
               value="Guideline B-20"
@@ -150,7 +174,7 @@ export default function DeclinedByBankPage() {
               </div>
             ))}
           </div>
-          <p className="text-center text-sm text-gray-500 mt-10 max-w-2xl mx-auto">Your bank branch is one lender with one credit policy. We quote three tiers across 45+ lenders — the file that got declined at the branch usually fits somewhere in that stack.</p>
+          <p className="text-center text-sm text-gray-500 mt-10 max-w-2xl mx-auto">Your bank branch is one lender with one credit policy. We quote three tiers across 50+ lenders — the file that got declined at the branch usually fits somewhere in that stack.</p>
         </div>
       </section>
 
@@ -165,12 +189,16 @@ export default function DeclinedByBankPage() {
             {LENDER_TIERS.map(t => (
               <div key={t.tier} className={`rounded-3xl p-6 border ${t.color}`}>
                 <p className="text-[10px] font-black uppercase tracking-widest mb-2">{t.tier}</p>
-                <p className="text-2xl md:text-3xl font-black tracking-tighter text-slate-900 tabular-nums mb-2">{t.rate}</p>
+                {t.rate ? (
+                  <p className="text-2xl md:text-3xl font-black tracking-tighter text-slate-900 tabular-nums mb-2">{t.rate}</p>
+                ) : (
+                  <p className="text-sm font-black tracking-tight text-slate-500 mb-2">Pricing quoted on your file</p>
+                )}
                 <p className="text-sm text-slate-700 leading-relaxed">{t.criteria}</p>
               </div>
             ))}
           </div>
-          <p className="text-center text-sm text-gray-500 mt-8 max-w-2xl mx-auto">Illustrative ranges. Actual pricing depends on file. We start at the cheapest tier your file supports and only move down if we have to — with a documented exit plan back up.</p>
+          <p className="text-center text-sm text-gray-500 mt-8 max-w-2xl mx-auto">{liveRates ? 'Starting rates from our current wholesale rate sheet — see /rates. ' : ''}Actual pricing depends on the file. We start at the cheapest tier your file supports and only move down if we have to — with a documented exit plan back up.</p>
         </div>
       </section>
 

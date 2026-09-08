@@ -211,6 +211,7 @@ export default function PartnerCRM() {
           case 'partner_lawyer': return ['File Opened', 'Title Search', 'Docs Prepared', 'Signing', 'Closed', 'Cancelled'];
           case 'partner_referral': return ['Referred', 'Contacted', 'Processing', 'Funded / Paid', 'Declined'];
           case 'partner_insurance': return ['New', 'Contacted', 'Quoted', 'Bound', 'Renewed', 'Cancelled', 'Lost'];
+          case 'partner_mortgage': return ['Received', 'Contacted', 'Underwriting', 'Approved', 'Firm / Conditional', 'Closed', 'Declined'];
           default: return ['Received', 'Contacted', 'Underwriting', 'Approved', 'Firm / Conditional', 'Closed', 'Declined'];
       }
   };

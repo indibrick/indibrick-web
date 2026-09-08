@@ -2,7 +2,7 @@ import React from 'react';
 import { buildMetadata } from '../../lib/buildMetadata';
 import RefiPayoutForm from './RefiPayoutForm';
 import CiteBlock from '../../components/CiteBlock';
-import TrustBar from '../../components/TrustBar';
+import TrustBarLive from '../../components/TrustBarLive';
 import BrokerCard from '../../components/BrokerCard';
 import RateMatchPromise from '../../components/RateMatchPromise';
 
@@ -59,7 +59,7 @@ export default function RefiPayoutPlanPage() {
         </div>
       </section>
 
-      <TrustBar variant="light" scaleClaim={{ value: '28+', label: 'refi files closed in the last 90 days' }} />
+      <TrustBarLive variant="light" scaleClaim={{ value: '28+', label: 'refi files closed in the last 90 days' }} />
 
       {/* STAT STRIP */}
       <section className="bg-slate-950 text-white py-8 border-t border-white/5">
@@ -96,7 +96,7 @@ export default function RefiPayoutPlanPage() {
               value="$725/mo"
               claim="average monthly cash flow freed on IndiBrick's last 28 refi + debt consolidation files (Ontario, 2025 vintage)."
               source="IndiBrick internal file review, 2025 vintage"
-              sourceUrl="/methodology"
+              sourceUrl="/editorial-policy"
               asOf="2026-06"
             />
           </div>

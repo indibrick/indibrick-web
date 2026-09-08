@@ -2,7 +2,7 @@ import React from 'react';
 import { buildMetadata } from '../../lib/buildMetadata';
 import SixMinuteForm from './SixMinuteForm';
 import CiteBlock from '../../components/CiteBlock';
-import TrustBar from '../../components/TrustBar';
+import TrustBarLive from '../../components/TrustBarLive';
 import BrokerCard from '../../components/BrokerCard';
 import RateMatchPromise from '../../components/RateMatchPromise';
 
@@ -23,7 +23,7 @@ export const metadata = buildMetadata({
 const STATS = [
   { value: '1 hour', label: 'callback from a licensed advisor' },
   { value: 'Instant', label: 'self-serve pre-approval tool' },
-  { value: '45+', label: 'lenders quoted on your file' },
+  { value: '50+', label: 'lenders quoted on your file' },
 ];
 
 export default function SixMinuteApprovalPage() {
@@ -76,7 +76,7 @@ export default function SixMinuteApprovalPage() {
         </div>
       </section>
 
-      <TrustBar variant="light" scaleClaim={{ value: '$18M+', label: 'placed in 2025 · 45+ lender panel' }} />
+      <TrustBarLive variant="light" scaleClaim={{ value: '$18M+', label: 'placed in 2025 · 50+ lender panel' }} />
 
       {/* STAT STRIP */}
       <section className="bg-slate-950 text-white py-8 border-t border-white/5">
@@ -103,10 +103,10 @@ export default function SixMinuteApprovalPage() {
               asOf="2025-01"
             />
             <CiteBlock
-              value="45+"
+              value="50+"
               claim="A-lender, B-lender, and private lender relationships accessible through IndiBrick's brokerage partner (Pineapple Financial Inc.) — the lender pool that determines how much you actually qualify for."
               source="IndiBrick lender panel, internal register"
-              sourceUrl="/methodology"
+              sourceUrl="/editorial-policy"
               asOf="2026-07"
             />
             <CiteBlock
@@ -170,7 +170,7 @@ export default function SixMinuteApprovalPage() {
             {[
               { t: 'First-time buyer in the GTA', d: 'You want to know if you\'re priced in or priced out before you tell your realtor.' },
               { t: 'Made an offer, need to move fast', d: 'You have 5 business days to firm up financing. We work at that pace.' },
-              { t: 'Told "no" by your bank', d: 'A rejection at your branch isn\'t a rejection at 45+ other lenders. Get a real number.' },
+              { t: 'Told "no" by your bank', d: 'A rejection at your branch isn\'t a rejection at 50+ other lenders. Get a real number.' },
             ].map(a => (
               <div key={a.t} className="bg-gray-50 rounded-3xl p-6 md:p-8 border border-gray-100">
                 <h3 className="font-black uppercase tracking-tight text-slate-900 text-sm mb-2">{a.t}</h3>
@@ -193,7 +193,7 @@ export default function SixMinuteApprovalPage() {
             {[
               { q: 'Instant tool vs 1-hour callback — which one should I use?', a: 'The instant pre-approval tool is a self-serve digital application (powered by our brokerage partner Pineapple). It gives you a real number in minutes and is perfect if you already know your basics. The 1-hour advisor callback is better if you want a human to walk you through your file — self-employed, new to Canada, bruised credit, second mortgage, or any file with wrinkles.' },
               { q: 'What does "1 business hour" actually mean?', a: 'Mon–Sat 9am–8pm ET. Submit inside those hours and a licensed advisor calls you back within 60 minutes. Submit outside those hours and you get a call at the next business-hour open.' },
-              { q: 'How is this different from a bank pre-approval?', a: 'A bank pre-approval takes days, pulls credit, and only tells you what THAT bank will lend. Our snapshot doesn\'t pull credit, and reflects what 45+ lenders would each offer — because we quote all of them.' },
+              { q: 'How is this different from a bank pre-approval?', a: 'A bank pre-approval takes days, pulls credit, and only tells you what THAT bank will lend. Our snapshot doesn\'t pull credit, and reflects what 50+ lenders would each offer — because we quote all of them.' },
               { q: 'What if my file needs a B-lender?', a: 'The snapshot flags that. B-lender full approval takes longer, but the initial file-fit assessment doesn\'t. You\'ll know your path either way — A-lender, B-lender, or private.' },
               { q: 'Is this an offer of credit?', a: 'No. The snapshot is a conditional qualification range, not a legally binding commitment. A full mortgage commitment requires a formal application, document review, credit consent, and lender approval — all of which we can start same-day if you like the number.' },
             ].map(f => (

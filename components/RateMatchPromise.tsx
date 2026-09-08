@@ -53,7 +53,7 @@ export function RateMatchPromise({
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={16} className="text-emerald-400 mt-0.5 shrink-0" />
-                  <span>If we can source the same or lower rate through our 45+ lender panel, we match it.</span>
+                  <span>If we can source the same or lower rate through our 50+ lender panel, we match it.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 size={16} className="text-emerald-400 mt-0.5 shrink-0" />

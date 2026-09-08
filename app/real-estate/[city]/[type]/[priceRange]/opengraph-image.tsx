@@ -47,7 +47,12 @@ export default async function OGImage({ params }: { params: Params }) {
   }
 
   const snap = await MarketDataService.getSnapshot(params.city, params.type, params.priceRange);
-  const trendUp = snap.yoyChangePct >= 0;
+  // Every figure below is nullable now — the fabricated median / active-count
+  // / days-on-market fields were removed from MarketSnapshot. Render only what
+  // CREA actually publishes, and degrade to a brand card when there's no
+  // coverage rather than printing "$NaNK".
+  const hasYoY = typeof snap.yoyChangePct === 'number';
+  const trendUp = hasYoY && (snap.yoyChangePct as number) >= 0;
   const priceK = (n: number) =>
     n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(2)}M` : `$${Math.round(n / 1000)}K`;
 
@@ -73,7 +78,7 @@ export default async function OGImage({ params }: { params: Params }) {
             fontSize: 18, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 2,
           }}>
             <div style={{ width: 10, height: 10, borderRadius: 999, background: '#34d399' }} />
-            Live · {snap.asOfDate}
+            {snap.asOfLabel ? `CREA · ${snap.asOfLabel}` : 'IndiBrick'}
           </div>
         </div>
 
@@ -90,18 +95,25 @@ export default async function OGImage({ params }: { params: Params }) {
           </div>
         </div>
 
-        {/* Stats row */}
+        {/* Stats row — real CREA figures only. Cells are omitted entirely
+            when the underlying reading is missing, so a no-coverage cell
+            renders a clean brand card instead of placeholder noise. */}
         <div style={{
           display: 'flex', gap: 32, marginTop: 56,
         }}>
-          <Cell label="Median" value={priceK(snap.medianPrice)} />
-          <Cell label="Active" value={String(snap.activeListings)} />
-          <Cell label="Days on Mkt" value={`${snap.daysOnMarket}d`} />
-          <Cell
-            label="YoY"
-            value={`${trendUp ? '+' : ''}${snap.yoyChangePct.toFixed(1)}%`}
-            color={trendUp ? '#34d399' : '#f87171'}
-          />
+          {snap.benchmark !== null && (
+            <Cell label="HPI Benchmark" value={priceK(snap.benchmark)} />
+          )}
+          {hasYoY && (
+            <Cell
+              label="YoY"
+              value={`${trendUp ? '+' : ''}${(snap.yoyChangePct as number).toFixed(1)}%`}
+              color={trendUp ? '#34d399' : '#f87171'}
+            />
+          )}
+          {snap.regionLabel && (
+            <Cell label="Region" value={snap.regionLabel} />
+          )}
         </div>
 
         {/* Footer */}
@@ -111,7 +123,7 @@ export default async function OGImage({ params }: { params: Params }) {
           fontSize: 20, fontWeight: 700, color: '#cbd5e1', letterSpacing: 2, textTransform: 'uppercase',
         }}>
           <div>indibrick.ca/real-estate/{city.slug}/{type.slug}/{range.slug}</div>
-          <div>CREA MLS HPI · Updated Hourly</div>
+          <div>{snap.hasRealData ? 'CREA MLS® HPI' : 'IndiBrick · FSRA #12830'}</div>
         </div>
       </div>
     ),

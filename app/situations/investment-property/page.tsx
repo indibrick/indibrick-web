@@ -3,7 +3,7 @@ import { buildMetadata } from '../../../lib/buildMetadata';
 import SituationForm from '../../../components/SituationForm';
 import { StatStrip, FAQ, BottomCTA, HeroTag, RelatedSituations } from '../../../components/SituationChrome';
 import CiteBlock from '../../../components/CiteBlock';
-import TrustBar from '../../../components/TrustBar';
+import TrustBarLive from '../../../components/TrustBarLive';
 import BrokerCard from '../../../components/BrokerCard';
 
 export const metadata = buildMetadata({
@@ -103,7 +103,7 @@ export default function InvestmentPropertyPage() {
         </div>
       </section>
 
-      <TrustBar variant="light" scaleClaim={{ value: '45+', label: 'investor + portfolio lender panel' }} />
+      <TrustBarLive variant="light" scaleClaim={{ value: '50+', label: 'investor + portfolio lender panel' }} />
 
       <StatStrip stats={STATS} accentTextClass="text-purple-400" />
 

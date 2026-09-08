@@ -129,17 +129,26 @@ export const CITIES: CityData[] = [
   generateCityData('Sudbury', 'sudbury', ['New Sudbury', 'Downtown Sudbury', 'South End', 'Minnow Lake', 'Copper Cliff', 'Lively']),
 ];
 
-export const PRE_CON_CITIES: PreConCityData[] = CITIES.map(city => ({
-  slug: city.slug,
-  cityName: city.name,
-  projects: [
-    {
-      name: `${city.name} Elite Residences`,
-      builder: 'IndiBrick Partners',
-      type: 'Mixed-Use Community',
-      status: 'Priority Registration',
-      highlights: ['Master-Planned Community', 'Transit-Adjacent', 'Platinum Pricing'],
-      description: `A transformative development project in ${city.name} offering investors and families a unique chance to build equity in a high-growth corridor.`
-    }
-  ]
-}));
+/**
+ * Pre-construction inventory, keyed by city.
+ *
+ * INTENTIONALLY EMPTY until real builder inventory is wired in.
+ *
+ * This previously auto-generated one fabricated project per city:
+ *   { name: `${city.name} Elite Residences`, builder: 'IndiBrick Partners', … }
+ * — 41 developments that do not exist, attributed to a builder that does
+ * not exist, each carrying an invented "Priority Registration" status and
+ * "Platinum Pricing" highlight. Those rendered as real listings to both
+ * buyers and search engines.
+ *
+ * Advertising non-existent developments is a RECO/consumer-protection
+ * exposure independent of any SEO consideration, so the generator is
+ * removed rather than merely hidden.
+ *
+ * To populate: add entries sourced from actual builder sales pages, the
+ * way `lib/developmentsData.ts` does for MIRA Towns / Vicinity /
+ * Midhurst Valley — real address, real builder, real pricing, with the
+ * source URL cited on-page. `/pre-construction-condos/[city]` reads this
+ * array and stays `noindex` while it is empty.
+ */
+export const PRE_CON_CITIES: PreConCityData[] = [];

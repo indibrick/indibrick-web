@@ -32,7 +32,7 @@ const SITUATIONS: Situation[] = [
   {
     href: '/situations/declined-by-bank',
     title: 'Declined by the bank',
-    blurb: 'A rejection at your branch isn\'t a rejection at 45+ other lenders. Send us the decline letter, get a real answer in 24 hours.',
+    blurb: 'A rejection at your branch isn\'t a rejection at 50+ other lenders. Send us the decline letter, get a real answer in 24 hours.',
     audience: 'Self-employed · bruised credit · new to Canada · high TDS',
     Icon: AlertCircle,
     tier: 1,

@@ -17,6 +17,12 @@ import * as fs from 'fs';
 
 export type HPIHomeType = 'composite' | 'single_family' | 'townhouse' | 'apartment';
 
+/** One historical monthly benchmark reading for a region. */
+export interface HPIHistoryPoint {
+  date: Date;
+  benchmarks: Record<HPIHomeType, number>;
+}
+
 export interface HPIReading {
   /** Sheet name from the workbook, e.g. "MISSISSAUGA" or "GREATER_TORONTO". */
   region: string;
@@ -26,7 +32,17 @@ export interface HPIReading {
   benchmarks: Record<HPIHomeType, number>;
   /** Year-over-year benchmark change in percent, signed. Null if 12-mo prior is missing. */
   yoyPct: Record<HPIHomeType, number | null>;
+  /**
+   * The trailing 13 monthly readings (oldest first, latest last) straight out of
+   * the workbook. The parser used to discard these, which forced the matrix
+   * pages to render a seeded pseudo-random "6-month trend" chart. Keeping the
+   * real series lets every chart on the site be an actual CREA figure.
+   */
+  history: HPIHistoryPoint[];
 }
+
+/** How many trailing months of history we retain per region. */
+const HISTORY_MONTHS = 13;
 
 // Excel stores dates as days since 1899-12-30.
 function excelSerialToDate(n: number): Date {
@@ -106,9 +122,20 @@ export function parseHPIWorkbook(filePath: string): HPIReading[] {
       return Math.round(((cur - prev) / prev) * 1000) / 10; // 1 decimal
     };
 
+    const history: HPIHistoryPoint[] = rows.slice(-HISTORY_MONTHS).map((r) => ({
+      date: r.date,
+      benchmarks: {
+        composite: r.comp,
+        single_family: r.sf,
+        townhouse: r.town,
+        apartment: r.apt,
+      },
+    }));
+
     readings.push({
       region: sheetName,
       asOf: latest.date,
+      history,
       benchmarks: {
         composite: latest.comp,
         single_family: latest.sf,

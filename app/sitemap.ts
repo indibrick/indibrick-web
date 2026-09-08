@@ -5,7 +5,19 @@ import { PropertyService } from '../services/PropertyService';
 import { MarketDataService } from '../services/MarketDataService';
 import { getMarketData } from '../lib/marketData/loader';
 import { CITIES } from '../data/cityData';
+import { allAuthors } from '../lib/authors';
 import { BROKER_CITIES } from '../data/mortgageBrokerCities';
+import { getNeighborhoodExtras, isIndexableNeighborhood } from '../data/neighborhoodExtras';
+
+// Slugs that this deploy either 301s away or serves as noindex. Single source
+// of truth is data/blogPrunePlan.mjs, which next.config.mjs also reads for the
+// redirects themselves — so the sitemap and the redirect table cannot drift.
+import { BLOG_REDIRECTS, BLOG_NOINDEX_SLUGS } from '../data/blogPrunePlan.mjs';
+
+const PRUNED_BLOG_SLUGS = new Set<string>([
+  ...BLOG_REDIRECTS.map((r: any) => r.slug),
+  ...BLOG_NOINDEX_SLUGS,
+]);
 
 // Slug helper — mirrors the one used in the neighborhood route.
 const slugifyNeighborhood = (s: string) =>
@@ -103,9 +115,17 @@ const STATIC_ROUTES: { path: string; priority?: number }[] = [
   { path: '/bad-credit-private-mortgages', priority: 0.8 },
   { path: '/reverse-mortgages', priority: 0.7 },
   { path: '/architecture', priority: 0.5 },
+  // E-E-A-T trust surfaces. On a YMYL financial site these carry real
+  // ranking weight — Google's rater guidelines look for a resolvable
+  // author entity and a published editorial standard.
+  { path: '/authors', priority: 0.7 },
+  { path: '/editorial-policy', priority: 0.6 },
   // Content hubs
   { path: '/blog', priority: 0.8 },
-  { path: '/city-data', priority: 0.7 },
+  // /city-data is noindex until its market data comes from a cited source —
+  // see app/city-data/[slug]/page.tsx. Submitting a noindexed URL is a
+  // contradictory signal, so the hub is withheld with the reports.
+  // { path: '/city-data', priority: 0.7 },
   { path: '/locations', priority: 0.6 },
   // Featured property/business-for-sale landings
   { path: '/aura-lakeview-village', priority: 0.75 },
@@ -121,6 +141,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Static pages — build-time lastmod is the honest signal here (their
   // content changes when we deploy). Google trusts this pattern.
+  // Author entity pages — one per contributor. Emitted alongside the
+  // static set so they're submitted even if the Firestore fetch below
+  // fails and we fall back to `staticPages`.
+  const authorUrls: MetadataRoute.Sitemap = allAuthors().map((a) => ({
+    url: `${baseUrl}/authors/${a.slug}`,
+    lastModified: buildTime,
+    changeFrequency: 'monthly' as const,
+    priority: 0.6,
+  }));
+
   const staticPages: MetadataRoute.Sitemap = STATIC_ROUTES.map(({ path, priority = 0.7 }) => ({
     url: `${baseUrl}${path}`,
     lastModified: buildTime,
@@ -167,27 +197,47 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: HIGH_VOLUME_CITIES.has(c.slug) ? 0.95 : 0.85,
     }));
 
-    // Pre-construction city hubs — evergreen listings; weekly cadence.
-    const preConUrls: MetadataRoute.Sitemap = cities.map((city) => ({
-      url: `${baseUrl}/pre-construction-condos/${city.slug}`,
-      lastModified: buildTime,
-      changeFrequency: 'weekly',
-      priority: 0.7,
-    }));
+    // Pre-construction city hubs are NOT submitted.
+    //
+    // Correction: an earlier version of this comment said the route serves
+    // noindex,follow. It does not. PRE_CON_CITIES is empty, so
+    // generateStaticParams returns [] and the route 404s — the noindex branch
+    // in generateMetadata is unreachable. Those ~41 URLs are now 301'd to
+    // /pre-construction-projects from next.config.mjs, which preserves the
+    // inbound link equity a 404 would have thrown away.
+    //
+    // Re-add this block the day those pages ship real named projects.
+    const preConUrls: MetadataRoute.Sitemap = [];
 
     // Blog posts — real per-post lastmod from Firestore.
-    const blogUrls: MetadataRoute.Sitemap = posts.map((post) => {
-      const raw: any = (post as any).date;
-      const lastModified: Date = raw?.toDate
-        ? raw.toDate()
-        : new Date(raw || Date.now());
-      return {
-        url: `${baseUrl}/blog/${post.slug}`,
-        lastModified,
-        changeFrequency: 'monthly',
-        priority: 0.65,
-      };
-    });
+    // Drafts and posts flagged `noindex` are excluded: submitting a URL we
+    // serve as noindex is a contradictory signal that wastes crawl budget and
+    // shows up in Search Console as "Submitted URL marked noindex".
+    // The `noindex` flag lives in Firestore and is only written when someone
+    // runs `scripts/pruneBlog.ts --apply`. The 301s in next.config.mjs, by
+    // contrast, go live the instant this deploys. Filtering on Firestore alone
+    // meant that for the whole window between deploy and running the script,
+    // the sitemap advertised 9 URLs that immediately redirect — "Submitted URL
+    // has redirect" in Search Console, the exact contradictory signal the rest
+    // of this work exists to remove.
+    //
+    // Filter on the plan file directly so ship order stops mattering. The
+    // Firestore check stays as a second line of defence for posts pruned
+    // outside the plan.
+    const blogUrls: MetadataRoute.Sitemap = posts
+      .filter((p: any) => p.slug && p.status !== 'draft' && p.noindex !== true && !PRUNED_BLOG_SLUGS.has(p.slug))
+      .map((post) => {
+        const raw: any = (post as any).dateModified ?? (post as any).date;
+        const lastModified: Date = raw?.toDate
+          ? raw.toDate()
+          : new Date(raw || Date.now());
+        return {
+          url: `${baseUrl}/blog/${post.slug}`,
+          lastModified,
+          changeFrequency: 'monthly',
+          priority: 0.65,
+        };
+      });
 
     const propertyUrls: MetadataRoute.Sitemap = properties.map((p: any) => ({
       url: `${baseUrl}/listings/${p.slug || p.id}`,
@@ -196,23 +246,32 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.75,
     }));
 
-    // pSEO matrix — per-cell lastmod = the HPI release date for that city.
-    // Was previously `new Date()` on every cell, which Google treats as noise.
-    const matrixUrls: MetadataRoute.Sitemap = MarketDataService.enumerateCells().map((cell) => ({
+    // pSEO matrix — only the cells that carry a real, in-band CREA benchmark.
+    // Submitting all 800 permutations while ~80% of them serve noindex is a
+    // contradictory signal: it burns crawl budget on pages we've already decided
+    // don't deserve to rank, and it's what produced the "Crawled – currently not
+    // indexed" pile in Search Console. See
+    // MarketDataService.getCellIndexability() for the three rules.
+    const indexableCells = await MarketDataService.enumerateIndexableCells();
+    const matrixUrls: MetadataRoute.Sitemap = indexableCells.map((cell) => ({
       url: `${baseUrl}/real-estate/${cell.city}/${cell.type}/${cell.price}`,
       lastModified: cityDataDate(cell.city),
       changeFrequency: 'monthly',
       priority: HIGH_VOLUME_CITIES.has(cell.city) ? 0.9 : 0.7,
     }));
 
-    // Neighborhood pages — same city-anchored lastmod.
+    // Neighborhood pages — only those with substantive curated content. The
+    // remainder render for users as noindex,follow and are excluded here for the
+    // same reason as the matrix cells above.
     const neighborhoodUrls: MetadataRoute.Sitemap = CITIES.flatMap((c) =>
-      c.neighborhoods.map((n) => ({
-        url: `${baseUrl}/real-estate/${c.slug}/neighborhood/${slugifyNeighborhood(n)}`,
-        lastModified: cityDataDate(c.slug),
-        changeFrequency: 'monthly',
-        priority: HIGH_VOLUME_CITIES.has(c.slug) ? 0.85 : 0.65,
-      })),
+      c.neighborhoods
+        .filter((n) => isIndexableNeighborhood(getNeighborhoodExtras(c.slug, slugifyNeighborhood(n))))
+        .map((n) => ({
+          url: `${baseUrl}/real-estate/${c.slug}/neighborhood/${slugifyNeighborhood(n)}`,
+          lastModified: cityDataDate(c.slug),
+          changeFrequency: 'monthly',
+          priority: HIGH_VOLUME_CITIES.has(c.slug) ? 0.85 : 0.65,
+        })),
     );
 
     console.log(`📊 pSEO matrix: ${matrixUrls.length} cells | neighborhoods: ${neighborhoodUrls.length}`);
@@ -221,6 +280,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     return [
       ...staticPages,
+      ...authorUrls,
       ...cityUrls,
       ...brokerCityUrls,
       ...preConUrls,
@@ -232,6 +292,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   } catch (error) {
     console.error('❌ CRITICAL SITEMAP ERROR:', error);
     // Fallback so Google still gets the static routes and doesn't penalize.
-    return staticPages;
+    return [...staticPages, ...authorUrls];
   }
 }

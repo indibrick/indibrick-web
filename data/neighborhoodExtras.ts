@@ -433,7 +433,7 @@ const NEIGHBORHOOD_EXTRAS: Record<string, NeighborhoodExtras> = {
       { name: 'Uplands Golf & Ski Club', kind: 'park' },
     ],
     architecturalEra: 'Heritage village (~1830–1900) plus post-war and modern detached',
-    historyBlurb: 'Thornhill straddles the Yonge Street boundary between Vaughan and Markham — the two municipalities each administer their side of the historic village. Thornhill Village Heritage Conservation District, centered on the intersection of Yonge and Centre, preserves the original 19th-century settlement. The residential streets west of Yonge into Vaughan are dominated by mid-century and modern detached homes with strong end-user demand from Jewish and Persian-Canadian families.',
+    historyBlurb: 'Thornhill straddles the Yonge Street boundary between Vaughan and Markham — the two municipalities each administer their side of the historic village. Thornhill Village Heritage Conservation District, centered on the intersection of Yonge and Centre, preserves the original 19th-century settlement. The residential streets west of Yonge into Vaughan are dominated by mid-century and modern detached homes, and the area sees consistently strong end-user rather than investor demand.',
     buyerProfile: 'End-user families with strong school and community-institution ties. Very low investor share.',
   },
 
@@ -515,7 +515,7 @@ const NEIGHBORHOOD_EXTRAS: Record<string, NeighborhoodExtras> = {
     ],
     architecturalEra: '19th-century heritage Main Street (~1794–1900), plus post-war and modern executive detached',
     historyBlurb: 'Unionville was founded in 1794 as one of the earliest German-Canadian settlements in Upper Canada. Historic Main Street Unionville — with its preserved 19th-century clapboard commercial buildings — has served as filming location for the Hallmark Channel\'s "Heartland" and multiple TV productions. The Varley Art Gallery, dedicated to Group of Seven painter Frederick Varley, anchors the north end of Main Street. Residentially, Unionville offers a mix of heritage cottages, executive detached, and townhouse infill.',
-    buyerProfile: 'End-user families drawn to Markham\'s top public schools + heritage-village character, plus a strong Chinese-Canadian family buyer base.',
+    buyerProfile: 'End-user families drawn to Markham\'s top public schools + heritage-village character, with a strong multi-generational family buyer base.',
   },
 
   // ─── OAKVILLE ───
@@ -881,22 +881,22 @@ const NEIGHBORHOOD_EXTRAS: Record<string, NeighborhoodExtras> = {
   'markham|wismer': {
     architecturalEra: 'New-build detached and townhouse (2000s–2010s)',
     historyBlurb: 'Wismer is a north-central Markham subdivision developed through the 2000s and 2010s, named after the historic Wismer family who farmed the area in the 19th century. Housing stock is dominated by modern detached and townhouse product with strong end-user demand from families targeting Markham\'s highly-rated public schools.',
-    buyerProfile: 'End-user families, multi-generational Chinese-Canadian households, and Markham-schools-driven upgraders.',
+    buyerProfile: 'End-user families, multi-generational households, and Markham-schools-driven upgraders.',
   },
   'markham|berczy-village': {
     architecturalEra: 'New-build detached and townhouse (2000s–2010s)',
     historyBlurb: 'Berczy Village is a north Markham subdivision developed through the 2000s and 2010s, named after early Markham settler William Berczy who led a group of German settlers to the area in 1794. The neighborhood is characterized by modern subdivision layouts with integrated parks, community centres, and school catchments.',
-    buyerProfile: 'End-user families with school-age children, multi-generational Chinese-Canadian households, and executive families upgrading within York Region.',
+    buyerProfile: 'End-user families with school-age children, multi-generational households, and executive families upgrading within York Region.',
   },
   'markham|milliken': {
     architecturalEra: 'Post-war detached and townhouse (1970s–1990s), with 2000s+ infill',
     historyBlurb: 'Milliken straddles the Toronto–Markham boundary along Steeles Avenue and grew as a postwar subdivision through the 1970s and 1980s. The neighborhood has been a primary destination for Chinese-Canadian immigration to Toronto since the 1990s, and hosts Milliken Wesleyan United Church (one of the oldest in the region) alongside modern retail and residential redevelopment.',
-    buyerProfile: 'Multi-generational Chinese-Canadian households, first-time buyers, and end-user families targeting transit access to Line 1 and TTC bus network.',
+    buyerProfile: 'Multi-generational households, first-time buyers, and end-user families targeting transit access to Line 1 and TTC bus network.',
   },
   'markham|thornhill': {
     architecturalEra: 'Heritage village (~1830–1900) + post-war and modern detached',
-    historyBlurb: 'The Markham side of Thornhill (east of Yonge Street) preserves the historic Thornhill Village heritage streetscape alongside post-war and modern executive detached homes. Thornhill\'s York Region catchment overlaps with Markham\'s top-rated public schools, and the neighborhood has a strong Jewish-Canadian family concentration.',
-    buyerProfile: 'End-user Jewish-Canadian families, executive relocators, and multi-generational households valuing heritage + school character.',
+    historyBlurb: 'The Markham side of Thornhill (east of Yonge Street) preserves the historic Thornhill Village heritage streetscape alongside post-war and modern executive detached homes. Thornhill\'s York Region catchment overlaps with Markham\'s top-rated public schools, and the neighborhood draws consistent end-user rather than investor demand.',
+    buyerProfile: 'End-user families, executive relocators, and multi-generational households valuing heritage + school character.',
   },
 
   // ─── RICHMOND HILL (all 6) ───
@@ -909,11 +909,11 @@ const NEIGHBORHOOD_EXTRAS: Record<string, NeighborhoodExtras> = {
   'richmond-hill|jefferson': {
     architecturalEra: 'Executive detached (1990s–2010s) on generous lots',
     historyBlurb: 'Jefferson is a north-central Richmond Hill subdivision developed through the 1990s and 2000s, characterized by executive detached homes on wide lots with mature landscaping. The neighborhood sits adjacent to the Oak Ridges Moraine and offers proximity to Lake Wilcox and the Wilcox trail system.',
-    buyerProfile: 'End-user executive families, multi-generational Chinese-Canadian households, and Persian-Canadian families — Richmond Hill has one of Canada\'s largest Persian communities.',
+    buyerProfile: 'End-user executive families and multi-generational households, with a large share of purchases involving co-borrowers or foreign income documentation.',
   },
   'richmond-hill|bayview-hill': {
     architecturalEra: 'Executive detached on wide lots (1980s–2000s)',
-    historyBlurb: 'Bayview Hill is a central-east Richmond Hill neighborhood developed through the 1980s and 1990s along Bayview Avenue. Housing stock features large-lot executive detached homes and consistently sits at the top of Richmond Hill single-family pricing, with strong demand from Chinese-Canadian and Persian-Canadian executive families.',
+    historyBlurb: 'Bayview Hill is a central-east Richmond Hill neighborhood developed through the 1980s and 1990s along Bayview Avenue. Housing stock features large-lot executive detached homes and consistently sits at the top of Richmond Hill single-family pricing, and draws demand from executive families upgrading within York Region.',
     buyerProfile: 'Executive multi-generational households, corporate relocators, and top-tier public-school-driven upgraders (Bayview Secondary catchment).',
   },
   'richmond-hill|mill-pond': {
@@ -923,7 +923,7 @@ const NEIGHBORHOOD_EXTRAS: Record<string, NeighborhoodExtras> = {
   },
   'richmond-hill|doncrest': {
     architecturalEra: 'Executive detached (1990s–2010s)',
-    historyBlurb: 'Doncrest is an east-central Richmond Hill neighborhood developed primarily through the 1990s and 2000s along Bayview Avenue and Highway 7. The neighborhood is characterized by executive detached homes on generous lots with strong end-user demand from Chinese-Canadian and Persian-Canadian families.',
+    historyBlurb: 'Doncrest is an east-central Richmond Hill neighborhood developed primarily through the 1990s and 2000s along Bayview Avenue and Highway 7. The neighborhood is characterized by executive detached homes on generous lots with strong end-user demand from families upgrading within York Region.',
     buyerProfile: 'Executive multi-generational households and school-driven upgraders within York Region.',
   },
   'richmond-hill|elgin-west': {
@@ -1387,7 +1387,7 @@ const NEIGHBORHOOD_EXTRAS: Record<string, NeighborhoodExtras> = {
   'scarborough|agincourt': {
     architecturalEra: 'Post-war detached, semi-detached, and modern townhouse infill (1950s–2020s)',
     historyBlurb: 'Agincourt was one of Scarborough\'s original postwar planned communities, developed through the 1950s and 1960s. Since the 1980s it has been one of the primary destinations for Hong Kong and mainland Chinese immigration to the GTA, and Dragon Centre + Agincourt Mall anchor a substantial Chinese-Canadian retail cluster.',
-    buyerProfile: 'Multi-generational Chinese-Canadian households, first-time buyers, and end-user families.',
+    buyerProfile: 'Multi-generational households, first-time buyers, and end-user families.',
   },
   'scarborough|wexford': {
     architecturalEra: 'Post-war detached and bungalow (1950s–1970s)',
@@ -2254,4 +2254,24 @@ export function isFlagshipNeighborhoodTier(extras: NeighborhoodExtras | null): b
     (extras.notableSpots && extras.notableSpots.length > 0) ||
     (extras.notableSchools && extras.notableSchools.length > 0),
   );
+}
+
+/** Minimum characters of curated history prose before a page carries enough of
+ *  its own words to stand as an indexable document. Roughly 40 words. */
+const MIN_HISTORY_CHARS = 260;
+
+/**
+ * Indexability gate for neighbourhood pages.
+ *
+ * Flagship tier alone proved insufficient: pages like
+ * /real-estate/ottawa/neighborhood/rockcliffe-park cleared the structured-signal
+ * bar (they have a Walk Score and notable places) yet were still reported as
+ * "Crawled – currently not indexed", because a handful of chips and scores sit
+ * inside an otherwise identical template. Requiring substantive curated prose on
+ * top of the structured signals is what actually separates a document from a
+ * layout. Entries that fail this gate render for users as noindex,follow.
+ */
+export function isIndexableNeighborhood(extras: NeighborhoodExtras | null): boolean {
+  if (!isFlagshipNeighborhoodTier(extras)) return false;
+  return (extras?.historyBlurb?.length ?? 0) >= MIN_HISTORY_CHARS;
 }

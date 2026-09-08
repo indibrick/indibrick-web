@@ -21,6 +21,28 @@ export interface BlogPost {
   excerpt: string;
   content: string; // HTML string
   status?: 'draft' | 'published';
+  /**
+   * ISO string. Last substantive edit. Feeds schema `dateModified` +
+   * article:modified_time. Falls back to `date` when absent — never invent a
+   * modified date newer than the real one, Google cross-checks it against the
+   * content it has cached.
+   */
+  dateModified?: string;
+  /**
+   * Set true to serve noindex,follow and drop the post from the sitemap,
+   * without deleting the URL. This is the lever for pruning thin or expired
+   * news-reaction posts: the page keeps working for anyone holding the link,
+   * but stops diluting topical authority.
+   */
+  noindex?: boolean;
+  /**
+   * Byline of the licensed agent who fact-checked the post. Required for YMYL
+   * posts written by a non-licensed contributor — renders as "Reviewed by" and
+   * emits schema `reviewedBy`.
+   */
+  reviewedBy?: string;
+  /** Optional topic tags used for related-post selection. */
+  tags?: string[];
 }
 
 export interface NewsArticle {
@@ -78,7 +100,7 @@ export interface SiteSettings {
 }
 // types.ts (Additions)
 
-export type UserRole = 'admin' | 'internal_agent' | 'external_agent' | 'partner_realtor' | 'partner_lawyer';
+export type UserRole = 'admin' | 'internal_agent' | 'external_agent' | 'partner_realtor' | 'partner_lawyer' | 'partner_mortgage';
 
 export interface UserProfile {
   uid: string;
@@ -135,69 +157,6 @@ export interface Referral {
   
   type: 'Mortgage' | 'Real Estate' | 'Legal'; // Context
 }
-// services/CRMService.ts (Append these methods to the class)
-
-  /**
-   * 5. ADMIN: FETCH ALL REFERRALS
-   * Used by the Super Admin to see the entire pipeline.
-   */
-  static async getAllReferrals(): Promise<Referral[]> {
-    const q = query(collection(db, "referrals"), orderBy("referralDate", "desc"));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Referral));
-  }
-
-  /**
-   * 6. ADMIN: ASSIGN AGENT
-   * Assigns a specific human to the deal.
-   */
-  static async assignAgent(referralId: string, agentUid: string, agentName: string) {
-    try {
-      const ref = doc(db, "referrals", referralId);
-      
-      const systemNote = {
-        author: "Admin",
-        content: `Lead assigned to agent: ${agentName}`,
-        timestamp: new Date().toISOString(),
-        isSystemMessage: true
-      };
-
-      await updateDoc(ref, {
-        assignedAgentId: agentUid,
-        assignedAgentName: agentName,
-        status: 'Contacted', // Auto-update status on assignment
-        timeline: arrayUnion(systemNote)
-      });
-      return true;
-    } catch (e) {
-      console.error("Assignment Error:", e);
-      return false;
-    }
-  }
-  export interface MarketMetric {
-  label: string;
-  value: string;
-  trend: 'up' | 'down' | 'flat';
-  change: string;
-  }
-
-  /**
-   * 7. ADMIN: FETCH TEAM (Users)
-   * Retrieves potential assignees from the 'users' collection.
-   * NOTE: You must manually create these documents in Firestore 'users' collection first!
-   */
-  static async getTeamMembers() {
-    try {
-      // Fetches anyone with a role that can accept leads
-      const q = query(collection(db, "users"), where("role", "in", ["internal_agent", "partner_realtor", "partner_lawyer"]));
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
-    } catch (e) {
-      console.warn("Could not fetch users. Ensure 'users' collection exists.", e);
-      return [];
-    }
-  }
-  export type UserRole = 'admin' | 'internal_agent' | 'external_agent' | 'partner_realtor' | 'partner_lawyer' | 'partner_mortgage';
 
 export interface Task {
   id: string;

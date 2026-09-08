@@ -47,7 +47,7 @@ export default function ForRealtorsPage() {
           <div className="flex items-center gap-4 flex-wrap text-[10px] font-black uppercase tracking-widest text-gray-400">
             <span className="flex items-center gap-1.5"><ShieldCheck size={11}/> FSRA licensed</span>
             <span className="flex items-center gap-1.5"><Clock size={11}/> 2-hour response</span>
-            <span className="flex items-center gap-1.5"><Award size={11}/> 45+ lender panel</span>
+            <span className="flex items-center gap-1.5"><Award size={11}/> 50+ lender panel</span>
             <span className="flex items-center gap-1.5"><Lock size={11}/> Your deals stay yours</span>
           </div>
         </div>
@@ -95,7 +95,7 @@ export default function ForRealtorsPage() {
               {
                 icon: Zap, tag: 'Live',
                 title: 'Push Deal for Mortgage',
-                body: 'One button hands the file to a licensed broker with 45+ A/B/private lenders. Your client gets a real rate quote same-day. You get a status feed so you always know where the file stands.',
+                body: 'One button hands the file to a licensed broker with 50+ A/B/private lenders. Your client gets a real rate quote same-day. You get a status feed so you always know where the file stands.',
               },
               {
                 icon: DollarSign, tag: 'Every deal',
@@ -187,7 +187,7 @@ export default function ForRealtorsPage() {
             <div>
               <h3 className="text-lg font-black text-slate-900 uppercase tracking-widest mb-3">We invest in mortgage tech so you don't have to</h3>
               <p className="text-sm text-gray-600 leading-relaxed mb-4">
-                B-20 stress test calculators, LTV/GDS/TDS auto-computation, rate feeds from 45+ lenders, private-lender co-marketplace, AI intake with Gemini underwriter — you get all of it inside the partner workspace, free.
+                B-20 stress test calculators, LTV/GDS/TDS auto-computation, rate feeds from 50+ lenders, private-lender co-marketplace, AI intake with Gemini underwriter — you get all of it inside the partner workspace, free.
               </p>
               <p className="text-sm text-gray-600 leading-relaxed">
                 You never have to become the mortgage expert to sell the house. You just have to know when to hand it to us.

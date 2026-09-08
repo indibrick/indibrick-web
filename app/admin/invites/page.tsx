@@ -22,6 +22,7 @@ interface InviteRow {
 const ROLE_LABELS: Record<string, string> = {
   partner_realtor: 'Realtor',
   partner_lawyer: 'Lawyer',
+  partner_mortgage: 'Mortgage partner',
   partner_insurance: 'Insurance agent',
   internal_agent: 'Internal agent',
 };

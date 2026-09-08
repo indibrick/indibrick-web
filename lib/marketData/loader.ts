@@ -11,12 +11,20 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { parseHPIWorkbook, HPIReading, HPIHomeType } from './parseHPI';
+import { parseHPIWorkbook, HPIReading, HPIHomeType, HPIHistoryPoint } from './parseHPI';
 import { parseTRREBPDF, TRREBAggregate } from './parseTRREB';
 import { hpiSheetForCity } from './cityMatcher';
 import { PROPERTY_TYPES } from '../../data/matrixData';
 
 const MARKET_DIR = path.join(process.cwd(), 'data', 'market');
+
+/** One point on a real CREA benchmark series, pre-formatted for chart rendering. */
+export interface BenchmarkPoint {
+  /** e.g. "Jun 2026" */
+  month: string;
+  /** Benchmark price in CAD for that month. */
+  price: number;
+}
 
 export interface RealCityStats {
   citySlug: string;
@@ -25,6 +33,12 @@ export interface RealCityStats {
   benchmarkByType: Record<string, number>;
   /** YoY % change per matrix property-type slug. */
   yoyPctByType: Record<string, number | null>;
+  /**
+   * Trailing 13 months of REAL benchmark prices per matrix property-type slug,
+   * oldest first. Replaces the seeded pseudo-random trend the matrix pages used
+   * to render — that chart was the single largest fabricated surface on the site.
+   */
+  historyByType: Record<string, BenchmarkPoint[]>;
   /** When the data is dated. */
   asOf: Date;
   source: 'crea-hpi';
@@ -74,26 +88,47 @@ function pickNewest(files: string[]): string | null {
 // Also emits the raw `composite` reading so downstream consumers (the
 // /housing-index page's headline stat + release notes) don't have to guard
 // against undefined.
-function mapCreaReadingToTypes(reading: HPIReading): { benchmark: Record<string, number>; yoy: Record<string, number | null> } {
+function creaTypeForMatrixType(slug: string): HPIHomeType {
+  switch (slug) {
+    case 'condo': return 'apartment';
+    case 'townhouse': return 'townhouse';
+    case 'detached':
+    case 'semi-detached':
+    default: return 'single_family';
+  }
+}
+
+const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function seriesFor(history: HPIHistoryPoint[], creaType: HPIHomeType): BenchmarkPoint[] {
+  return history
+    .map((h) => ({
+      month: `${MONTH_LABELS[h.date.getMonth()]} ${h.date.getFullYear()}`,
+      price: h.benchmarks[creaType] || h.benchmarks.composite || 0,
+    }))
+    .filter((p) => p.price > 0);
+}
+
+function mapCreaReadingToTypes(reading: HPIReading): {
+  benchmark: Record<string, number>;
+  yoy: Record<string, number | null>;
+  history: Record<string, BenchmarkPoint[]>;
+} {
   const benchmark: Record<string, number> = {};
   const yoy: Record<string, number | null> = {};
+  const history: Record<string, BenchmarkPoint[]> = {};
   for (const t of PROPERTY_TYPES) {
-    let creaType: HPIHomeType;
-    switch (t.slug) {
-      case 'condo': creaType = 'apartment'; break;
-      case 'townhouse': creaType = 'townhouse'; break;
-      case 'detached':
-      case 'semi-detached':
-      default: creaType = 'single_family';
-    }
+    const creaType = creaTypeForMatrixType(t.slug);
     benchmark[t.slug] = reading.benchmarks[creaType] || reading.benchmarks.composite;
     yoy[t.slug] = reading.yoyPct[creaType] ?? reading.yoyPct.composite;
+    history[t.slug] = seriesFor(reading.history || [], creaType);
   }
   if (reading.benchmarks.composite > 0) {
     benchmark['composite'] = reading.benchmarks.composite;
     yoy['composite'] = reading.yoyPct.composite;
+    history['composite'] = seriesFor(reading.history || [], 'composite');
   }
-  return { benchmark, yoy };
+  return { benchmark, yoy, history };
 }
 
 async function load(): Promise<LoadedMarketData> {
@@ -128,27 +163,52 @@ async function load(): Promise<LoadedMarketData> {
     if (!sheet) continue;
     const reading = byRegion.get(sheet);
     if (!reading) continue;
-    const { benchmark, yoy } = mapCreaReadingToTypes(reading);
+    const { benchmark, yoy, history } = mapCreaReadingToTypes(reading);
     byCity.set(c.slug, {
       citySlug: c.slug,
       region: reading.region,
       benchmarkByType: benchmark,
       yoyPctByType: yoy,
+      historyByType: history,
       asOf: reading.asOf,
       source: 'crea-hpi',
     });
   }
 
-  // === TRREB PDF (aggregate only) ===
-  const pdfAll = listFilesRecursively(MARKET_DIR, ['.pdf']);
-  const trrebFile = pickNewest(pdfAll);
+  // === TRREB aggregate ===
+  //
+  // Read the PRE-PARSED JSON, not the PDF. `pdf-parse` pulls in pdfjs, which
+  // expects to resolve a worker file at runtime; inside the Next server bundle
+  // that worker is never emitted, so every parse failed with "Setting up fake
+  // worker failed" and this block silently vanished from /housing-index on
+  // every single build. The parse works fine outside webpack.
+  //
+  // scripts/parseTRREBToJson.ts runs it once and writes trreb-latest.json.
+  // Regenerate with `npm run parse-trreb` after dropping in a newer Market
+  // Watch PDF. The live-PDF path is kept only as a fallback for a dev machine
+  // that has the PDF but has not generated the JSON yet.
   let trreb: TRREBAggregate | null = null;
-  if (trrebFile) {
+  const trrebJson = path.join(MARKET_DIR, 'trreb-latest.json');
+  if (fs.existsSync(trrebJson)) {
     try {
-      trreb = await parseTRREBPDF(trrebFile);
-      if (trreb) filesUsed.push(path.relative(process.cwd(), trrebFile));
+      const payload = JSON.parse(fs.readFileSync(trrebJson, 'utf8'));
+      trreb = (payload?.data ?? null) as TRREBAggregate | null;
+      if (trreb) filesUsed.push(path.relative(process.cwd(), trrebJson));
     } catch (e) {
-      console.warn('[marketData] TRREB parse failed for', trrebFile, e);
+      console.warn('[marketData] TRREB JSON unreadable:', e);
+    }
+  }
+
+  if (!trreb) {
+    const pdfAll = listFilesRecursively(MARKET_DIR, ['.pdf']);
+    const trrebFile = pickNewest(pdfAll);
+    if (trrebFile) {
+      try {
+        trreb = await parseTRREBPDF(trrebFile);
+        if (trreb) filesUsed.push(path.relative(process.cwd(), trrebFile));
+      } catch (e) {
+        console.warn('[marketData] TRREB PDF fallback failed for', trrebFile, e);
+      }
     }
   }
 

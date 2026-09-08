@@ -485,7 +485,7 @@ export default async function HousingIndexPage() {
             <Link href="/rates" className="p-5 bg-gray-50 border border-gray-100 rounded-2xl hover:border-black transition group">
               <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Companion</p>
               <p className="font-black text-slate-900 group-hover:text-blue-600 transition">Ontario Wholesale Rate Tracker</p>
-              <p className="text-xs text-gray-500 mt-1">Live 5-yr fixed + variable across 40+ lenders.</p>
+              <p className="text-xs text-gray-500 mt-1">Live 5-yr fixed + variable across 50+ lenders.</p>
             </Link>
             <Link href="/real-estate/toronto/condo/under-500k" className="p-5 bg-gray-50 border border-gray-100 rounded-2xl hover:border-black transition group">
               <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Matrix cell</p>

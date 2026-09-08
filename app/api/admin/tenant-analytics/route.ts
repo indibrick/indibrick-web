@@ -40,7 +40,7 @@ interface PartnerRow {
 }
 
 const D30 = 30 * 86400_000;
-const PARTNER_ROLES = ['partner_realtor', 'partner_lawyer', 'partner_insurance', 'internal_agent'];
+const PARTNER_ROLES = ['partner_realtor', 'partner_lawyer', 'partner_mortgage', 'partner_insurance', 'internal_agent'];
 
 export async function GET(req: NextRequest) {
   const guard = await requireAuth(req, { roles: ['admin'] });

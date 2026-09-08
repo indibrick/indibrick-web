@@ -6,6 +6,13 @@ import GamifiedContactForm from '../../components/GamifiedContactForm';
 import { ArrowRight, Calendar, Zap, BookOpen, ChevronRight } from 'lucide-react';
 import { buildMetadata } from '../../lib/buildMetadata';
 
+import { BLOG_REDIRECTS, BLOG_NOINDEX_SLUGS } from '../../data/blogPrunePlan.mjs';
+
+const PRUNED_BLOG_SLUGS = new Set<string>([
+  ...BLOG_REDIRECTS.map((r: any) => r.slug),
+  ...BLOG_NOINDEX_SLUGS,
+]);
+
 export const metadata = buildMetadata({
   title: 'IndiBrick Blog — Ontario Mortgage & Real Estate Intelligence',
   description: 'Weekly mortgage rate analysis, Ontario real estate market data and financial strategy from the IndiBrick team. Live TRREB stats, CREA HPI updates, and lender rate breakdowns for GTA homeowners and investors.',
@@ -30,8 +37,17 @@ export default async function KnowledgeHubPage() {
   // --- 2. DATA FETCHING & SORTING ---
   const allPosts = await ContentService.fetchPosts();
 
-  // Only show published posts publicly (legacy posts have no status field → treated as published)
-  const publishedPosts = allPosts.filter((p: any) => p.status !== 'draft');
+  // Only show published posts publicly (legacy posts have no status field → treated as published).
+  // `noindex` posts are also hidden from the feed and the ItemList schema — a
+  // noindexed page listed on an indexable hub still gets crawled and still
+  // signals that we consider it worth surfacing. Prune it from both.
+  // Same reasoning as app/sitemap.ts: the Firestore `noindex` flag is written
+  // by a script that may not have run yet, while the 301s ship with the code.
+  // Filter on the plan so the hub never links a URL this deploy redirects.
+  const publishedPosts = allPosts.filter(
+    (p: any) =>
+      p.status !== 'draft' && p.noindex !== true && !PRUNED_BLOG_SLUGS.has(p.slug),
+  );
 
   // Sort all posts by date, newest first (Chronological Feed)
   const sortedPosts = publishedPosts.sort((a, b) => {

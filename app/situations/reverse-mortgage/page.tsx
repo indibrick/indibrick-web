@@ -5,7 +5,7 @@ import SituationForm from '../../../components/SituationForm';
 import { StatStrip, FAQ, BottomCTA, HeroTag, RelatedSituations } from '../../../components/SituationChrome';
 import { Heart, HomeIcon, Coins, Plane, Wrench, Gift, Shield, Users } from 'lucide-react';
 import CiteBlock from '../../../components/CiteBlock';
-import TrustBar from '../../../components/TrustBar';
+import TrustBarLive from '../../../components/TrustBarLive';
 import BrokerCard from '../../../components/BrokerCard';
 
 export const metadata = buildMetadata({
@@ -119,7 +119,7 @@ export default function ReverseMortgagePage() {
         </div>
       </section>
 
-      <TrustBar variant="light" scaleClaim={{ value: '$45B+', label: 'reverse mortgage originations by Canadian Schedule I lenders (industry-wide, 2024)' }} />
+      <TrustBarLive variant="light" scaleClaim={{ value: '$45B+', label: 'reverse mortgage originations by Canadian Schedule I lenders (industry-wide, 2024)' }} />
 
       {/* BORROWED AUTHORITY — the audit's #1 gap-close for the reverse
           mortgage page. Skeptical 55+ audiences pick recognized bank

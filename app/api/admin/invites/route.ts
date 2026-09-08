@@ -17,6 +17,11 @@ import { signInviteToken } from '@/lib/inviteToken';
 
 const ALLOWED_ROLES = [
   'partner_realtor', 'partner_lawyer', 'partner_insurance', 'internal_agent',
+  // Mortgage partners see only the leads an admin assigns to them. Access is
+  // enforced by identity in firestore.rules (assignedAgentId / participantIds),
+  // not by role — so no rules change is needed, but the role has to be
+  // creatable or the assignment has nobody to point at.
+  'partner_mortgage',
 ];
 
 function siteOrigin(): string {

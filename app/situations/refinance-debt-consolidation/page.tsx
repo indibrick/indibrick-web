@@ -4,7 +4,7 @@ import { buildMetadata } from '../../../lib/buildMetadata';
 import SituationForm from '../../../components/SituationForm';
 import { StatStrip, FAQ, BottomCTA, HeroTag, RelatedSituations } from '../../../components/SituationChrome';
 import CiteBlock from '../../../components/CiteBlock';
-import TrustBar from '../../../components/TrustBar';
+import TrustBarLive from '../../../components/TrustBarLive';
 import BrokerCard from '../../../components/BrokerCard';
 import RateMatchPromise from '../../../components/RateMatchPromise';
 
@@ -129,7 +129,7 @@ export default function RefinanceDebtConsolidationPage() {
         </div>
       </section>
 
-      <TrustBar variant="light" scaleClaim={{ value: '28+', label: 'refi files closed in the last 90 days' }} />
+      <TrustBarLive variant="light" scaleClaim={{ value: '28+', label: 'refi files closed in the last 90 days' }} />
 
       <StatStrip stats={STATS} accentTextClass="text-emerald-400" />
 

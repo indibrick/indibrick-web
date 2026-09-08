@@ -4,15 +4,16 @@ import Link from 'next/link';
 import { Metadata } from 'next';
 import {
   MapPin, ArrowRight, Phone, Compass, Train, GraduationCap,
-  TreePine, ShieldCheck, ChevronDown, Landmark, Coffee, Utensils, Store, BookOpen,
+  TreePine, ChevronDown, Landmark, Coffee, Utensils, Store, BookOpen, Info,
 } from 'lucide-react';
 import { CITIES } from '../../../../../data/cityData';
 import { PROPERTY_TYPES, PRICE_RANGES } from '../../../../../data/matrixData';
 import { MarketDataService } from '../../../../../services/MarketDataService';
-import { getNeighborhoodExtras, isFlagshipNeighborhoodTier } from '../../../../../data/neighborhoodExtras';
+import { getNeighborhoodExtras, isIndexableNeighborhood } from '../../../../../data/neighborhoodExtras';
 import LeadForm from '../../../../../components/LeadForm';
 import JsonLd from '../../../../../components/JsonLd';
 import { buildMetadata } from '../../../../../lib/buildMetadata';
+import { cad } from '../../../../../lib/canadianMortgageMath';
 
 export const revalidate = 3600;
 
@@ -23,7 +24,8 @@ interface Params {
 
 const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
-// 40 cities × 6 neighborhoods each ≈ 240 pre-rendered pages.
+// 40 cities × 6 neighborhoods each ≈ 240 pre-rendered pages. Only the ones with
+// substantive curated content are indexable — see isIndexableNeighborhood().
 export async function generateStaticParams(): Promise<Params[]> {
   return CITIES.flatMap((c) => c.neighborhoods.map((n) => ({
     city: c.slug,
@@ -48,28 +50,42 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     });
   }
 
+  const extras = getNeighborhoodExtras(city.slug, params.neighborhood);
+
+  // Description is built from the neighbourhood's OWN curated facts — its
+  // architectural era, Walk Score, named transit — rather than the previous
+  // "Live market snapshot, sample comparables, transit and lifestyle data for
+  // {X}, {Y}" template, which was byte-identical across all 240 pages apart
+  // from two tokens. Falls back to the era/period when scores are absent.
+  const descBits: string[] = [];
+  if (extras?.architecturalEra) descBits.push(`Housing stock: ${extras.architecturalEra}.`);
+  if (typeof extras?.walkScore === 'number') descBits.push(`Walk Score ${extras.walkScore}/100.`);
+  if (extras?.transitStations?.length) {
+    descBits.push(`Transit: ${extras.transitStations.slice(0, 2).map((s) => s.name).join(', ')}.`);
+  }
+  if (extras?.buyerProfile) descBits.push(extras.buyerProfile);
+
+  const description = descBits.length
+    ? `${neighborhood}, ${city.name} — ${descBits.join(' ')}`.slice(0, 300)
+    : `${neighborhood} is one of ${city.name}'s residential neighbourhoods. Browse ${city.name} homes by property type and price band, and speak with an FSRA-licensed mortgage advisor about financing here.`;
+
   const base = buildMetadata({
-    title: `${neighborhood} Real Estate — ${city.name}`,
-    description: `Live market snapshot, sample comparables, transit and lifestyle data for ${neighborhood}, ${city.name}, Ontario. Updated hourly via IndiBrick.`,
+    title: `${neighborhood}, ${city.name} — Neighbourhood Profile`,
+    description,
     slug: `/real-estate/${params.city}/neighborhood/${params.neighborhood}`,
+    titleAbsolute: true,
     keywords: [
       `${neighborhood} ${city.name}`,
       `${neighborhood} homes for sale`,
       `${neighborhood} real estate`,
-      `${city.name} ${neighborhood} condos`,
-      `${city.name} ${neighborhood} townhouses`,
+      `living in ${neighborhood}`,
+      `${neighborhood} history`,
     ],
   });
 
-  // Standard-tier neighborhoods (era/history/buyer-profile only, no
-  // walkScore/transit/schools/spots) are noindex,follow: Google won't
-  // index them but internal-link equity still flows through. This defuses
-  // the site-wide Helpful Content risk that hitting Google with ~200
-  // template-shaped thin pages would trigger. Each entry auto-becomes
-  // indexable the moment we upgrade it to flagship depth — no separate
-  // flag or deploy needed.
-  const extras = getNeighborhoodExtras(city.slug, params.neighborhood);
-  if (!isFlagshipNeighborhoodTier(extras)) {
+  // Pages without substantive curated prose render for users but stay out of
+  // the index — internal link equity still flows through follow.
+  if (!isIndexableNeighborhood(extras)) {
     base.robots = { index: false, follow: true };
   }
 
@@ -80,50 +96,60 @@ export default async function NeighborhoodPage({ params }: { params: Params }) {
   const { city, neighborhood } = resolveCell(params);
   if (!city || !neighborhood) notFound();
 
-  // Use the "townhouse / 750k-1m" cell as a neutral representative snapshot for
-  // the neighborhood, then bias it slightly by neighborhood name so the numbers
-  // differ across neighborhoods within the same city.
-  const baseSnap = await MarketDataService.getSnapshot(city.slug, 'townhouse', '750k-1m');
-  // Stable neighborhood seed → ±8% drift on median, ±15% drift on listings.
-  let seed = 0;
-  for (let i = 0; i < neighborhood.length; i++) seed = (seed * 31 + neighborhood.charCodeAt(i)) & 0xffffffff;
-  const norm = (Math.abs(seed) % 1000) / 1000;
-  const median = Math.round(baseSnap.medianPrice * (0.92 + norm * 0.16) / 1000) * 1000;
-  const active = Math.max(4, Math.round(baseSnap.activeListings * (0.85 + norm * 0.30)));
+  // City-level context only. The previous version derived a "median home value
+  // in {neighborhood}" by hashing the neighbourhood NAME into a ±8% drift on a
+  // townhouse benchmark, and an "active listings" count from a ±15% drift on a
+  // seeded number — neither figure described the neighbourhood in any way. Both
+  // are gone. What remains is the real regional CREA benchmark, labelled as
+  // exactly that.
+  const cityBenchmark = await MarketDataService.getSnapshot(city.slug, 'townhouse', '750k-1m');
 
-  const priceK = (n: number) =>
-    n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(2)}M` : `$${Math.round(n / 1000)}K`;
-
-  // Curated real-world facts for the top-search-volume neighborhoods. When
-  // absent, the page still renders the generic template — this is additive,
-  // never a hard dependency.
   const extras = getNeighborhoodExtras(city.slug, params.neighborhood);
-
+  const indexable = isIndexableNeighborhood(extras);
   const otherNeighborhoods = city.neighborhoods.filter((n) => n !== neighborhood).slice(0, 6);
 
-  const faqs = [
-    {
-      q: `What's the median home price in ${neighborhood}, ${city.name}?`,
-      a: `Based on current MLS active inventory across all property types, the median home price in ${neighborhood} is approximately ${priceK(median)} as of ${baseSnap.asOfDate}.`,
-    },
-    {
-      q: `Is ${neighborhood} a good place to buy?`,
-      a: `${neighborhood} is one of ${city.name}'s established residential pockets with steady end-user demand. Active inventory currently sits at ~${active} homes across all property types, with healthy sale-to-list ratios over the last quarter.`,
-    },
-    {
-      q: `What schools and transit serve ${neighborhood}?`,
-      a: `${neighborhood} residents have access to ${city.name}'s public and Catholic school boards. Public transit coverage runs through local bus routes, with regional commuter rail accessible within the broader ${city.name} catchment.`,
-    },
-    {
-      q: `What types of homes are in ${neighborhood}?`,
-      a: `${neighborhood} offers a mix of ${PROPERTY_TYPES.map((t) => t.plural.toLowerCase()).join(', ')}, with detached homes typically commanding a 25–40% premium over townhouses in the same pocket.`,
-    },
-  ];
+  // FAQ is built only from facts we actually hold for this neighbourhood. The
+  // previous set asserted median prices, active inventory, "healthy sale-to-list
+  // ratios over the last quarter" and school/transit coverage for all 240
+  // neighbourhoods regardless of whether any of it had been researched.
+  const faqs: { q: string; a: string }[] = [];
+
+  if (extras?.historyBlurb) {
+    faqs.push({
+      q: `What is ${neighborhood} in ${city.name} known for?`,
+      a: extras.historyBlurb,
+    });
+  }
+  if (extras?.architecturalEra) {
+    faqs.push({
+      q: `What kind of homes are in ${neighborhood}?`,
+      a: `${neighborhood}'s housing stock is predominantly ${extras.architecturalEra.toLowerCase()}. ${extras.buyerProfile ? `Buyers here are typically ${extras.buyerProfile.charAt(0).toLowerCase()}${extras.buyerProfile.slice(1)}` : ''}`.trim(),
+    });
+  }
+  if (extras?.transitStations?.length) {
+    faqs.push({
+      q: `What transit serves ${neighborhood}?`,
+      a: `${neighborhood} is served by ${extras.transitStations.map((s) => (s.lines?.length ? `${s.name} (${s.lines.join(', ')})` : s.name)).join('; ')}.${typeof extras.transitScore === 'number' ? ` Walk Score rates the neighbourhood ${extras.transitScore}/100 for transit access.` : ''}`,
+    });
+  }
+  if (extras?.notableSchools?.length) {
+    faqs.push({
+      q: `Which schools serve ${neighborhood}?`,
+      a: `Schools in or adjacent to ${neighborhood} include ${extras.notableSchools.map((s) => (s.band ? `${s.name} (${s.band})` : s.name)).join(', ')}. Fraser Institute bands where shown are qualitative; check compareschoolrankings.org for the current per-school rating, and confirm catchment with the board before relying on it — boundaries change.`,
+    });
+  }
+  if (cityBenchmark.benchmark) {
+    faqs.push({
+      q: `What do homes cost around ${neighborhood}?`,
+      a: `CREA publishes the MLS® Home Price Index at the real estate board level, not per neighbourhood, so there is no published benchmark specific to ${neighborhood}. The townhouse benchmark for the ${cityBenchmark.regionLabel} reporting region that covers ${city.name} is ${cad(cityBenchmark.benchmark)} as of the ${cityBenchmark.asOfLabel} release. Neighbourhood-level pricing varies substantially within any city — a licensed advisor can pull current ${neighborhood} inventory and recent comparables from the MLS® for you.`,
+    });
+  }
 
   const placeSchema = {
     '@context': 'https://schema.org',
     '@type': 'Place',
     name: `${neighborhood}, ${city.name}`,
+    description: extras?.historyBlurb || undefined,
     address: {
       '@type': 'PostalAddress',
       addressLocality: city.name,
@@ -131,20 +157,22 @@ export default async function NeighborhoodPage({ params }: { params: Params }) {
       addressCountry: 'CA',
     },
   };
-  const faqSchema = {
-    '@context': 'https://schema.org',
-    '@type': 'FAQPage',
-    mainEntity: faqs.map((f) => ({
-      '@type': 'Question',
-      name: f.q,
-      acceptedAnswer: { '@type': 'Answer', text: f.a },
-    })),
-  };
+  const faqSchema = faqs.length
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: faqs.map((f) => ({
+          '@type': 'Question',
+          name: f.q,
+          acceptedAnswer: { '@type': 'Answer', text: f.a },
+        })),
+      }
+    : null;
 
   return (
     <div className="bg-white min-h-screen">
       <JsonLd data={placeSchema} />
-      <JsonLd data={faqSchema} />
+      {faqSchema && <JsonLd data={faqSchema} />}
 
       {/* === HERO === */}
       <section className="relative pt-28 md:pt-32 pb-16 px-6 bg-slate-900 text-white overflow-hidden">
@@ -159,7 +187,7 @@ export default async function NeighborhoodPage({ params }: { params: Params }) {
           </nav>
 
           <div className="inline-flex items-center gap-2 bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.3em] mb-6 backdrop-blur-md">
-            <MapPin size={12} /> Neighborhood Profile · {city.name}
+            <MapPin size={12} /> Neighbourhood Profile · {city.name}
           </div>
 
           <h1 className="text-4xl md:text-6xl font-black uppercase tracking-tighter leading-[1.05] mb-4">
@@ -168,7 +196,13 @@ export default async function NeighborhoodPage({ params }: { params: Params }) {
           </h1>
 
           <p className="text-base md:text-lg text-gray-300 max-w-3xl font-medium mb-8">
-            Median home value in {neighborhood}: <strong className="text-white">{priceK(median)}</strong> · <strong className="text-white">{active}</strong> active listings across all property types.
+            {extras?.architecturalEra
+              ? <>Housing stock in {neighborhood}: <strong className="text-white">{extras.architecturalEra}</strong>.</>
+              : <>{neighborhood} is one of {city.name}&apos;s residential neighbourhoods.</>}
+            {' '}
+            {cityBenchmark.benchmark
+              ? <>CREA&apos;s townhouse benchmark for the {cityBenchmark.regionLabel} region covering {city.name} is <strong className="text-white">{cad(cityBenchmark.benchmark)}</strong> ({cityBenchmark.asOfLabel}) — the index is published per board, not per neighbourhood.</>
+              : <>CREA does not publish an MLS® HPI series covering {city.name}.</>}
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4">
@@ -182,39 +216,44 @@ export default async function NeighborhoodPage({ params }: { params: Params }) {
         </div>
       </section>
 
-      {/* === LIVING IN === */}
-      <section className="py-16 md:py-20 px-6 bg-[#FAFAFA] border-b border-gray-100">
-        <div className="container mx-auto max-w-5xl">
-          <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tight text-slate-900 mb-6">Living in {neighborhood}.</h2>
-          <p className="text-lg text-gray-700 leading-relaxed font-medium mb-10">
-            {neighborhood} sits inside the broader {city.name} catchment and is one of the pockets buyers ask for most often. Active supply runs roughly {active} homes across condo, townhouse, semi-detached and detached product. The median price in {neighborhood} currently sits at {priceK(median)} — slightly {median > baseSnap.medianPrice ? 'above' : 'below'} the {city.name} average for the same period.
-          </p>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="bg-white border border-gray-100 rounded-2xl p-6"><Compass size={24} className="text-emerald-600 mb-3" /><h3 className="font-black uppercase tracking-tight mb-2">Walkability</h3><p className="text-sm text-gray-600 leading-relaxed">Coffee, daily groceries, and primary schools are reachable on foot from most addresses in {neighborhood}.</p></div>
-            <div className="bg-white border border-gray-100 rounded-2xl p-6"><Train size={24} className="text-emerald-600 mb-3" /><h3 className="font-black uppercase tracking-tight mb-2">Transit Access</h3><p className="text-sm text-gray-600 leading-relaxed">Local bus routes connect {neighborhood} to {city.name}&apos;s commuter rail stations and the broader GTA network.</p></div>
-            <div className="bg-white border border-gray-100 rounded-2xl p-6"><GraduationCap size={24} className="text-emerald-600 mb-3" /><h3 className="font-black uppercase tracking-tight mb-2">Schools</h3><p className="text-sm text-gray-600 leading-relaxed">Public and Catholic boards both serve {neighborhood}. School zone boundaries materially affect detached-home pricing here.</p></div>
-            <div className="bg-white border border-gray-100 rounded-2xl p-6"><TreePine size={24} className="text-emerald-600 mb-3" /><h3 className="font-black uppercase tracking-tight mb-2">Greenspace</h3><p className="text-sm text-gray-600 leading-relaxed">Local parks and bike paths give {neighborhood} a quieter feel than {city.name}&apos;s denser commercial corridors.</p></div>
-            <div className="bg-white border border-gray-100 rounded-2xl p-6"><MapPin size={24} className="text-emerald-600 mb-3" /><h3 className="font-black uppercase tracking-tight mb-2">Proximity</h3><p className="text-sm text-gray-600 leading-relaxed">Minutes from {city.name} downtown, with quick access to major employment hubs across the GTA.</p></div>
-            <div className="bg-white border border-gray-100 rounded-2xl p-6"><ShieldCheck size={24} className="text-emerald-600 mb-3" /><h3 className="font-black uppercase tracking-tight mb-2">Demand</h3><p className="text-sm text-gray-600 leading-relaxed">{neighborhood} attracts steady end-user demand alongside experienced investor activity — supply moves quickly in the right band.</p></div>
-          </div>
-        </div>
-      </section>
-
-      {/* === CURATED SECTIONS (rendered only when we have real curated data — extra
-              signal for the highest-volume neighborhoods without polluting the
-              long tail with invented facts) === */}
+      {/* === CURATED CONTENT ===
+          The generic six-card "Living in {X}" grid that used to sit here
+          (Walkability / Transit Access / Schools / Greenspace / Proximity /
+          Demand) was the same six paragraphs on all 240 neighbourhood pages with
+          the neighbourhood name substituted in — the single strongest duplicate
+          signal on this route. It has been removed rather than reworded: a page
+          with less content that is real outranks a page with more content that
+          isn't. */}
       {extras && (
         <section className="py-16 md:py-20 px-6 bg-white border-b border-gray-100">
           <div className="container mx-auto max-w-5xl">
+            {/* Architecture + history — lead with the neighbourhood's own story */}
+            {(extras.architecturalEra || extras.historyBlurb) && (
+              <div className="mb-12">
+                <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tight text-slate-900 mb-4 flex items-center gap-3">
+                  <BookOpen size={26} className="text-emerald-600" /> Living in {neighborhood}
+                </h2>
+                {extras.architecturalEra && (
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-4">
+                    Architectural era · {extras.architecturalEra}
+                  </p>
+                )}
+                {extras.historyBlurb && (
+                  <p className="text-lg text-gray-700 leading-relaxed font-medium">
+                    {extras.historyBlurb}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Scores block */}
             {(extras.walkScore || extras.transitScore || extras.bikeScore) && (
               <>
-                <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-slate-900 mb-2">
+                <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight text-slate-900 mb-2">
                   {neighborhood} scores.
-                </h2>
+                </h3>
                 <p className="text-sm text-gray-500 mb-6">
-                  Third-party walkability, transit, and cycling scores — neighborhood-level snapshot from Walk Score. Scores are per-address in reality; treat these as a directional guide.
+                  Third-party walkability, transit, and cycling scores — neighbourhood-level snapshot from Walk Score. Scores are per-address in reality; treat these as a directional guide.
                 </p>
                 <div className="grid grid-cols-3 gap-4 mb-12">
                   {typeof extras.walkScore === 'number' && (
@@ -261,11 +300,7 @@ export default async function NeighborhoodPage({ params }: { params: Params }) {
               </div>
             )}
 
-            {/* Mid-scroll advisor CTA — sits right at peak engagement on
-                flagship neighborhood pages (reader has just seen scores +
-                transit and is making the "could I actually live here?"
-                mental leap). Uses UTM param so the /apply funnel can
-                attribute conversion back to this specific neighborhood. */}
+            {/* Mid-scroll advisor CTA */}
             <div className="mb-12 bg-slate-900 text-white rounded-2xl p-6 md:p-7 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
               <div className="flex-1">
                 <p className="text-[10px] font-black uppercase tracking-widest text-emerald-300 mb-1">Thinking about {neighborhood}?</p>
@@ -328,25 +363,6 @@ export default async function NeighborhoodPage({ params }: { params: Params }) {
               </div>
             )}
 
-            {/* Architecture + history */}
-            {(extras.architecturalEra || extras.historyBlurb) && (
-              <div className="mb-12">
-                <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight text-slate-900 mb-4 flex items-center gap-2">
-                  <BookOpen size={22} className="text-blue-600" /> History &amp; housing stock
-                </h3>
-                {extras.architecturalEra && (
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">
-                    Architectural era · {extras.architecturalEra}
-                  </p>
-                )}
-                {extras.historyBlurb && (
-                  <p className="text-base text-gray-700 leading-relaxed font-medium">
-                    {extras.historyBlurb}
-                  </p>
-                )}
-              </div>
-            )}
-
             {/* Buyer profile */}
             {extras.buyerProfile && (
               <div>
@@ -361,6 +377,23 @@ export default async function NeighborhoodPage({ params }: { params: Params }) {
           </div>
         </section>
       )}
+
+      {/* === PRICING PROVENANCE ===
+          Explicit about what is and isn't measurable at neighbourhood level.
+          This replaces the "Median home value in {neighborhood}: $XXXK · N active
+          listings" line that was generated from a hash of the neighbourhood name. */}
+      <section className="py-10 px-6 bg-[#FAFAFA] border-b border-gray-100">
+        <div className="container mx-auto max-w-4xl flex flex-col md:flex-row gap-4 md:items-start">
+          <Info size={24} className="text-gray-400 shrink-0 mt-1" />
+          <p className="text-sm text-gray-600 leading-relaxed">
+            <strong className="text-slate-900">On neighbourhood pricing:</strong> CREA publishes the MLS® Home Price Index per real estate board, not per neighbourhood, and IndiBrick does not currently license an MLS® feed — so we publish no median price, inventory count or days-on-market for {neighborhood} specifically.
+            {cityBenchmark.benchmark
+              ? ` For regional context, the ${cityBenchmark.regionLabel} townhouse benchmark is ${cad(cityBenchmark.benchmark)} as of the ${cityBenchmark.asOfLabel} release.`
+              : ''}
+            {' '}A licensed advisor can pull current {neighborhood} listings and recent comparables from the MLS® on request.
+          </p>
+        </div>
+      </section>
 
       {/* === BROWSE BY TYPE × PRICE === */}
       <section className="py-16 md:py-20 px-6 bg-white border-b border-gray-100">
@@ -400,7 +433,7 @@ export default async function NeighborhoodPage({ params }: { params: Params }) {
           </div>
 
           <div className="mt-12">
-            <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-4">Other {city.name} neighborhoods</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-4">Other {city.name} neighbourhoods</p>
             <div className="flex flex-wrap gap-3">
               {otherNeighborhoods.map((n) => (
                 <Link key={n} href={`/real-estate/${city.slug}/neighborhood/${slugify(n)}`}
@@ -412,24 +445,26 @@ export default async function NeighborhoodPage({ params }: { params: Params }) {
       </section>
 
       {/* === FAQ === */}
-      <section className="py-16 md:py-20 px-6 bg-slate-900 text-white border-b border-slate-800">
-        <div className="container mx-auto max-w-4xl">
-          <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tighter mb-10">
-            {neighborhood} FAQ
-          </h2>
-          <div className="space-y-4">
-            {faqs.map((f, i) => (
-              <details key={i} className="group bg-white/5 border border-white/10 rounded-3xl p-6 md:p-8 cursor-pointer">
-                <summary className="flex justify-between items-center font-black text-base md:text-lg list-none uppercase tracking-tight">
-                  {f.q}
-                  <span className="text-emerald-400 group-open:rotate-180 transition shrink-0 ml-4"><ChevronDown size={18} /></span>
-                </summary>
-                <p className="text-gray-400 mt-5 leading-relaxed font-medium border-t border-white/10 pt-5">{f.a}</p>
-              </details>
-            ))}
+      {faqs.length > 0 && (
+        <section className="py-16 md:py-20 px-6 bg-slate-900 text-white border-b border-slate-800">
+          <div className="container mx-auto max-w-4xl">
+            <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tighter mb-10">
+              {neighborhood} FAQ
+            </h2>
+            <div className="space-y-4">
+              {faqs.map((f, i) => (
+                <details key={i} className="group bg-white/5 border border-white/10 rounded-3xl p-6 md:p-8 cursor-pointer">
+                  <summary className="flex justify-between items-center font-black text-base md:text-lg list-none uppercase tracking-tight">
+                    {f.q}
+                    <span className="text-emerald-400 group-open:rotate-180 transition shrink-0 ml-4"><ChevronDown size={18} /></span>
+                  </summary>
+                  <p className="text-gray-400 mt-5 leading-relaxed font-medium border-t border-white/10 pt-5">{f.a}</p>
+                </details>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* === LEAD CAPTURE === */}
       <section id="request" className="py-20 px-6 bg-white">
@@ -445,13 +480,15 @@ export default async function NeighborhoodPage({ params }: { params: Params }) {
               <LeadForm
                 type="Realtor"
                 title={`${neighborhood}, ${city.name}`}
-                subtitle={`Median ${priceK(median)} · ${active} active · Licensed advisor`}
+                subtitle={`${city.name} · Licensed FSRA advisor`}
                 ctaText="Connect With an Advisor"
               />
             </div>
           </div>
         </div>
       </section>
+
+      <span data-indexable={String(indexable)} hidden />
     </div>
   );
 }

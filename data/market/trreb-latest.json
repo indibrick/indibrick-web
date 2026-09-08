@@ -1,0 +1,34 @@
+{
+  "sourceFile": "data/market/mw2605.pdf",
+  "parsedAt": "2026-09-08T03:05:51.795Z",
+  "data": {
+    "asOfMonth": "May 2026",
+    "totalSales": null,
+    "totalNewListings": null,
+    "totalActiveListings": null,
+    "averagePrice": 1120716,
+    "averageLDOM": 39,
+    "byHomeType": [
+      {
+        "type": "detached",
+        "salesYoYPct": -5,
+        "pricesYoYPct": -9.5
+      },
+      {
+        "type": "semi-detached",
+        "salesYoYPct": -5.5,
+        "pricesYoYPct": -6.6
+      },
+      {
+        "type": "townhouse",
+        "salesYoYPct": -0.6,
+        "pricesYoYPct": -6.7
+      },
+      {
+        "type": "condo-apt",
+        "salesYoYPct": -6.5,
+        "pricesYoYPct": -3.9
+      }
+    ]
+  }
+}

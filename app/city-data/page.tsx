@@ -5,11 +5,20 @@ import { CityService } from '../../services/CityService';
 import { Map, BarChart2, Zap, ArrowRight } from 'lucide-react';
 import { buildMetadata } from '../../lib/buildMetadata';
 
+// NOINDEX with the city reports it links to — see the note in
+// app/city-data/[slug]/page.tsx. The hub also linked a card for EVERY city
+// while only a handful have a stored report, so most of those links 404.
+//
+// The old title/description claimed "AI Analysis for 100 Cities" and
+// "powered by Gemini AI" against ~41 real cities. Both the machine-authorship
+// framing and the count contradicted what the site publishes at
+// /editorial-policy, so they are gone regardless of the noindex.
 export const metadata = buildMetadata({
-  title: 'Ontario Real Estate Market Data 2026 — AI Analysis for 100 Cities',
-  description: 'Deep market intelligence powered by Gemini AI. Compare average home prices, market velocity, and investor scores for 100+ Ontario communities.',
+  title: 'Ontario Real Estate Market Data 2026',
+  description: 'Market context for Ontario communities — pricing, velocity and buyer considerations for 2026.',
   slug: '/city-data',
-  keywords: ['Ontario real estate market data', 'AI city intelligence', '100 city analysis', 'investor scores Ontario'],
+  keywords: ['Ontario real estate market data', 'Ontario housing market 2026'],
+  noindex: true,
 });
 
 export default async function CityDataHub() {

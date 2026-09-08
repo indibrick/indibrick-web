@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { apiFetch } from '@/lib/apiClient';
+import { authedFetch } from '@/lib/apiClient';
 import type { SenderIdentity } from '@/lib/senderIdentity';
 
 interface Fallback {
@@ -20,7 +20,7 @@ export function useSenderIdentity() {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch('/api/partner/sender-identity');
+      const res = await authedFetch('/api/partner/sender-identity');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setIdentity(data.senderIdentity || null);
@@ -38,7 +38,7 @@ export function useSenderIdentity() {
     setSaving(true);
     setError(null);
     try {
-      const res = await apiFetch('/api/partner/sender-identity', {
+      const res = await authedFetch('/api/partner/sender-identity', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),

@@ -13,8 +13,12 @@ const now = new Date();
 const monthYear = now.toLocaleDateString('en-CA', { month: 'long', year: 'numeric' });
 
 export const metadata: Metadata = buildMetadata({
-  title: `Ontario Mortgage Rates ${monthYear} — 5-Year Fixed from 4.09% | IndiBrick`,
-  description: `Live wholesale mortgage rates in Ontario for ${monthYear}. Compare insured, insurable and uninsured 5-year fixed and variable rates from 40+ Canadian lenders. Updated daily by IndiBrick (via Pineapple Financial, FSRA #12830).`,
+  // The rate was hardcoded here. A title tag is the most-cached string on a
+  // page — quoting a stale number in it advertises a rate we may no longer
+  // offer, on the page whose entire job is to be current. The month keeps the
+  // freshness signal without asserting a price.
+  title: `Ontario Mortgage Rates ${monthYear} — 5-Year Fixed, Variable & B-Lender | IndiBrick`,
+  description: `Live wholesale mortgage rates in Ontario for ${monthYear}. Compare insured, insurable and uninsured 5-year fixed and variable rates from 50+ Canadian lenders. Updated daily by IndiBrick (via Pineapple Financial, FSRA #12830).`,
   slug: '/rates',
   titleAbsolute: true,
   keywords: [

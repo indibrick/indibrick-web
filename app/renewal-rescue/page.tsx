@@ -2,7 +2,7 @@ import React from 'react';
 import { buildMetadata } from '../../lib/buildMetadata';
 import RenewalRescueForm from './RenewalRescueForm';
 import CiteBlock from '../../components/CiteBlock';
-import TrustBar from '../../components/TrustBar';
+import TrustBarLive from '../../components/TrustBarLive';
 import BrokerCard from '../../components/BrokerCard';
 import RateMatchPromise from '../../components/RateMatchPromise';
 
@@ -58,7 +58,7 @@ export default function RenewalRescuePage() {
               The rate your bank offered isn't the rate you have to take. You have <strong className="text-white">120 days before maturity</strong> to shop the entire market with zero penalty and zero credit hit.
             </p>
             <ul className="space-y-2.5 text-sm text-gray-300 mb-4">
-              <li className="flex items-start gap-2"><span className="text-emerald-400 font-black mt-0.5">✓</span> Compare your bank's offer vs 45+ lenders</li>
+              <li className="flex items-start gap-2"><span className="text-emerald-400 font-black mt-0.5">✓</span> Compare your bank's offer vs 50+ lenders</li>
               <li className="flex items-start gap-2"><span className="text-emerald-400 font-black mt-0.5">✓</span> 5-year interest delta on your actual balance</li>
               <li className="flex items-start gap-2"><span className="text-emerald-400 font-black mt-0.5">✓</span> Blend-and-extend options most brokers won't tell you about</li>
             </ul>
@@ -71,7 +71,7 @@ export default function RenewalRescuePage() {
         </div>
       </section>
 
-      <TrustBar variant="light" scaleClaim={{ value: '$18M+', label: 'placed in 2025 at renewal' }} />
+      <TrustBarLive variant="light" scaleClaim={{ value: '$18M+', label: 'placed in 2025 at renewal' }} />
 
       {/* STAT STRIP */}
       <section className="bg-slate-950 text-white py-8 border-t border-white/5">
@@ -103,7 +103,7 @@ export default function RenewalRescuePage() {
               value="$180–$340/mo"
               claim="average monthly savings observed across IndiBrick's last 40 completed renewal placements (Ontario, 5-year fixed insured)."
               source="IndiBrick internal file review, 2025 vintage"
-              sourceUrl="/methodology"
+              sourceUrl="/editorial-policy"
               asOf="2026-06"
             />
             <CiteBlock
