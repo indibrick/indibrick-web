@@ -155,7 +155,7 @@ export const dripRunner = onSchedule(
         // buyer-type click the recipient never saw is not a signal, so this
         // deliberately overrides an existing segment — except 'applied',
         // which means they converted and must not be re-engaged.
-        let segment: string = String(run.segment || 'unassigned');
+        let segment = String(run.segment || 'unassigned');
         const checkDay = seq.nonOpenerCheckDay;
         if (
           typeof checkDay === 'number' &&
@@ -269,9 +269,9 @@ export const dripRunner = onSchedule(
         // Open pixel, then the CASL footer. Ordering matters only for
         // aesthetics — both sit below the body.
         const pixel = `<img src="${siteOrigin()}/api/track/open?run=${encodeURIComponent(runDoc.id)}&s=${stepIdx}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;" />`;
-        const html = interpolate(String(tmpl.body || ''), referral)
-          + pixel
-          + caslFooter(senderName, senderEmail, brokerageName, unsubUrl);
+        const html = interpolate(String(tmpl.body || ''), referral) +
+          pixel +
+          caslFooter(senderName, senderEmail, brokerageName, unsubUrl);
 
         const fromLine = brokerageName ? `${senderName} — ${brokerageName}` : senderName;
         await db.collection('mail').add({

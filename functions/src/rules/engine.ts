@@ -30,6 +30,7 @@ import { RULES } from './index';
 import type { Rule, ReferralDoc, RuleContext, NotificationAction, RuleFireResult } from './types';
 import { isBusinessHoursToronto } from './holidays';
 import { interpretWorkflow, type StoredWorkflow } from './workflowInterpreter';
+import crypto from 'crypto';
 
 const HEARTBEAT_FIELDS = new Set([
   'lastUpdated',
@@ -294,7 +295,6 @@ async function dispatchAction(
       if (signingSecret) {
         // HMAC-SHA256 signature over the body — receivers verify
         // by recomputing and constant-time comparing.
-        const crypto = require('crypto');
         const sig = crypto.createHmac('sha256', signingSecret).update(bodyStr).digest('hex');
         headers['X-Indibrick-Signature'] = sig;
       }
