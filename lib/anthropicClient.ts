@@ -31,23 +31,31 @@ function getAnthropic(): Anthropic {
 export type ModelChoice = 'quality' | 'balanced' | 'fast';
 
 // Concrete model IDs live here so a future upgrade is one line.
+//
+// IDs are complete as written — never append a date suffix. 'fast'
+// previously carried one ('claude-haiku-4-5-20251001'), which is not a
+// form the API accepts.
 const MODEL_MAP: Record<ModelChoice, string> = {
-  quality:  'claude-opus-4-7',
+  quality:  'claude-opus-5',
   balanced: 'claude-sonnet-5',
-  fast:     'claude-haiku-4-5-20251001',
+  fast:     'claude-haiku-4-5',
 };
 
-// Anthropic list-price per 1M tokens as of 2026-08. Rough — used only
-// for the running cost estimate shown on the SEO OS dashboard.
+// Anthropic list price per 1M tokens. Verified 2026-09-09.
+//
+// These drive the cost estimate on the SEO OS dashboard, and every figure
+// here was previously wrong in the expensive direction — 'quality' was
+// carrying 15/75, which is roughly three times the real Opus rate, so the
+// dashboard has been overstating spend since it shipped.
 const PRICE_PER_1M_INPUT: Record<ModelChoice, number> = {
-  quality:  15.00,
-  balanced:  3.00,
-  fast:      0.80,
+  quality:  5.00,
+  balanced: 2.00,
+  fast:     1.00,
 };
 const PRICE_PER_1M_OUTPUT: Record<ModelChoice, number> = {
-  quality:  75.00,
-  balanced: 15.00,
-  fast:      4.00,
+  quality:  25.00,
+  balanced: 10.00,
+  fast:      5.00,
 };
 
 export interface ClaudeCallOptions {

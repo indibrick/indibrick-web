@@ -6,7 +6,12 @@
 // hears a busy tone).
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyTwilioSignature, twilioPhoneNumber, normalizeE164 } from '@/lib/twilioClient';
+import {
+  verifyTwilioSignature,
+  twilioPhoneNumber,
+  normalizeE164,
+  twilioWebhookBaseUrl,
+} from '@/lib/twilioClient';
 
 export const runtime = 'nodejs';
 
@@ -38,11 +43,17 @@ export async function POST(req: NextRequest) {
   // TwiML: dial the client from the Twilio number, record dual-channel,
   // 30s answer timeout. Recording status callback posts back when the
   // recording file is ready.
+  //
+  // The <Say> below is heard by the AGENT only — it plays on the leg
+  // Twilio already answered. The client's notice has to ride on
+  // <Number url="...">, which plays to the CALLED party after they
+  // answer and before the two legs are bridged. See voice-whisper.
+  const whisperUrl = `${twilioWebhookBaseUrl()}/api/twilio/voice-whisper`;
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="alice">Connecting your I n d i Brick call.</Say>
   <Dial callerId="${callerId}" timeout="30" record="record-from-answer-dual" recordingStatusCallback="/api/twilio/recording-status">
-    <Number>${clientE164}</Number>
+    <Number url="${whisperUrl}">${clientE164}</Number>
   </Dial>
 </Response>`.trim();
 
