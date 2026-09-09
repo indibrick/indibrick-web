@@ -5,15 +5,26 @@
 // CLIENT and bridge the two legs. Dual-channel recording means the
 // playback separates agent + client audio.
 //
-// This means agents don't need a browser dialer for v1 — they answer
-// on their cell/desk phone and get connected to the client. The
-// browser dialer (WebRTC via Twilio Voice SDK) is Wave 6 work.
+// Two modes, chosen per call by the agent:
+//
+//   'phone'   Twilio rings the agent's own handset, then bridges. Works
+//             from a car, costs two outbound legs.
+//   'browser' The agent talks through the browser dialer. Roughly a
+//             third the cost of the agent leg, but only at a desk.
+//
+// Browser mode does NOT place the call here — the browser does, holding
+// a Twilio access token. What this route issues instead is a ticket: the
+// /messages document below, created only after the same permission and
+// rate-limit checks the phone path runs. /api/twilio/voice-browser
+// redeems that ticket and reads the client's number off it, so a token
+// holder can never dial a number of their own choosing.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { requireAuth } from '@/lib/authGuard';
 import { initiateCall, normalizeE164 } from '@/lib/twilioClient';
+import { isBrowserCallingConfigured } from '@/lib/twilioVoiceToken';
 import { recordUsage } from '@/lib/usage';
 import { checkRateLimit, resetHeaderSeconds } from '@/lib/rateLimiter';
 
@@ -41,12 +52,26 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null);
   const referralId = String(body?.referralId || '');
+  const mode: 'phone' | 'browser' = body?.mode === 'browser' ? 'browser' : 'phone';
   const agentPhoneRaw = String(body?.agentPhone || '');
-  if (!referralId || !agentPhoneRaw) {
-    return NextResponse.json({ error: 'referralId and agentPhone required' }, { status: 400 });
+
+  if (!referralId) {
+    return NextResponse.json({ error: 'referralId required' }, { status: 400 });
   }
-  const agentPhone = normalizeE164(agentPhoneRaw);
-  if (!agentPhone) return NextResponse.json({ error: 'Invalid agent phone' }, { status: 400 });
+  // Only the phone path needs a handset to ring.
+  let agentPhone: string | null = null;
+  if (mode === 'phone') {
+    if (!agentPhoneRaw) {
+      return NextResponse.json({ error: 'agentPhone required for phone mode' }, { status: 400 });
+    }
+    agentPhone = normalizeE164(agentPhoneRaw);
+    if (!agentPhone) return NextResponse.json({ error: 'Invalid agent phone' }, { status: 400 });
+  } else if (!isBrowserCallingConfigured()) {
+    return NextResponse.json(
+      { error: 'Browser calling is not configured on this environment.' },
+      { status: 503 },
+    );
+  }
 
   const refSnap = await adminDb.collection('referrals').doc(referralId).get();
   if (!refSnap.exists) return NextResponse.json({ error: 'Referral not found' }, { status: 404 });
@@ -65,13 +90,19 @@ export async function POST(req: NextRequest) {
   const clientPhone = normalizeE164(String(referral.clientPhone || ''));
   if (!clientPhone) return NextResponse.json({ error: 'Deal has no valid clientPhone' }, { status: 400 });
 
-  const result = await initiateCall({
-    to: clientPhone,
-    agentNumber: agentPhone,
-    recording: true,
-  });
-  if (!result.ok) {
-    return NextResponse.json({ error: result.error || 'call failed' }, { status: 502 });
+  // Phone mode dials now. Browser mode leaves dialling to the browser,
+  // which redeems the ticket created below.
+  let twilioSid: string | null = null;
+  if (mode === 'phone') {
+    const result = await initiateCall({
+      to: clientPhone,
+      agentNumber: agentPhone as string,
+      recording: true,
+    });
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error || 'call failed' }, { status: 502 });
+    }
+    twilioSid = result.sid || null;
   }
 
   // Log the call attempt immediately — status callbacks patch it as
@@ -81,9 +112,15 @@ export async function POST(req: NextRequest) {
   const messageDoc = {
     channel: 'call',
     direction: 'outbound',
-    twilioSid: result.sid,
+    // Browser calls have no SID until the browser connects; the voice
+    // status callback fills it in.
+    twilioSid,
+    mode,
     clientPhone,
     agentPhone,
+    // Set by voice-browser when the ticket is redeemed. Its presence is
+    // what makes a ticket single-use.
+    dialedAt: null,
     referralId,
     senderUid: uid,
     senderEmail: email,
@@ -104,7 +141,9 @@ export async function POST(req: NextRequest) {
       timeline: FieldValue.arrayUnion({
         type: 'system',
         author: `${email || uid.slice(0, 8)}`,
-        content: `📞 Call initiated to ${clientPhone}`,
+        content: mode === 'browser'
+          ? `📞 Browser call to ${clientPhone}`
+          : `📞 Call initiated to ${clientPhone}`,
         timestamp: nowIso,
         isSystemMessage: false,
       }),
@@ -117,5 +156,13 @@ export async function POST(req: NextRequest) {
 
   await recordUsage({ callsInitiated: 1 });
 
-  return NextResponse.json({ success: true, id: created.id, twilioSid: result.sid });
+  // In browser mode the id IS the ticket — the browser passes it to
+  // Twilio as a connect parameter.
+  return NextResponse.json({
+    success: true,
+    id: created.id,
+    mode,
+    twilioSid,
+    ...(mode === 'browser' ? { ticket: created.id } : {}),
+  });
 }
