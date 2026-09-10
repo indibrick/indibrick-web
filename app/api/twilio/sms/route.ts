@@ -7,8 +7,14 @@
 //   3. Write a /messages doc so the CRM thread updates live
 //   4. Append a timeline entry to the referral for audit context
 //   5. Record usage metering
-//   6. Return empty TwiML — no auto-reply for now (reply drafts land
-//      in Wave 6 with the AI reply-draft feature)
+//   6. Draft a reply for an agent to review — never send one
+//   7. Return empty TwiML
+//
+// Nothing here texts the client back. The draft is written onto the
+// message record for an agent to send, edit or ignore. An unreviewed
+// message from a licensed brokerage carries a compliance surface that
+// is not worth the minutes auto-reply would save; it becomes a config
+// flag once a few hundred drafts have been read and trusted.
 //
 // Deliberately no auth check on Bearer token — this endpoint is
 // public because Twilio can't attach one. Signature verification is
@@ -19,6 +25,8 @@ import { adminDb } from '@/lib/firebaseAdmin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { verifyTwilioSignature, normalizeE164 } from '@/lib/twilioClient';
 import { recordUsage } from '@/lib/usage';
+import { draftSmsReply } from '@/lib/smsReplyDraft';
+import { TRANSCRIPTS_COLLECTION } from '@/lib/callTranscriptShape';
 
 export const runtime = 'nodejs';
 
@@ -126,7 +134,69 @@ export async function POST(req: NextRequest) {
     createdAt: FieldValue.serverTimestamp(),
     tenantId: 'indibrick',
   };
-  await adminDb.collection('messages').add(messageDoc);
+  const created = await adminDb.collection('messages').add(messageDoc);
+
+  // ─── Draft a reply (never send one) ──────────────────────────────
+  // Best-effort and deliberately non-fatal: Twilio is waiting on this
+  // response, and a failed draft must never turn into a failed webhook
+  // and a retried inbound message.
+  try {
+    let clientName = '';
+    let status: string | null = null;
+    let lastCallSummary: string | null = null;
+    const recent: Array<{ direction: 'inbound' | 'outbound'; body: string }> = [];
+
+    if (referralId) {
+      const rSnap = await adminDb.collection('referrals').doc(referralId).get();
+      const r = (rSnap.data() || {}) as any;
+      clientName = String(r.clientName || '');
+      status = r.status || null;
+
+      // Prior thread, for continuity.
+      const prior = await adminDb.collection('messages')
+        .where('referralId', '==', referralId)
+        .where('channel', '==', 'sms')
+        .orderBy('createdAt', 'desc')
+        .limit(6)
+        .get();
+      prior.docs.reverse().forEach((d) => {
+        const m = d.data() as any;
+        if (m.body) recent.push({ direction: m.direction === 'inbound' ? 'inbound' : 'outbound', body: String(m.body) });
+      });
+
+      // The most recent analysed call, so the reply knows what was
+      // already discussed out loud.
+      const calls = await adminDb.collection(TRANSCRIPTS_COLLECTION)
+        .where('referralId', '==', referralId)
+        .where('status', '==', 'ready')
+        .orderBy('updatedAt', 'desc')
+        .limit(1)
+        .get();
+      if (!calls.empty) {
+        lastCallSummary = (calls.docs[0].data() as any)?.analysis?.summary || null;
+      }
+    }
+
+    const drafted = await draftSmsReply({
+      clientName,
+      inboundText: String(messageDoc.body || ''),
+      status,
+      recentMessages: recent,
+      lastCallSummary,
+    });
+
+    if (drafted.ok && drafted.draft) {
+      await created.update({
+        suggestedReply: drafted.draft,
+        suggestedReplyModel: drafted.model || null,
+        suggestedReplyAt: new Date().toISOString(),
+      });
+    } else if (drafted.insufficientContext) {
+      await created.update({ suggestedReply: null, suggestedReplySkipped: 'insufficient context' });
+    }
+  } catch (e) {
+    console.warn('[sms] reply draft failed', e);
+  }
 
   // Timeline entry on the referral so the deal history reflects the
   // inbound SMS without opening the messages panel.

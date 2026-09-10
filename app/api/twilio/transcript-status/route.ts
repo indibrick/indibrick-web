@@ -21,6 +21,8 @@ import { adminDb } from '@/lib/firebaseAdmin';
 import { verifyTwilioSignature } from '@/lib/twilioClient';
 import { getTranscriber, segmentsToText } from '@/lib/transcription';
 import { TRANSCRIPTS_COLLECTION } from '@/lib/callTranscriptShape';
+import { analyzeCall, formatTimelineNote, tasksFromAnalysis } from '@/lib/callAnalysis';
+import { FieldValue } from 'firebase-admin/firestore';
 
 export const runtime = 'nodejs';
 
@@ -106,5 +108,95 @@ export async function POST(req: NextRequest) {
     console.warn('[transcript-status] message update failed', e);
   }
 
-  return NextResponse.json({ ok: true, segments: fetched.segments.length });
+  // ─── Analysis: the summary and the follow-ups ────────────────────
+  // Deliberately after the transcript is committed. If analysis fails,
+  // the transcript still stands on its own and can be re-analysed;
+  // losing both to one bad model response would be the worse outcome.
+  const fullText = segmentsToText(fetched.segments);
+  const msgSnap = await adminDb.collection('messages').doc(messageId).get();
+  const msg = (msgSnap.data() || {}) as any;
+  const referralId: string | null = msg.referralId || null;
+
+  const referralSnap = referralId
+    ? await adminDb.collection('referrals').doc(referralId).get()
+    : null;
+  const referral = (referralSnap?.data() || {}) as any;
+  const clientName = String(referral.clientName || 'the client');
+
+  const analyzed = await analyzeCall({
+    clientName,
+    transcript: fullText,
+    durationSeconds: Number(msg.recordingDuration || 0),
+  });
+
+  if (!analyzed.ok || !analyzed.analysis) {
+    console.warn('[transcript-status] analysis failed:', analyzed.error);
+    await ref.set({ analysisError: analyzed.error || 'analysis failed', updatedAt: nowIso }, { merge: true });
+    return NextResponse.json({ ok: true, segments: fetched.segments.length, analyzed: false });
+  }
+
+  const a = analyzed.analysis;
+  await ref.set({
+    analysis: a,
+    analysisModel: analyzed.model || null,
+    analysisPromptVersion: analyzed.promptVersion || null,
+    analysisCostUsd: analyzed.costUsd ?? null,
+    analysisError: null,
+    analyzedAt: nowIso,
+    updatedAt: nowIso,
+  }, { merge: true });
+
+  if (!referralId) {
+    // Nothing to attach it to — the transcript keeps the analysis.
+    return NextResponse.json({ ok: true, analyzed: true, attached: false });
+  }
+
+  // The summary goes on the file as a note, in the same shape an agent's
+  // own note takes, so it renders in the timeline they already read.
+  try {
+    await adminDb.collection('referrals').doc(referralId).update({
+      timeline: FieldValue.arrayUnion({
+        type: 'system',
+        author: 'IndiBrick AI',
+        content: `📝 Call summary\n\n${formatTimelineNote(a)}`,
+        timestamp: nowIso,
+        isSystemMessage: true,
+      }),
+      lastUpdated: nowIso,
+    });
+  } catch (e) {
+    console.warn('[transcript-status] timeline write failed', e);
+  }
+
+  // One task per explicit commitment. Assigned to whoever took the call,
+  // falling back to the deal's owner.
+  const assigneeId = String(msg.senderUid || referral.assignedAgentId || '');
+  let tasksCreated = 0;
+  if (assigneeId) {
+    const tasks = tasksFromAnalysis(a, {
+      referralId,
+      clientName,
+      assigneeId,
+      messageId,
+    });
+    for (const t of tasks) {
+      try {
+        await adminDb.collection('tasks').add({
+          ...t,
+          createdBy: 'system:call_analysis',
+          createdAt: nowIso,
+        });
+        tasksCreated += 1;
+      } catch (e) {
+        console.warn('[transcript-status] task create failed', e);
+      }
+    }
+  }
+
+  return NextResponse.json({
+    ok: true,
+    segments: fetched.segments.length,
+    analyzed: true,
+    tasksCreated,
+  });
 }

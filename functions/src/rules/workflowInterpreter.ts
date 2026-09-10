@@ -26,7 +26,17 @@ export type TriggerType =
   | 'referral_field_changed'   // any watched field changes
   | 'lead_tag_added'           // leadTag field goes from A → B
   | 'cross_sell_flagged'       // crossSellFlagged true→false-or-similar
-  | 'time_based';              // scheduled — handled by a separate cron
+  | 'time_based'               // scheduled — handled by a separate cron
+  // ─── Communication triggers ──────────────────────────────────────
+  // Until these existed the engine could only react to a RECORD
+  // changing, which is why nothing fired when a client actually made
+  // contact. A missed call is the highest-intent signal a brokerage
+  // gets and it was landing in a webhook and going nowhere.
+  | 'call_completed'           // a call ended, whatever the outcome
+  | 'call_missed'              // client did not answer, or no answer
+  | 'call_summarized'          // AI summary written — payload has it
+  | 'sms_received'             // inbound text from a client
+  | 'client_went_quiet';       // no contact in N days — cron-evaluated
 
 export type ComparisonOperator =
   | 'equals' | 'not_equals'
