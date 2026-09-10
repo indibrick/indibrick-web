@@ -87,9 +87,17 @@ export async function sendSms(input: SendSmsInput): Promise<SendSmsResult> {
 export interface InitiateCallInput {
   to: string;           // E.164 — the client's number
   agentNumber: string;  // E.164 — the agent's cell / desk phone
-  // Twilio will call the agent first, then bridge to the client. Both
-  // legs get recorded (dual-channel) so playback separates them.
+  // Twilio will call the agent first, then bridge to the client. When
+  // recording is on both legs are captured dual-channel, so playback —
+  // and any transcriber — can separate who said what.
+  //
+  // recording:false is a genuine mode, not an edge case: internal calls
+  // and sensitive client conversations should leave no audio behind.
   recording?: boolean;
+  // Whether the recording gets transcribed and summarised. Meaningless
+  // without recording, and normalizeCallOptions() refuses that pairing
+  // before it reaches here.
+  transcribe?: boolean;
   // Callback URLs — we host the TwiML at /api/twilio/voice-outbound.
   twimlUrl?: string;
   statusCallback?: string;
@@ -109,21 +117,39 @@ export async function initiateCall(input: InitiateCallInput): Promise<InitiateCa
     return { ok: false, error: 'Twilio not configured' };
   }
   const baseUrl = twilioWebhookBaseUrl();
+  const record = input.recording !== false;
+  const transcribe = record && input.transcribe !== false;
   try {
     // Two-leg bridged call: Twilio calls the agent first, and the
-    // TwiML endpoint returns <Dial> to the client. This means the
-    // agent answers on THEIR phone (no browser dialer needed for v1).
+    // TwiML endpoint returns <Dial> to the client, so the agent answers
+    // on THEIR handset.
+    //
+    // The privacy flags travel on the TwiML URL because Twilio gives us
+    // nowhere to stash state on a call. voice-outbound reads them back
+    // to decide whether to attach recording and which notice to play.
+    const twimlUrl = input.twimlUrl
+      || `${baseUrl}/api/twilio/voice-outbound`
+        + `?client=${encodeURIComponent(input.to)}`
+        + `&rec=${record ? '1' : '0'}&txt=${transcribe ? '1' : '0'}`;
+
     const call = await client.calls.create({
       to: input.agentNumber,
       from,
-      url: input.twimlUrl || `${baseUrl}/api/twilio/voice-outbound?client=${encodeURIComponent(input.to)}`,
+      url: twimlUrl,
       statusCallback: input.statusCallback || `${baseUrl}/api/twilio/voice-status`,
       statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
       statusCallbackMethod: 'POST',
-      record: input.recording !== false,
-      recordingChannels: 'dual',
-      // Recording status callback fires when the recording is ready.
-      recordingStatusCallback: `${baseUrl}/api/twilio/recording-status`,
+      // Omitted entirely on a private call. Passing record:false would
+      // work, but the <Dial> in voice-outbound is what actually captures
+      // the bridged audio — both sides have to agree, or a "private"
+      // call still leaves a recording behind.
+      ...(record
+        ? {
+            record: true,
+            recordingChannels: 'dual' as const,
+            recordingStatusCallback: `${baseUrl}/api/twilio/recording-status`,
+          }
+        : {}),
     });
     return { ok: true, sid: call.sid };
   } catch (e: any) {

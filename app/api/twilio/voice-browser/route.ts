@@ -106,12 +106,24 @@ export async function POST(req: NextRequest) {
     console.warn('[voice-browser] could not mark ticket spent', e);
   }
 
+  // Privacy options come off the ticket for the same reason the number
+  // does: the browser must not be able to change them. An agent who
+  // booked a private call cannot have it silently recorded, and one who
+  // booked a recorded call cannot suppress the client's notice.
+  const record = m.record !== false;
+  const transcribe = record && m.transcribe !== false;
+
   const callerId = twilioPhoneNumber();
   const base = twilioWebhookBaseUrl();
+  const whisperUrl =
+    `${base}/api/twilio/voice-whisper?rec=${record ? '1' : '0'}&txt=${transcribe ? '1' : '0'}`;
+  const recAttrs = record
+    ? ` record="record-from-answer-dual" recordingStatusCallback="${base}/api/twilio/recording-status"`
+    : '';
+
   return twiml(
-    `<Dial callerId="${callerId}" timeout="30" record="record-from-answer-dual" ` +
-    `recordingStatusCallback="${base}/api/twilio/recording-status">` +
-    `<Number url="${base}/api/twilio/voice-whisper">${clientPhone}</Number>` +
+    `<Dial callerId="${callerId}" timeout="30"${recAttrs}>` +
+    `<Number url="${whisperUrl}">${clientPhone}</Number>` +
     `</Dial>`,
   );
 }

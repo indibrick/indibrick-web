@@ -25,6 +25,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { requireAuth } from '@/lib/authGuard';
 import { initiateCall, normalizeE164 } from '@/lib/twilioClient';
 import { isBrowserCallingConfigured } from '@/lib/twilioVoiceToken';
+import { normalizeCallOptions, callDefaultsFromUser, presetOf } from '@/lib/callOptionsShape';
 import { recordUsage } from '@/lib/usage';
 import { checkRateLimit, resetHeaderSeconds } from '@/lib/rateLimiter';
 
@@ -52,25 +53,16 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null);
   const referralId = String(body?.referralId || '');
-  const mode: 'phone' | 'browser' = body?.mode === 'browser' ? 'browser' : 'phone';
   const agentPhoneRaw = String(body?.agentPhone || '');
 
   if (!referralId) {
     return NextResponse.json({ error: 'referralId required' }, { status: 400 });
   }
-  // Only the phone path needs a handset to ring.
-  let agentPhone: string | null = null;
-  if (mode === 'phone') {
-    if (!agentPhoneRaw) {
-      return NextResponse.json({ error: 'agentPhone required for phone mode' }, { status: 400 });
-    }
-    agentPhone = normalizeE164(agentPhoneRaw);
-    if (!agentPhone) return NextResponse.json({ error: 'Invalid agent phone' }, { status: 400 });
-  } else if (!isBrowserCallingConfigured()) {
-    return NextResponse.json(
-      { error: 'Browser calling is not configured on this environment.' },
-      { status: 503 },
-    );
+  // Validated here; whether it is REQUIRED depends on the mode, which is
+  // resolved after the agent's stored defaults are read.
+  const agentPhone: string | null = agentPhoneRaw ? normalizeE164(agentPhoneRaw) : null;
+  if (agentPhoneRaw && !agentPhone) {
+    return NextResponse.json({ error: 'Invalid agent phone' }, { status: 400 });
   }
 
   const refSnap = await adminDb.collection('referrals').doc(referralId).get();
@@ -87,6 +79,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  // Anything the request omits falls back to this agent's stored default,
+  // so a bare call still does what they normally do.
+  const norm = normalizeCallOptions(body, callDefaultsFromUser(roleSnap.data()));
+  if (!norm.ok) {
+    return NextResponse.json({ error: norm.error }, { status: 400 });
+  }
+  const opts = norm.options!;
+  const mode = opts.mode;
+
+  if (mode === 'phone' && !agentPhone) {
+    return NextResponse.json({ error: 'agentPhone required for phone mode' }, { status: 400 });
+  }
+  if (mode === 'browser' && !isBrowserCallingConfigured()) {
+    return NextResponse.json(
+      { error: 'Browser calling is not configured on this environment.' },
+      { status: 503 },
+    );
+  }
+
   const clientPhone = normalizeE164(String(referral.clientPhone || ''));
   if (!clientPhone) return NextResponse.json({ error: 'Deal has no valid clientPhone' }, { status: 400 });
 
@@ -97,7 +108,8 @@ export async function POST(req: NextRequest) {
     const result = await initiateCall({
       to: clientPhone,
       agentNumber: agentPhone as string,
-      recording: true,
+      recording: opts.record,
+      transcribe: opts.transcribe,
     });
     if (!result.ok) {
       return NextResponse.json({ error: result.error || 'call failed' }, { status: 502 });
@@ -116,6 +128,9 @@ export async function POST(req: NextRequest) {
     // status callback fills it in.
     twilioSid,
     mode,
+    record: opts.record,
+    transcribe: opts.transcribe,
+    preset: presetOf(opts),
     clientPhone,
     agentPhone,
     // Set by voice-browser when the ticket is redeemed. Its presence is
@@ -141,9 +156,8 @@ export async function POST(req: NextRequest) {
       timeline: FieldValue.arrayUnion({
         type: 'system',
         author: `${email || uid.slice(0, 8)}`,
-        content: mode === 'browser'
-          ? `📞 Browser call to ${clientPhone}`
-          : `📞 Call initiated to ${clientPhone}`,
+        content: `📞 ${mode === 'browser' ? 'Browser call' : 'Call initiated'} to ${clientPhone}`
+          + (opts.record ? (opts.transcribe ? '' : ' · recording only') : ' · private, not recorded'),
         timestamp: nowIso,
         isSystemMessage: false,
       }),
@@ -162,6 +176,9 @@ export async function POST(req: NextRequest) {
     success: true,
     id: created.id,
     mode,
+    record: opts.record,
+    transcribe: opts.transcribe,
+    preset: presetOf(opts),
     twilioSid,
     ...(mode === 'browser' ? { ticket: created.id } : {}),
   });

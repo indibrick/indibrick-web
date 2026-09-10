@@ -45,6 +45,15 @@ const RECORDING_NOTICE =
   'and summarized for your file. If you would rather we did not, let ' +
   'your advisor know and we will stop the recording. Connecting you now.';
 
+/**
+ * Spoken when audio is kept but nothing is transcribed or summarised.
+ * Claiming a summary would be a false statement, so it is dropped.
+ */
+const RECORDING_ONLY_NOTICE =
+  'Hi, this is I n d i Brick. Just so you know, this call is recorded. ' +
+  'If you would rather we did not, let your advisor know and we will ' +
+  'stop the recording. Connecting you now.';
+
 /** Twilio requires TwiML back even when there is nothing to say. */
 function twiml(inner: string) {
   return new NextResponse(
@@ -60,7 +69,10 @@ export async function POST(req: NextRequest) {
 
   const proto = req.headers.get('x-forwarded-proto') || 'https';
   const host = req.headers.get('host') || 'indibrick.ca';
-  const fullUrl = `${proto}://${host}${req.nextUrl.pathname}`;
+  // MUST include the query string. Twilio signs the full URL, and this
+  // endpoint is now called with ?rec=… — verifying against the bare
+  // pathname would reject every legitimate request.
+  const fullUrl = `${proto}://${host}${req.nextUrl.pathname}${req.nextUrl.search}`;
   const sig = req.headers.get('x-twilio-signature');
   const bypass = process.env.NODE_ENV !== 'production' && process.env.TWILIO_SKIP_SIGNATURE === '1';
   if (!bypass && !verifyTwilioSignature({ signatureHeader: sig, fullUrl, params })) {
@@ -70,5 +82,14 @@ export async function POST(req: NextRequest) {
   }
 
   if (!NOTICE_ENABLED) return twiml('');
-  return twiml(`<Say voice="alice">${RECORDING_NOTICE}</Say>`);
+
+  // rec=0 means the agent chose a private call. There is no recording to
+  // announce, and announcing one would be untrue — stay silent.
+  const rec = req.nextUrl.searchParams.get('rec');
+  if (rec === '0') return twiml('');
+
+  // txt=0 means audio is kept but never transcribed or summarised.
+  const txt = req.nextUrl.searchParams.get('txt');
+  const notice = txt === '0' ? RECORDING_ONLY_NOTICE : RECORDING_NOTICE;
+  return twiml(`<Say voice="alice">${notice}</Say>`);
 }

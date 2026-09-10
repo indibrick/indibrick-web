@@ -48,11 +48,28 @@ export async function POST(req: NextRequest) {
   // Twilio already answered. The client's notice has to ride on
   // <Number url="...">, which plays to the CALLED party after they
   // answer and before the two legs are bridged. See voice-whisper.
-  const whisperUrl = `${twilioWebhookBaseUrl()}/api/twilio/voice-whisper`;
+  // Privacy options ride the query string, set by /api/partner/call.
+  // Absent means record+transcribe, which preserves prior behaviour for
+  // any call placed before this shipped.
+  const record = req.nextUrl.searchParams.get('rec') !== '0';
+  const transcribe = record && req.nextUrl.searchParams.get('txt') !== '0';
+
+  const base = twilioWebhookBaseUrl();
+  const whisperUrl =
+    `${base}/api/twilio/voice-whisper?rec=${record ? '1' : '0'}&txt=${transcribe ? '1' : '0'}`;
+
+  // On a private call the recording attributes are omitted entirely
+  // rather than set to something falsy — Twilio records whenever the
+  // attribute is present, so this is the difference between a private
+  // call and a recorded one.
+  const recAttrs = record
+    ? ` record="record-from-answer-dual" recordingStatusCallback="${base}/api/twilio/recording-status"`
+    : '';
+
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="alice">Connecting your I n d i Brick call.</Say>
-  <Dial callerId="${callerId}" timeout="30" record="record-from-answer-dual" recordingStatusCallback="/api/twilio/recording-status">
+  <Dial callerId="${callerId}" timeout="30"${recAttrs}>
     <Number url="${whisperUrl}">${clientE164}</Number>
   </Dial>
 </Response>`.trim();
