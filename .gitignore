@@ -17,6 +17,13 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+# Backups and variants of the above. `.env.local` alone does not cover
+# `.env.local.bak`, and `git add -A` would happily commit one — a real
+# near-miss while wiring Twilio credentials.
+.env*.bak
+.env*.bak.*
+.env.local.*
+!.env.example
 
 # OS
 .DS_Store
