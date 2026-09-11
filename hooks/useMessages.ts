@@ -43,7 +43,14 @@ interface UseMessagesResult {
   sending: boolean;
   calling: boolean;
   sendSms: (body: string) => Promise<{ ok: boolean; error?: string }>;
-  callClient: (agentPhone: string) => Promise<{ ok: boolean; error?: string }>;
+  /**
+   * `agentPhone` is required for mode 'phone' and ignored for 'browser',
+   * which rings through WebRTC instead of a handset.
+   */
+  callClient: (
+    agentPhone: string,
+    opts?: { mode?: 'phone' | 'browser'; preset?: 'full' | 'record_only' | 'private' },
+  ) => Promise<{ ok: boolean; error?: string }>;
 }
 
 export function useMessages(referralId: string | undefined): UseMessagesResult {
@@ -94,11 +101,23 @@ export function useMessages(referralId: string | undefined): UseMessagesResult {
     }
   };
 
-  const callClient = async (agentPhone: string) => {
-    if (!referralId || !agentPhone) return { ok: false, error: 'Missing agent phone' };
+  const callClient = async (
+    agentPhone: string,
+    opts?: { mode?: 'phone' | 'browser'; preset?: 'full' | 'record_only' | 'private' },
+  ) => {
+    const mode = opts?.mode || 'phone';
+    // Browser calls ring through WebRTC, so no handset is needed.
+    if (!referralId || (mode === 'phone' && !agentPhone)) {
+      return { ok: false, error: 'Missing agent phone' };
+    }
     setCalling(true);
     try {
-      const res = await authedPost('/api/partner/call', { referralId, agentPhone });
+      const res = await authedPost('/api/partner/call', {
+        referralId,
+        ...(mode === 'phone' ? { agentPhone } : {}),
+        mode,
+        ...(opts?.preset ? { preset: opts.preset } : {}),
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return { ok: false, error: data.error || `HTTP ${res.status}` };
       return { ok: true };

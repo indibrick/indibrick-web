@@ -61,6 +61,23 @@ function toMillis(v: any): number | null {
   return null;
 }
 
+/**
+ * Escape a value for use inside an XML attribute.
+ *
+ * TwiML is XML, and a bare `&` in an attribute makes the whole document
+ * unparseable — Twilio then answers the call with "an application error
+ * has occurred" and hangs up. Query strings on the whisper URL put an
+ * ampersand in an attribute for the first time, which is exactly how
+ * this bit.
+ */
+function xmlAttr(value: string): string {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 export async function POST(req: NextRequest) {
   const raw = await req.text();
   const params: Record<string, string> = {};
@@ -118,12 +135,12 @@ export async function POST(req: NextRequest) {
   const whisperUrl =
     `${base}/api/twilio/voice-whisper?rec=${record ? '1' : '0'}&txt=${transcribe ? '1' : '0'}`;
   const recAttrs = record
-    ? ` record="record-from-answer-dual" recordingStatusCallback="${base}/api/twilio/recording-status"`
+    ? ` record="record-from-answer-dual" recordingStatusCallback="${xmlAttr(`${base}/api/twilio/recording-status`)}"`
     : '';
 
   return twiml(
     `<Dial callerId="${callerId}" timeout="30"${recAttrs}>` +
-    `<Number url="${whisperUrl}">${clientPhone}</Number>` +
+    `<Number url="${xmlAttr(whisperUrl)}">${clientPhone}</Number>` +
     `</Dial>`,
   );
 }
