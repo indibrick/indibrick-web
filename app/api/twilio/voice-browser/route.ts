@@ -24,9 +24,9 @@
 //      in `From` — so one agent cannot spend another agent's ticket.
 //
 // ─── Consent ────────────────────────────────────────────────────────
-// The same client-side notice used on the phone path applies here. It
-// rides on <Number url="...">, which plays to the called party before
-// the legs bridge. See voice-whisper.
+// No spoken notice, matching the handset path. Recording and summary
+// disclosure is handled in writing by the brokerage. See voice-outbound
+// for the reasoning.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
@@ -132,15 +132,13 @@ export async function POST(req: NextRequest) {
 
   const callerId = twilioPhoneNumber();
   const base = twilioWebhookBaseUrl();
-  const whisperUrl =
-    `${base}/api/twilio/voice-whisper?rec=${record ? '1' : '0'}&txt=${transcribe ? '1' : '0'}`;
   const recAttrs = record
     ? ` record="record-from-answer-dual" recordingStatusCallback="${xmlAttr(`${base}/api/twilio/recording-status`)}"`
     : '';
 
   return twiml(
     `<Dial callerId="${callerId}" timeout="30"${recAttrs}>` +
-    `<Number url="${xmlAttr(whisperUrl)}">${clientPhone}</Number>` +
+    `<Number>${clientPhone}</Number>` +
     `</Dial>`,
   );
 }

@@ -1,4 +1,19 @@
-// Client-side recording notice ("whisper").
+// Client-side recording notice ("whisper") — DORMANT.
+//
+// Nothing calls this any more. The operator chose on 2026-09-14 to drop
+// the spoken notice and disclose recording and summarising in writing
+// instead, which PIPEDA permits: it asks for the individual's knowledge
+// and consent, not for a specific medium.
+//
+// Kept rather than deleted because re-enabling is two edits: flip
+// NOTICE_ENABLED below, and restore the `url=` attribute on <Number> in
+// voice-outbound and voice-browser.
+//
+// If you do re-enable it, keep it SHORT. The first version ran 16
+// seconds; agents heard silence for all of it and hung up before the
+// legs bridged, which killed every call.
+//
+// ─── Original notes ─────────────────────────────────────────────────
 //
 // ─── Why this endpoint exists ───────────────────────────────────────
 // The <Say> in voice-outbound plays on the leg Twilio already answered,
@@ -32,7 +47,23 @@ import { verifyTwilioSignature } from '@/lib/twilioClient';
 export const runtime = 'nodejs';
 
 /** Flip to false to bridge silently. See the note above before doing so. */
-const NOTICE_ENABLED = true;
+const NOTICE_ENABLED = false;
+
+/**
+ * ─── Keep this SHORT ────────────────────────────────────────────────
+ * The first version of this notice ran 41 words, about 16 seconds. The
+ * client heard it in full while the AGENT heard silence, and the agent
+ * hung up before the legs ever bridged — every call died on the
+ * "connecting you now" line. A whisper has to be over in a few seconds.
+ *
+ * Budget: 12 words, roughly 4 seconds at Polly's rate. If you lengthen
+ * this, time it.
+ *
+ * Voice: Polly neural, not Twilio's `alice`. alice is the oldest TTS on
+ * the platform and it is what every robocall in North America sounds
+ * like — a brokerage's first words to a client should not.
+ */
+const VOICE = 'Polly.Joanna-Neural';
 
 /**
  * Spoken to the client before the agent is connected. Covers both the
@@ -41,18 +72,14 @@ const NOTICE_ENABLED = true;
  * naming it is what makes this genuine notice rather than boilerplate.
  */
 const RECORDING_NOTICE =
-  'Hi, this is I n d i Brick. Just so you know, this call is recorded ' +
-  'and summarized for your file. If you would rather we did not, let ' +
-  'your advisor know and we will stop the recording. Connecting you now.';
+  'This call is recorded and summarized for your file. Connecting you now.';
 
 /**
- * Spoken when audio is kept but nothing is transcribed or summarised.
- * Claiming a summary would be a false statement, so it is dropped.
+ * Audio kept, nothing transcribed or summarised. Claiming a summary
+ * would be untrue, so that clause is dropped.
  */
 const RECORDING_ONLY_NOTICE =
-  'Hi, this is I n d i Brick. Just so you know, this call is recorded. ' +
-  'If you would rather we did not, let your advisor know and we will ' +
-  'stop the recording. Connecting you now.';
+  'This call is recorded. Connecting you now.';
 
 /** Twilio requires TwiML back even when there is nothing to say. */
 function twiml(inner: string) {
@@ -91,5 +118,5 @@ export async function POST(req: NextRequest) {
   // txt=0 means audio is kept but never transcribed or summarised.
   const txt = req.nextUrl.searchParams.get('txt');
   const notice = txt === '0' ? RECORDING_ONLY_NOTICE : RECORDING_NOTICE;
-  return twiml(`<Say voice="alice">${notice}</Say>`);
+  return twiml(`<Say voice="${VOICE}">${notice}</Say>`);
 }

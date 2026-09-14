@@ -31,6 +31,12 @@ export interface BrowserPhone {
   /** Seconds elapsed on the current call. */
   elapsed: number;
   call: (opts: { referralId: string; preset?: 'full' | 'record_only' | 'private' }) => Promise<void>;
+  /**
+   * Connect to a ticket booked elsewhere — the cold dialler books its own
+   * through /api/partner/cold-call, so it has one before the SDK is
+   * involved and must not book a second.
+   */
+  callTicket: (ticket: string) => Promise<void>;
   hangUp: () => void;
   toggleMute: () => void;
   muted: boolean;
@@ -126,7 +132,16 @@ export function useBrowserPhone(): BrowserPhone {
         return;
       }
 
-      const conn = await device.connect({ params: { ticket: booking.ticket } });
+      await connectWithTicket(device, booking.ticket);
+    } catch (e: any) {
+      setError(e?.message || 'call failed');
+      setState('error');
+    }
+  }, [stopTimer]);
+
+  /** Shared by both entry points once a ticket exists. */
+  const connectWithTicket = useCallback(async (device: any, ticket: string) => {
+      const conn = await device.connect({ params: { ticket } });
       connRef.current = conn;
 
       conn.on('ringing', () => setState('ringing'));
@@ -141,11 +156,20 @@ export function useBrowserPhone(): BrowserPhone {
       conn.on('disconnect', () => { connRef.current = null; setMuted(false); stopTimer(); setState('idle'); });
       conn.on('cancel', () => { connRef.current = null; stopTimer(); setState('idle'); });
       conn.on('error', (e: any) => { setError(e?.message || 'call error'); stopTimer(); setState('error'); });
+  }, [stopTimer]);
+
+  const callTicket = useCallback(async (ticket: string) => {
+    const device = deviceRef.current;
+    if (!device) { setError('Browser calling is not ready.'); setState('error'); return; }
+    setError(null);
+    setState('connecting');
+    try {
+      await connectWithTicket(device, ticket);
     } catch (e: any) {
       setError(e?.message || 'call failed');
       setState('error');
     }
-  }, [stopTimer]);
+  }, [connectWithTicket]);
 
   const hangUp = useCallback(() => {
     try { connRef.current?.disconnect(); } catch { /* already down */ }
@@ -161,5 +185,5 @@ export function useBrowserPhone(): BrowserPhone {
     try { c.mute(next); setMuted(next); } catch { /* ignore */ }
   }, [muted]);
 
-  return { state, available, error, elapsed, call, hangUp, toggleMute, muted };
+  return { state, available, error, elapsed, call, callTicket, hangUp, toggleMute, muted };
 }

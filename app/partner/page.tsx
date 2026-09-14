@@ -15,6 +15,7 @@ import { doc, getDoc, updateDoc, collection, getDocs, query, where, addDoc, arra
 import { db } from '../../firebase';
 import PartnerCopilot from '../../components/PartnerCopilot';
 import IntakeWizard from '../../components/partner/IntakeWizard';
+import ColdDialer from '../../components/partner/ColdDialer';
 import InAppInbox from '../../components/partner/InAppInbox';
 import CrossSellPanel from '../../components/partner/CrossSellPanel';
 import InsurancePanel from '../../components/partner/InsurancePanel';
@@ -1417,6 +1418,26 @@ export default function PartnerCRM() {
         {/* --- TAB: PIPELINE --- */}
         {activeTab === 'pipeline' && (
            <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 md:gap-6">
+
+              {/* Cold dialler — mortgage agents and admins only. Dial a
+                  number that is not in the CRM, then decide afterwards
+                  whether it is worth keeping. The API enforces the same
+                  role rule, so hiding this is convenience, not control. */}
+              {(partnerRole === 'partner_mortgage' || partnerRole === 'admin') && (
+                <div className="xl:col-span-12">
+                  {/* The agent types their handset once inside the
+                      dialler; there is no stored number on this page to
+                      seed it from. A converted lead is prepended
+                      optimistically rather than refetching the pipeline. */}
+                  <ColdDialer
+                    onConverted={(referralId) => {
+                      setAllReferrals(prev => prev.some((r: any) => r.id === referralId)
+                        ? prev
+                        : [{ id: referralId, clientName: 'New cold-call lead', status: 'New Web Lead', assignedAgentId: user?.uid }, ...prev]);
+                    }}
+                  />
+                </div>
+              )}
 
               {/* PIPELINE REVENUE STRIP (top, full-width). Admins get an
                   extra Speed-to-Lead tile — rolling 14-day median from

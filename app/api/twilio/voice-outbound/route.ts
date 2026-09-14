@@ -72,9 +72,6 @@ export async function POST(req: NextRequest) {
   const transcribe = record && req.nextUrl.searchParams.get('txt') !== '0';
 
   const base = twilioWebhookBaseUrl();
-  const whisperUrl =
-    `${base}/api/twilio/voice-whisper?rec=${record ? '1' : '0'}&txt=${transcribe ? '1' : '0'}`;
-
   // On a private call the recording attributes are omitted entirely
   // rather than set to something falsy — Twilio records whenever the
   // attribute is present, so this is the difference between a private
@@ -85,9 +82,8 @@ export async function POST(req: NextRequest) {
 
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="alice">Connecting your I n d i Brick call.</Say>
   <Dial callerId="${callerId}" timeout="30"${recAttrs}>
-    <Number url="${xmlAttr(whisperUrl)}">${clientE164}</Number>
+    <Number>${clientE164}</Number>
   </Dial>
 </Response>`.trim();
 
