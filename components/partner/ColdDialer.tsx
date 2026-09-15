@@ -11,17 +11,35 @@
 // same rule, so hiding the button is convenience, not the control.
 
 import React, { useState } from 'react';
-import { Phone, PhoneOff, Mic, MicOff, UserPlus, X, Loader2, Delete, Check } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, UserPlus, X, Loader2, Delete, Check, Grid3x3, PhoneIncoming } from 'lucide-react';
 import { authedPost } from '../../lib/apiClient';
 import { useBrowserPhone } from '../../hooks/useBrowserPhone';
 
 type Preset = 'full' | 'record_only' | 'private';
 
 function prettyPhone(digits: string): string {
-  const d = digits.replace(/\D/g, '').slice(0, 10);
+  const d = digits.replace(/\D/g, '').slice(-10);
   if (d.length <= 3) return d;
   if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
   return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+}
+
+/**
+ * Pull the 10 national digits out of whatever was typed or pasted.
+ *
+ * The field accepts free text on purpose. Reformatting a controlled
+ * input on every keystroke moves the caret to the end, which breaks
+ * arrow-key editing and paste — the two things an agent actually does
+ * when fixing a mistyped number. So we let them type anything and parse
+ * it here instead.
+ *
+ * Handles +1 416…, 1-416…, (416) 555-0100, 416.555.0100, and numbers
+ * pasted with a trailing extension or stray text.
+ */
+function parseNational(input: string): string {
+  let d = String(input).replace(/\D/g, '');
+  if (d.length === 11 && d.startsWith('1')) d = d.slice(1);
+  return d.slice(0, 10);
 }
 
 export default function ColdDialer({ agentPhone, onConverted }: {
@@ -29,7 +47,10 @@ export default function ColdDialer({ agentPhone, onConverted }: {
   onConverted?: (referralId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [digits, setDigits] = useState('');
+  // What the agent literally typed. Digits are derived, never written
+  // back into the field, so the caret stays where they put it.
+  const [entry, setEntry] = useState('');
+  const [showKeypad, setShowKeypad] = useState(false);
   const [mode, setMode] = useState<'phone' | 'browser'>('phone');
   const [preset, setPreset] = useState<Preset>('full');
   const [myPhone, setMyPhone] = useState(agentPhone || '');
@@ -49,8 +70,9 @@ export default function ColdDialer({ agentPhone, onConverted }: {
 
   const browserPhone = useBrowserPhone();
   const live = browserPhone.state === 'on_call' || browserPhone.state === 'ringing' || browserPhone.state === 'connecting';
-  const e164 = `+1${digits.replace(/\D/g, '')}`;
-  const ready = digits.replace(/\D/g, '').length === 10;
+  const digits = parseNational(entry);
+  const e164 = `+1${digits}`;
+  const ready = digits.length === 10;
 
   const dial = async () => {
     if (!ready) return;
@@ -130,24 +152,77 @@ export default function ColdDialer({ agentPhone, onConverted }: {
             </div>
 
             <div className="px-5 py-5 space-y-4">
-              <div className="text-center">
-                <div className="text-2xl font-black tracking-tight text-slate-900 tabular-nums min-h-[2rem]">
-                  {digits ? prettyPhone(digits) : <span className="text-gray-300">(___) ___-____</span>}
+              {/* Typed, pasted, or tapped. A plain text field so the
+                  browser's own editing works — arrows, selection,
+                  paste, undo. Formatting happens in the preview below,
+                  never in the field, because rewriting a controlled
+                  value on each keystroke throws the caret to the end. */}
+              {!live && (
+                <div>
+                  <input
+                    value={entry}
+                    onChange={e => setEntry(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && ready && !dialing) dial(); }}
+                    inputMode="tel"
+                    autoFocus
+                    placeholder="416 555 0100"
+                    aria-label="Phone number"
+                    className="w-full text-center text-2xl font-black tracking-tight text-slate-900 tabular-nums bg-transparent border-b-2 border-gray-200 focus:border-slate-900 outline-none py-2 transition placeholder:text-gray-300 placeholder:font-medium placeholder:text-lg"
+                  />
+                  <div className="text-center text-[11px] font-bold mt-1.5 min-h-[1rem]">
+                    {digits.length === 0 ? <span className="text-gray-400">Type, paste, or tap below</span>
+                      : ready ? <span className="text-green-700">Will dial +1 {prettyPhone(digits)}</span>
+                      : <span className="text-amber-600">{10 - digits.length} more digit{10 - digits.length === 1 ? '' : 's'}</span>}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {live && (
+                <div className="text-center text-2xl font-black tracking-tight text-slate-900 tabular-nums">
+                  {prettyPhone(lastNumber.replace('+1', ''))}
+                </div>
+              )}
 
               {!live && (
                 <div className="grid grid-cols-3 gap-2">
                   {KEYS.map(k => (
-                    <button key={k}
-                      onClick={() => setDigits(d => (d.replace(/\D/g, '').length < 10 ? d + k : d))}
+                    <button key={k} type="button"
+                      onClick={() => setEntry(v => (parseNational(v + k).length <= 10 ? v + k : v))}
                       className="py-3 rounded-xl border border-gray-200 hover:border-slate-900 text-lg font-bold text-slate-900 transition tabular-nums"
                     >{k}</button>
                   ))}
-                  <button onClick={() => setDigits('')}
+                  {/* One digit per press. The previous version wiped the
+                      whole number, which meant a single mistyped digit
+                      cost the agent the entire entry. */}
+                  <button type="button"
+                    onClick={() => setEntry(v => v.slice(0, -1))}
+                    onDoubleClick={() => setEntry('')}
+                    title="Delete one digit · double-click to clear"
                     className="col-span-3 py-2 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-slate-900 inline-flex items-center justify-center gap-1.5 transition">
-                    <Delete size={12} /> Clear
+                    <Delete size={12} /> Delete
                   </button>
+                </div>
+              )}
+
+              {/* In-call keypad — without this an agent cannot get past
+                  "press 1 for sales", which makes most business numbers
+                  unreachable. */}
+              {live && (
+                <div className="space-y-2">
+                  <button type="button" onClick={() => setShowKeypad(v => !v)}
+                    className="w-full inline-flex items-center justify-center gap-1.5 py-2 rounded-xl border border-gray-200 hover:border-slate-900 text-[10px] font-black uppercase tracking-widest text-slate-600 transition">
+                    <Grid3x3 size={12} /> {showKeypad ? 'Hide keypad' : 'Keypad'}
+                  </button>
+                  {showKeypad && (
+                    <div className="grid grid-cols-3 gap-2">
+                      {KEYS.map(k => (
+                        <button key={k} type="button"
+                          onClick={() => browserPhone.sendDigits(k)}
+                          className="py-3 rounded-xl border border-gray-200 hover:border-slate-900 active:bg-slate-900 active:text-white text-lg font-bold text-slate-900 transition tabular-nums"
+                        >{k}</button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

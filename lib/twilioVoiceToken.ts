@@ -46,9 +46,14 @@ export function isBrowserCallingConfigured(): boolean {
 /**
  * Mint a Voice access token for one agent.
  *
- * `incomingAllow` is false: agents place calls, they do not receive them
- * in the browser. Leaving it on would let anyone holding a token be rung
- * directly, which is a surface we have no reason to open.
+ * `incomingAllow` is true. Agents both place and take calls in the
+ * browser — an agent who can dial out but cannot be called back is only
+ * half a phone, and returning a missed call is most of the job.
+ *
+ * The surface this opens is that a token holder can be rung as
+ * `client:<uid>`. That is acceptable because reaching them still
+ * requires going through our inbound endpoint, which decides who rings;
+ * a token alone does not expose a dialable public address.
  */
 export function mintVoiceToken(uid: string): VoiceTokenResult {
   if (!uid) return { ok: false, error: 'uid required' };
@@ -69,7 +74,7 @@ export function mintVoiceToken(uid: string): VoiceTokenResult {
 
     token.addGrant(new VoiceGrant({
       outgoingApplicationSid: process.env.TWILIO_TWIML_APP_SID as string,
-      incomingAllow: false,
+      incomingAllow: true,
     }));
 
     return {

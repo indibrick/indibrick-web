@@ -16,6 +16,8 @@ import { db } from '../../firebase';
 import PartnerCopilot from '../../components/PartnerCopilot';
 import IntakeWizard from '../../components/partner/IntakeWizard';
 import ColdDialer from '../../components/partner/ColdDialer';
+import IncomingCall from '../../components/partner/IncomingCall';
+import { BrowserPhoneProvider } from '../../hooks/useBrowserPhone';
 import InAppInbox from '../../components/partner/InAppInbox';
 import CrossSellPanel from '../../components/partner/CrossSellPanel';
 import InsurancePanel from '../../components/partner/InsurancePanel';
@@ -953,7 +955,12 @@ export default function PartnerCRM() {
   if (loading || dataLoading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-blue-600" size={40}/></div>;
   const todaysTasks = (tasksByDate.get(todayDateString) || []).filter(t => t.status !== 'Completed');
 
+  // One Twilio device for the whole portal. Registering per component
+  // would make a single inbound call ring the same agent several
+  // times, each refreshing its own token.
   return (
+    <BrowserPhoneProvider>
+      <IncomingCall />
     <div className="min-h-screen bg-[#F8FAFC] flex font-sans text-slate-900 pb-20 md:pb-0 pt-24">
       <style dangerouslySetInnerHTML={{__html: PORTAL_CHROME_HIDER}} />
 
@@ -1439,6 +1446,20 @@ export default function PartnerCRM() {
                 </div>
               )}
 
+              {/* Cold dialler — mortgage agents and admins. The API
+                  enforces the same rule, so hiding it is convenience. */}
+              {(partnerRole === 'partner_mortgage' || partnerRole === 'admin') && (
+                <div className="xl:col-span-12">
+                  <ColdDialer
+                    onConverted={(referralId) => {
+                      setAllReferrals(prev => prev.some((r: any) => r.id === referralId)
+                        ? prev
+                        : [{ id: referralId, clientName: 'New cold-call lead', status: 'New Web Lead', assignedAgentId: user?.uid }, ...prev]);
+                    }}
+                  />
+                </div>
+              )}
+
               {/* PIPELINE REVENUE STRIP (top, full-width). Admins get an
                   extra Speed-to-Lead tile — rolling 14-day median from
                   lead-created to first logged call. */}
@@ -1889,6 +1910,7 @@ export default function PartnerCRM() {
         />
       )}
     </div>
+    </BrowserPhoneProvider>
   );
 }
 

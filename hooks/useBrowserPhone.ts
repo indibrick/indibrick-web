@@ -13,7 +13,9 @@
 // The SDK is imported dynamically so it never lands in the server bundle
 // and never runs during SSR — it touches window and WebRTC at import.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  createContext, useCallback, useContext, useEffect, useRef, useState,
+} from 'react';
 import { authedFetch, authedPost } from '../lib/apiClient';
 
 export type PhoneState =
@@ -40,14 +42,57 @@ export interface BrowserPhone {
   hangUp: () => void;
   toggleMute: () => void;
   muted: boolean;
+  /**
+   * Send DTMF tones on the live call. This is how an agent gets through
+   * an IVR — "press 1 for sales" is unreachable without it, and a
+   * dialler that cannot navigate a phone tree cannot reach a business.
+   */
+  sendDigits: (digits: string) => void;
+  /** Ringing inbound call, or null. */
+  incoming: { from: string; connection: any } | null;
+  acceptIncoming: () => void;
+  rejectIncoming: () => void;
+}
+
+/**
+ * ─── One device, app-wide ───────────────────────────────────────────
+ * Each Device registration is a separate endpoint Twilio can ring. With
+ * incoming enabled, mounting this hook in two components would register
+ * the same agent twice and ring both on every inbound call, with each
+ * refreshing its own token.
+ *
+ * So the device lives in a provider and every consumer reads the same
+ * one. Components call useBrowserPhone() exactly as before.
+ */
+const BrowserPhoneContext = createContext<BrowserPhone | null>(null);
+
+export function BrowserPhoneProvider({ children }: { children: React.ReactNode }) {
+  const value = useBrowserPhoneInternal();
+  return React.createElement(BrowserPhoneContext.Provider, { value }, children);
 }
 
 export function useBrowserPhone(): BrowserPhone {
+  const ctx = useContext(BrowserPhoneContext);
+  if (ctx) return ctx;
+  // No provider above us — report unavailable rather than quietly
+  // registering a second device.
+  return {
+    state: 'unsupported', available: false,
+    error: 'Browser calling is not mounted on this page.',
+    elapsed: 0, muted: false,
+    call: async () => {}, callTicket: async () => {},
+    hangUp: () => {}, toggleMute: () => {}, sendDigits: () => {},
+    incoming: null, acceptIncoming: () => {}, rejectIncoming: () => {},
+  };
+}
+
+function useBrowserPhoneInternal(): BrowserPhone {
   const [state, setState] = useState<PhoneState>('unsupported');
   const [available, setAvailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [incoming, setIncoming] = useState<{ from: string; connection: any } | null>(null);
 
   const deviceRef = useRef<any>(null);
   const connRef = useRef<any>(null);
@@ -82,6 +127,17 @@ export function useBrowserPhone(): BrowserPhone {
         device.on('error', (e: any) => {
           setError(e?.message || 'device error');
           setState('error');
+        });
+
+        // Inbound. The token must also grant incoming, or this never
+        // fires — see lib/twilioVoiceToken.
+        device.on('incoming', (conn: any) => {
+          const from = String(conn?.parameters?.From || conn?.parameters?.from || 'Unknown');
+          setIncoming({ from, connection: conn });
+          // If the caller gives up, clear the prompt rather than leaving
+          // a dead Accept button on screen.
+          conn.on('cancel', () => setIncoming(null));
+          conn.on('disconnect', () => setIncoming(null));
         });
         // Tokens are short-lived by design; re-mint before they lapse.
         device.on('tokenWillExpire', async () => {
@@ -178,6 +234,38 @@ export function useBrowserPhone(): BrowserPhone {
     setState('idle');
   }, [stopTimer]);
 
+  const sendDigits = useCallback((digits: string) => {
+    const c = connRef.current;
+    if (!c) return;
+    // Twilio accepts 0-9, *, # and w (half-second pause).
+    const clean = String(digits).replace(/[^0-9*#w]/g, '');
+    if (!clean) return;
+    try { c.sendDigits(clean); } catch { /* call ended mid-press */ }
+  }, []);
+
+  const acceptIncoming = useCallback(() => {
+    const inc = incoming;
+    if (!inc) return;
+    const conn = inc.connection;
+    setIncoming(null);
+    connRef.current = conn;
+    try { conn.accept(); } catch (e: any) { setError(e?.message || 'could not accept'); return; }
+
+    setState('on_call');
+    const startedAt = Date.now();
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+
+    conn.on('disconnect', () => { connRef.current = null; setMuted(false); stopTimer(); setState('idle'); });
+    conn.on('error', (e: any) => { setError(e?.message || 'call error'); stopTimer(); setState('error'); });
+  }, [incoming, stopTimer]);
+
+  const rejectIncoming = useCallback(() => {
+    const inc = incoming;
+    setIncoming(null);
+    try { inc?.connection?.reject(); } catch { /* already gone */ }
+  }, [incoming]);
+
   const toggleMute = useCallback(() => {
     const c = connRef.current;
     if (!c) return;
@@ -185,5 +273,9 @@ export function useBrowserPhone(): BrowserPhone {
     try { c.mute(next); setMuted(next); } catch { /* ignore */ }
   }, [muted]);
 
-  return { state, available, error, elapsed, call, callTicket, hangUp, toggleMute, muted };
+  return {
+    state, available, error, elapsed, muted,
+    call, callTicket, hangUp, toggleMute, sendDigits,
+    incoming, acceptIncoming, rejectIncoming,
+  };
 }
