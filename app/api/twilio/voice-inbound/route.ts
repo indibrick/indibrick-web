@@ -5,15 +5,19 @@
 //
 // ─── Routing ────────────────────────────────────────────────────────
 // A client ringing back should reach the person they were dealing with,
-// not a queue. So:
+// not a queue:
 //
 //   1. Match the caller's number to a referral. If it has an assigned
 //      agent, ring that agent's browser client.
-//   2. Otherwise ring every mortgage agent with a browser client
-//      registered, first to answer takes it.
-//   3. If nobody is reachable in the browser, fall back to the
-//      brokerage's forwarding number when one is configured.
-//   4. Otherwise say so plainly and hang up, rather than ringing out.
+//   2. Anything else — unknown caller, unassigned deal, or the agent
+//      not answering — forwards to TWILIO_FALLBACK_FORWARD_NUMBER.
+//   3. With no forwarding number set, say so plainly rather than
+//      ringing out.
+//
+// There is deliberately no fan-out to every agent. Ringing the whole
+// team on an unknown number trains people to ignore the portal, and a
+// client who reaches a random agent gets a worse conversation than one
+// who reaches a phone that is definitely answered.
 //
 // Recording follows the same rule as outbound: on unless the call is
 // explicitly private. Inbound has no per-call toggle — the agent is not
@@ -42,9 +46,6 @@ function twiml(inner: string) {
     { status: 200, headers: { 'Content-Type': 'text/xml' } },
   );
 }
-
-/** Roles that take client calls. */
-const CALL_TAKING_ROLES = ['partner_mortgage', 'admin'];
 
 export async function POST(req: NextRequest) {
   const raw = await req.text();
@@ -81,17 +82,6 @@ export async function POST(req: NextRequest) {
     console.warn('[voice-inbound] referral lookup failed', e);
   }
 
-  // 2) Nobody specific — ring everyone who takes calls.
-  if (targetUids.length === 0) {
-    try {
-      const agents = await adminDb.collection('users')
-        .where('role', 'in', CALL_TAKING_ROLES).limit(10).get();
-      targetUids = agents.docs.map((d) => d.id);
-    } catch (e) {
-      console.warn('[voice-inbound] agent lookup failed', e);
-    }
-  }
-
   // Log it before ringing, so a missed call is still a record.
   try {
     await adminDb.collection('messages').add({
@@ -116,31 +106,35 @@ export async function POST(req: NextRequest) {
     ` record="record-from-answer-dual"` +
     ` recordingStatusCallback="${xmlAttr(`${base}/api/twilio/recording-status`)}"`;
 
-  // 3) Ring browser clients. Several <Client> in one <Dial> ring
-  //    simultaneously and the first to answer wins.
+  // 2) Ring the assigned agent's browser, then fall through.
+  //    A short timeout: an agent with the portal closed should not hold
+  //    the caller in silence before they get a human.
   if (targetUids.length > 0) {
-    const clients = targetUids
-      .map((uid) => `<Client>${xmlAttr(uid)}</Client>`)
-      .join('');
-    // A short timeout then fallthrough — a client who is offline should
-    // not hold the caller for 30 seconds of silence.
+    const clients = targetUids.map((uid) => `<Client>${xmlAttr(uid)}</Client>`).join('');
     return twiml(
       `<Dial timeout="20" callerId="${xmlAttr(from)}"${recAttrs}>${clients}</Dial>` +
-      fallbackTwiml(base),
+      fallbackTwiml(base, from),
     );
   }
 
-  return twiml(fallbackTwiml(base));
+  // 3) No assigned agent — straight to the forwarding number.
+  return twiml(fallbackTwiml(base, from));
 }
 
 /**
  * Runs when the <Dial> above completes without anyone answering — TwiML
  * continues to the next verb rather than hanging up.
  */
-function fallbackTwiml(base: string): string {
+function fallbackTwiml(base: string, from: string): string {
   const forward = process.env.TWILIO_FALLBACK_FORWARD_NUMBER;
-  if (forward) {
-    return `<Dial timeout="25">${xmlAttr(forward)}</Dial>`;
+  if (!forward) {
+    return '<Say>Sorry, no one is available to take your call. Please try again shortly.</Say>';
   }
-  return '<Say>Sorry, no one is available to take your call. Please try again shortly.</Say>';
+  // callerId is the client's number, not the Twilio line, so the handset
+  // shows who is actually calling and the call can be returned from the
+  // recent-calls list.
+  const recAttrs =
+    ` record="record-from-answer-dual"` +
+    ` recordingStatusCallback="${xmlAttr(`${base}/api/twilio/recording-status`)}"`;
+  return `<Dial timeout="25" callerId="${xmlAttr(from)}"${recAttrs}>${xmlAttr(forward)}</Dial>`;
 }
