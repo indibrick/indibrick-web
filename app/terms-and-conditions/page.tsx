@@ -1,5 +1,13 @@
 
 import React from 'react';
+import { buildMetadata } from '../../lib/buildMetadata';
+
+export const metadata = buildMetadata({
+  title: 'Terms and Conditions',
+  description:
+    'Terms governing use of IndiBrick.ca — service scope, partner referrals, user responsibilities, and limitations of liability for our Ontario real estate platform.',
+  slug: '/terms-and-conditions',
+});
 
 export default function TermsPage() {
   return (

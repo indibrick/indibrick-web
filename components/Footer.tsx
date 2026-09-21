@@ -73,6 +73,9 @@ export default function Footer() {
                   <li><Link href="/rates" className="hover:text-white transition">Live Rates</Link></li>
                   <li><Link href="/services" className="hover:text-white transition">Services Hub</Link></li>
                   <li><Link href="/tools" className="hover:text-white transition">Calculators</Link></li>
+                  <li><Link href="/renewal-rescue" className="hover:text-white transition">Renewal Rescue</Link></li>
+                  <li><Link href="/refi-payout-plan" className="hover:text-white transition">Refi Payout Plan</Link></li>
+                  <li><Link href="/six-minute-approval" className="hover:text-white transition">Approval Snapshot</Link></li>
                   <li><Link href="/blog" className="hover:text-white transition">Market News</Link></li>
                   <li><Link href="/contact" className="hover:text-white transition">Contact Advisor</Link></li>
                </ul>
