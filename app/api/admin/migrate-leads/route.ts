@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin'; 
+import { toStoredPhone } from '@/lib/phone';
 
 export async function GET() {
   try {
@@ -31,7 +32,7 @@ export async function GET() {
           assignedAgentName: 'Indibrick Admin Triage',
           status: 'Migrated Web Lead',
           clientName: lead.name || 'Legacy Client',
-          clientPhone: lead.phone || '',
+          clientPhone: toStoredPhone(lead.phone || ''),
           clientEmail: lead.email || '',
           referralDate: lead.date || new Date().toISOString(),
           notes: `Migrated from legacy database. Service: ${lead.serviceNeeded || 'General'}. Message: ${lead.message || 'N/A'}`,

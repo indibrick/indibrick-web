@@ -16,6 +16,7 @@ import {
   getDoc
 } from "firebase/firestore";
 import { Referral, PartnerProfile, Task, ActivityLog } from "../types";
+import { toStoredPhone } from "../lib/phone";
 
 export class CRMService {
   
@@ -160,7 +161,7 @@ export class CRMService {
         status: 'New',
         stageEnteredAt: timestamp,
         clientName: clientData.name,
-        clientPhone: clientData.phone,
+        clientPhone: toStoredPhone(clientData.phone),
         clientEmail: clientData.email || '',
         referralDate: timestamp,
         notes: clientData.message || '',

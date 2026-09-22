@@ -179,10 +179,7 @@ export function verifyTwilioSignature(opts: {
 // ─── Phone number normalization ────────────────────────────────────
 // Twilio requires E.164. Canadian numbers → +1XXXXXXXXXX.
 
-export function normalizeE164(phone: string): string | null {
-  const digits = String(phone || '').replace(/\D/g, '');
-  if (digits.length === 10) return `+1${digits}`;
-  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
-  if (digits.length >= 11 && digits.length <= 15) return `+${digits}`;
-  return null;
-}
+// Moved to lib/phone.ts so 'use client' components can normalise phone
+// numbers without pulling the Twilio Node SDK into the browser bundle.
+// Re-exported here so existing server-side imports keep their path.
+export { normalizeE164 } from './phone';

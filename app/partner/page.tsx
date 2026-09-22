@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { toStoredPhone } from '@/lib/phone';
 import { useAdmin } from '../../AdminContext';
 import { CRMService } from '../../services/CRMService';
 import { Referral, Task, ActivityLog } from '../../types';
@@ -522,7 +523,7 @@ export default function PartnerCRM() {
               id: result.id,
               ...payload,
               clientName: newClient.name,
-              clientPhone: newClient.phone,
+              clientPhone: toStoredPhone(newClient.phone),
               clientEmail: newClient.email,
               serviceNeeded: newClient.service,
               status: 'New Web Lead',
@@ -777,8 +778,9 @@ export default function PartnerCRM() {
 
   const handleEditClientSave = async () => {
      if (!selectedDeal) return;
-     await updateDoc(doc(db, "referrals", selectedDeal.id), { clientName: editClientForm.name, clientPhone: editClientForm.phone, clientEmail: editClientForm.email });
-     const patch = { clientName: editClientForm.name, clientPhone: editClientForm.phone, clientEmail: editClientForm.email };
+     const clientPhone = toStoredPhone(editClientForm.phone);
+     await updateDoc(doc(db, "referrals", selectedDeal.id), { clientName: editClientForm.name, clientPhone, clientEmail: editClientForm.email });
+     const patch = { clientName: editClientForm.name, clientPhone, clientEmail: editClientForm.email };
      setSelectedDeal({...selectedDeal, ...patch});
      setAllReferrals(prev => prev.map(r => r.id === selectedDeal.id ? { ...r, ...patch } : r));
      setIsEditingClient(false);

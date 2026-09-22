@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin'; // Enterprise Admin SDK
 import { FieldValue } from 'firebase-admin/firestore';
+import { toStoredPhone } from '@/lib/phone';
 
 export async function POST(request: Request) {
   try {
@@ -78,7 +79,7 @@ export async function POST(request: Request) {
       assignedAgentName: 'Indibrick Admin Triage',
       status: 'New Web Lead',
       clientName: clientName,
-      clientPhone: phone,
+      clientPhone: toStoredPhone(phone),
       // Carried across from the lead so drip copy can address the buyer's
       // market ({{city}} in the Simcoe sequence). Without it the tag has
       // nothing to resolve against on the referral.

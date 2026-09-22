@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
+import { toStoredPhone } from '@/lib/phone';
 
 // Normalize a phone for dedupe matching: digits only, drop the leading 1
 // so "+1 (416) 555-0199" and "4165550199" collide.
@@ -125,7 +126,7 @@ export async function POST(request: Request) {
           assignedAgentName: 'IndiBrick Admin Triage',
           status: 'New Web Lead',
           clientName: leadData.name,
-          clientPhone: leadData.phone,
+          clientPhone: toStoredPhone(leadData.phone),
           clientEmail: leadData.email,
           referralDate: timestamp,
           notes: `Imported via CSV. City: ${leadData.city}. Notes: ${leadData.notes}`,
