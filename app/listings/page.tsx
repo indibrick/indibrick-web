@@ -90,7 +90,7 @@ export default async function ListingsPage() {
     purpose: 'Resale',
     imageUrl: '/keenan/keenan-1.jpg',
     landingPageUrl: '/listings/3661-keenan-crescent',
-    description: 'Offered for the first time in 50 years. Three-bedroom detached backsplit on a private ravine lot with no rear neighbours. Kitchen and baths renovated 2015; roof, furnace and A/C 2022. Open house Friday October 3, 2 to 4 PM. MLS W13835718, listed by Sutton Group Quantum Realty Inc.',
+    description: 'Offered for the first time in 50 years. Three-bedroom detached backsplit on a private ravine lot with no rear neighbours. Kitchen and baths renovated 2015; roof, furnace and A/C 2022. Open house Saturday October 3, 2 to 4 PM. MLS W13835718, listed by Sutton Group Quantum Realty Inc.',
     isFeatured: true,
     status: 'Active'
   };

@@ -44,7 +44,7 @@ export const LISTING = {
 
 export const OPEN_HOUSE = {
   // From the listing's own Event structured data: 2026-10-03T14:00 to 16:00.
-  dateLabel: 'Friday, October 3',
+  dateLabel: 'Saturday, October 3',
   timeLabel: '2:00 – 4:00 PM',
   startIso: '2026-10-03T14:00:00-04:00',
   endIso: '2026-10-03T16:00:00-04:00',

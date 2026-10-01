@@ -21,7 +21,7 @@ const cad = (n: number) =>
 export const metadata = buildMetadata({
   title: '3661 Keenan Crescent, Mississauga (Malton) — Open House October 3',
   description:
-    'Three-bedroom detached backsplit on a ravine lot in Malton, offered for the first time in 50 years. $799,900. Open house Friday October 3, 2 to 4 PM. Photos, room sizes and a mortgage qualifier.',
+    'Three-bedroom detached backsplit on a ravine lot in Malton, offered for the first time in 50 years. $799,900. Open house Saturday October 3, 2 to 4 PM. Photos, room sizes and a mortgage qualifier.',
   slug: '/listings/3661-keenan-crescent',
   image: PHOTOS[0].src,
   keywords: [
@@ -410,7 +410,7 @@ export default function KeenanCrescentPage() {
           <div className="grid lg:grid-cols-2 gap-14 items-start">
             <div className="text-white">
               <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tight mb-5">
-                Can&apos;t make Friday?
+                Can&apos;t make Saturday?
               </h2>
               <p className="text-gray-400 text-lg leading-relaxed mb-8">
                 Book a private viewing, ask for the full feature sheet, or get a straight answer on
