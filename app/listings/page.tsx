@@ -75,8 +75,28 @@ export default async function ListingsPage() {
     status: 'Active'
   };
 
+  // 3661 Keenan Crescent — open house co-hosted with the listing brokerage.
+  // Listed by SUTTON GROUP QUANTUM REALTY INC.; IndiBrick is the mortgage side
+  // only. The landing page carries the full attribution.
+  const keenanCrescentListing = {
+    id: 'keenan-crescent-w13835718',
+    title: '3661 Keenan Crescent — Malton Backsplit on a Ravine Lot',
+    price: 799900,
+    city: 'Mississauga',
+    address: '3661 Keenan Crescent, Mississauga (Malton) ON L4T 3M1',
+    bedrooms: 3,
+    bathrooms: 2,
+    type: 'Detached',
+    purpose: 'Resale',
+    imageUrl: '/keenan/keenan-1.jpg',
+    landingPageUrl: '/listings/3661-keenan-crescent',
+    description: 'Offered for the first time in 50 years. Three-bedroom detached backsplit on a private ravine lot with no rear neighbours. Kitchen and baths renovated 2015; roof, furnace and A/C 2022. Open house Friday October 3, 2 to 4 PM. MLS W13835718, listed by Sutton Group Quantum Realty Inc.',
+    isFeatured: true,
+    status: 'Active'
+  };
+
   // Combine — featured funnels first, then dynamic Firestore inventory
-  const listings = [auraLakeviewListing, hamiltonRestaurantListing, royalTuscanListing, ...fetchedListings];
+  const listings = [keenanCrescentListing, auraLakeviewListing, hamiltonRestaurantListing, royalTuscanListing, ...fetchedListings];
 
   return (
     <div className="bg-white min-h-screen">

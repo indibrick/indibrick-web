@@ -134,6 +134,9 @@ const STATIC_ROUTES: { path: string; priority?: number }[] = [
   { path: '/aura-lakeview-village', priority: 0.75 },
   { path: '/royal-tuscan', priority: 0.7 },
   { path: '/hamilton-restaurant-for-sale', priority: 0.7 },
+  // Time-sensitive: open house Oct 3 2026. Priority reflects the event
+  // window, not the page's long-term weight.
+  { path: '/listings/3661-keenan-crescent', priority: 0.8 },
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
