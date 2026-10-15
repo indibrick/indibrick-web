@@ -9,15 +9,25 @@
 //
 //   1. Match the caller's number to a referral. If it has an assigned
 //      agent, ring that agent's browser client.
-//   2. Anything else — unknown caller, unassigned deal, or the agent
-//      not answering — forwards to TWILIO_FALLBACK_FORWARD_NUMBER.
-//   3. With no forwarding number set, say so plainly rather than
+//   2. No match, or no assigned agent — ring the duty desk browser,
+//      TWILIO_INBOUND_DUTY_UID, so a new lead lands in the CRM with a
+//      screen pop rather than on a handset with no record attached.
+//   3. Nobody answers in the browser — forwards to
+//      TWILIO_FALLBACK_FORWARD_NUMBER.
+//   4. With no forwarding number set, say so plainly rather than
 //      ringing out.
 //
-// There is deliberately no fan-out to every agent. Ringing the whole
-// team on an unknown number trains people to ignore the portal, and a
-// client who reaches a random agent gets a worse conversation than one
-// who reaches a phone that is definitely answered.
+// Step 2 exists because the original routing only ever rang a browser
+// for an already-known client, which meant every genuinely new caller —
+// the most valuable kind for a brokerage — bypassed the CRM entirely.
+// Nine consecutive inbound calls went straight to the handset with
+// ringingUids empty before this was added.
+//
+// There is still deliberately no fan-out to every agent. Ringing the
+// whole team on an unknown number trains people to ignore the portal,
+// and a client who reaches a random agent gets a worse conversation
+// than one who reaches a phone that is definitely answered. The duty
+// desk is one named person, set by env var.
 //
 // Recording follows the same rule as outbound: on unless the call is
 // explicitly private. Inbound has no per-call toggle — the agent is not
@@ -82,6 +92,12 @@ export async function POST(req: NextRequest) {
     console.warn('[voice-inbound] referral lookup failed', e);
   }
 
+  // Resolve the duty desk before logging. ringingUids is the field you
+  // read when a call did not land where expected, so it has to record who
+  // was actually rung, not just who the referral lookup found.
+  const dutyUid = process.env.TWILIO_INBOUND_DUTY_UID || '';
+  const ringingUids = targetUids.length > 0 ? targetUids : dutyUid ? [dutyUid] : [];
+
   // Log it before ringing, so a missed call is still a record.
   try {
     await adminDb.collection('messages').add({
@@ -94,7 +110,10 @@ export async function POST(req: NextRequest) {
       record: true,
       transcribe: true,
       preset: 'full',
-      ringingUids: targetUids,
+      ringingUids,
+      // Distinguishes "their agent rang" from "the duty desk rang" from
+      // "nobody was available" without re-deriving it later.
+      routedTo: targetUids.length > 0 ? 'assigned-agent' : dutyUid ? 'duty-desk' : 'fallback-number',
       createdAt: FieldValue.serverTimestamp(),
       tenantId: 'indibrick',
     });
@@ -117,7 +136,21 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 3) No assigned agent — straight to the forwarding number.
+  // 3) Unknown or unassigned caller — give the duty desk a short ring in
+  //    the browser first. Shorter than the assigned-agent window above:
+  //    this caller has no relationship with anyone here, so holding them
+  //    in silence buys nothing. If the portal is closed it falls through
+  //    to the handset exactly as before.
+  if (dutyUid) {
+    return twiml(
+      `<Dial timeout="15" callerId="${xmlAttr(from)}"${recAttrs}>` +
+        `<Client>${xmlAttr(dutyUid)}</Client>` +
+      `</Dial>` +
+      fallbackTwiml(base, from),
+    );
+  }
+
+  // 4) No duty desk configured — straight to the forwarding number.
   return twiml(fallbackTwiml(base, from));
 }
 
