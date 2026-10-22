@@ -237,15 +237,31 @@ export function calculateOntarioLTT(price: number): number {
   return tax;
 }
 
-/** Toronto Municipal LTT — same marginal tiers as Ontario for single-family. */
+/**
+ * Toronto Municipal LTT — marginal tiers, matching the provincial schedule to
+ * $2M and then graduating through the City's high-value bands.
+ *
+ * Schedule effective 1 Apr 2026 (Council amendment of 17 Dec 2025, Toronto
+ * Municipal Code Chapter 760 § 760-9.3). Verified against the City's published
+ * rate table on 22 Oct 2026.
+ *
+ * The previous version of this function had the bands shifted up by one: it
+ * charged 3.5% on $2M–$3M where the rate is 2.5%, overstating the tax on a
+ * $2.5M Toronto purchase by $5,000, and it collapsed $3M–$5M into a single
+ * 4.5% band. Both the boundaries and the rates above $3M are corrected here.
+ *
+ * lib/canadianMortgageMath.ts holds the same schedule as a bracket table for
+ * the band pages. Change both together.
+ */
 export function calculateTorontoMLTT(price: number): number {
   if (price <= 0) return 0;
   let tax = 0;
-  if (price > 20_000_000) tax += (price - 20_000_000) * 0.075;
-  if (price > 10_000_000) tax += (Math.min(price, 20_000_000) - 10_000_000) * 0.065;
-  if (price > 5_000_000)  tax += (Math.min(price, 10_000_000) - 5_000_000) * 0.055;
-  if (price > 3_000_000)  tax += (Math.min(price, 5_000_000) - 3_000_000) * 0.045;
-  if (price > 2_000_000)  tax += (Math.min(price, 3_000_000) - 2_000_000) * 0.035;
+  if (price > 20_000_000) tax += (price - 20_000_000) * 0.0860;
+  if (price > 10_000_000) tax += (Math.min(price, 20_000_000) - 10_000_000) * 0.0755;
+  if (price > 5_000_000)  tax += (Math.min(price, 10_000_000) - 5_000_000) * 0.0650;
+  if (price > 4_000_000)  tax += (Math.min(price, 5_000_000) - 4_000_000) * 0.0545;
+  if (price > 3_000_000)  tax += (Math.min(price, 4_000_000) - 3_000_000) * 0.0440;
+  if (price > 2_000_000)  tax += (Math.min(price, 3_000_000) - 2_000_000) * 0.025;
   if (price > 400_000)    tax += (Math.min(price, 2_000_000) - 400_000) * 0.020;
   if (price > 250_000)    tax += (Math.min(price, 400_000) - 250_000) * 0.015;
   if (price > 55_000)     tax += (Math.min(price, 250_000) - 55_000) * 0.010;

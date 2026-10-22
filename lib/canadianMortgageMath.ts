@@ -15,7 +15,7 @@
 //
 // Rule currency: reflects the Dec 15 2024 federal changes (insured price cap
 // raised to $1.5M; 30-year insured amortization for first-time buyers and
-// newly built homes) and the Jan 1 2024 Toronto MLTT luxury brackets.
+// newly built homes) and the Apr 1 2026 Toronto MLTT high-value brackets.
 
 /** OSFI B-20 minimum qualifying rate: greater of contract rate + 2% or 5.25%. */
 export const B20_FLOOR_RATE_PCT = 5.25;
@@ -101,18 +101,30 @@ const ONTARIO_LTT_BRACKETS: Bracket[] = [
 ];
 
 // City of Toronto MLTT — mirrors the provincial schedule to $2M, then the
-// luxury brackets introduced Jan 1 2024.
+// graduated high-value brackets.
+//
+// Council amended these on 17 Dec 2025 and the new schedule took effect
+// 1 Apr 2026, replacing the Jan 2024 luxury brackets. Everything above $3M
+// went up: 3.5/4.5/5.5/6.5/7.5 became 4.40/5.45/6.50/7.55/8.60. Carrying the
+// old schedule understated a $5M Toronto purchase by $18,500, and a $10M one
+// by $68,500.
+//
+// Source: toronto.ca MLTT rates and fees, and Toronto Municipal Code
+// Chapter 760 § 760-9.3 (conveyances on or after 1 Apr 2026). Verified
+// against the City's published rate table on 22 Oct 2026. Note the City's
+// own table prints the $2,000,000 bound as "$2,000,00.00"; that is a typo on
+// their page, not a different bound.
 const TORONTO_MLTT_BRACKETS: Bracket[] = [
   { upTo: 55_000, rate: 0.005 },
   { upTo: 250_000, rate: 0.010 },
   { upTo: 400_000, rate: 0.015 },
   { upTo: 2_000_000, rate: 0.020 },
   { upTo: 3_000_000, rate: 0.025 },
-  { upTo: 4_000_000, rate: 0.035 },
-  { upTo: 5_000_000, rate: 0.045 },
-  { upTo: 10_000_000, rate: 0.055 },
-  { upTo: 20_000_000, rate: 0.065 },
-  { upTo: Infinity, rate: 0.075 },
+  { upTo: 4_000_000, rate: 0.0440 },
+  { upTo: 5_000_000, rate: 0.0545 },
+  { upTo: 10_000_000, rate: 0.0650 },
+  { upTo: 20_000_000, rate: 0.0755 },
+  { upTo: Infinity, rate: 0.0860 },
 ];
 
 function marginalTax(price: number, brackets: Bracket[]): number {
